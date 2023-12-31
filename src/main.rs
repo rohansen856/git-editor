@@ -7,7 +7,6 @@ pub mod utils;
 use crate::rewrite::rewrite_range::rewrite_range_commits;
 use crate::rewrite::rewrite_specific::rewrite_specific_commits;
 use crate::utils::datetime::generate_timestamps;
-use crate::utils::help::print_help;
 use crate::utils::types::Result;
 use crate::utils::validator::validate_inputs;
 use args::Args;
@@ -24,12 +23,6 @@ fn main() -> Result<()> {
 
 fn run() -> Result<()> {
     let mut args = Args::parse();
-
-    // Check if this is a help request (no meaningful arguments provided)
-    if args.is_help_request() {
-        print_help();
-        return Ok(());
-    }
 
     args.ensure_all_args_present()?;
     args.validate_simulation_args()?;

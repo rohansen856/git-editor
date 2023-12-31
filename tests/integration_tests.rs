@@ -501,7 +501,6 @@ fn test_cli_execution_simulate_incomplete_args_no_panic() {
     // This tests the exact path that was causing the panic: simulate mode with missing args
 
     // First ensure basic validation passes
-    assert!(!args.is_help_request());
     assert!(args.validate_simulation_args().is_ok());
     assert!(validate_inputs(&args).is_ok());
 
@@ -537,7 +536,6 @@ fn test_cli_execution_simulate_complete_args_success() {
     };
 
     // Test full execution path
-    assert!(!args.is_help_request());
     assert!(args.ensure_all_args_present().is_ok());
     assert!(args.validate_simulation_args().is_ok());
     assert!(validate_inputs(&args).is_ok());

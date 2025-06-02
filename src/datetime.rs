@@ -4,15 +4,15 @@ use crate::args::Args;
 use crate::types::Result;
 
 pub fn generate_timestamps(args: &Args) -> Result<Vec<NaiveDateTime>> {
-    let start_dt = NaiveDateTime::parse_from_str(&args.start, "%Y-%m-%d %H:%M:%S")?;
-    let end_dt = NaiveDateTime::parse_from_str(&args.end, "%Y-%m-%d %H:%M:%S")?;
+    let start_dt = NaiveDateTime::parse_from_str(&args.start.as_ref().unwrap(), "%Y-%m-%d %H:%M:%S")?;
+    let end_dt = NaiveDateTime::parse_from_str(&args.end.as_ref().unwrap(), "%Y-%m-%d %H:%M:%S")?;
 
     if start_dt >= end_dt {
         eprintln!("Start datetime must be before end datetime");
         std::process::exit(1);
     }
 
-    let total_commits = count_commits(&args.repo_path)?;
+    let total_commits = count_commits(&args.repo_path.as_ref().unwrap())?;
     if total_commits == 0 {
         eprintln!("No commits found in repository");
         std::process::exit(1);

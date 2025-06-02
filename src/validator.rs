@@ -11,8 +11,7 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     }
 
     if args.name.trim().is_empty() {
-        eprintln!("Name cannot be empty");
-        process::exit(1);
+        return Err("Name cannot be empty".into());
     }
 
     Ok(())

@@ -5,7 +5,7 @@ use git2::{Repository, Signature, Sort, Time};
 use std::collections::HashMap;
 
 pub fn rewrite_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Result<()> {
-    let repo = Repository::open(&args.repo_path)?;
+    let repo = Repository::open(&args.repo_path.as_ref().unwrap())?;
     let head_ref = repo.head()?;
     let branch_name = head_ref.shorthand().ok_or("Detached HEAD or invalid branch")?;
     let full_ref = format!("refs/heads/{}", branch_name);
@@ -31,7 +31,11 @@ pub fn rewrite_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Result<()
             .collect();
 
         let timestamp: i64 = timestamps[i].and_utc().timestamp();
-        let sig = Signature::new(&args.name, &args.email, &Time::new(timestamp, 0))?;
+        let sig = Signature::new(
+            &args.name.as_ref().unwrap(), 
+            &args.email.as_ref().unwrap(), 
+            &Time::new(timestamp, 0)
+        )?;
 
         let new_oid = repo.commit(
             None,

@@ -7,7 +7,9 @@ use std::collections::HashMap;
 pub fn rewrite_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Result<()> {
     let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
     let head_ref = repo.head()?;
-    let branch_name = head_ref.shorthand().ok_or("Detached HEAD or invalid branch")?;
+    let branch_name = head_ref
+        .shorthand()
+        .ok_or("Detached HEAD or invalid branch")?;
     let full_ref = format!("refs/heads/{}", branch_name);
 
     let mut revwalk = repo.revwalk()?;
@@ -23,7 +25,8 @@ pub fn rewrite_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Result<()
         let orig = repo.find_commit(oid)?;
         let tree = orig.tree()?;
 
-        let new_parents: Result<Vec<_>> = orig.parent_ids()
+        let new_parents: Result<Vec<_>> = orig
+            .parent_ids()
             .map(|pid| {
                 let new_pid = *new_map.get(&pid).unwrap_or(&pid);
                 repo.find_commit(new_pid).map_err(|e| e.into())
@@ -32,9 +35,9 @@ pub fn rewrite_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Result<()
 
         let timestamp: i64 = timestamps[i].and_utc().timestamp();
         let sig = Signature::new(
-            args.name.as_ref().unwrap(), 
-            args.email.as_ref().unwrap(), 
-            &Time::new(timestamp, 0)
+            args.name.as_ref().unwrap(),
+            args.email.as_ref().unwrap(),
+            &Time::new(timestamp, 0),
         )?;
 
         let new_oid = repo.commit(

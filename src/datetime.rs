@@ -1,10 +1,11 @@
-use chrono::{NaiveDateTime, Duration};
-use rand::Rng;
 use crate::args::Args;
 use crate::types::Result;
+use chrono::{Duration, NaiveDateTime};
+use rand::Rng;
 
 pub fn generate_timestamps(args: &Args) -> Result<Vec<NaiveDateTime>> {
-    let start_dt = NaiveDateTime::parse_from_str(args.start.as_ref().unwrap(), "%Y-%m-%d %H:%M:%S")?;
+    let start_dt =
+        NaiveDateTime::parse_from_str(args.start.as_ref().unwrap(), "%Y-%m-%d %H:%M:%S")?;
     let end_dt = NaiveDateTime::parse_from_str(args.end.as_ref().unwrap(), "%Y-%m-%d %H:%M:%S")?;
 
     if start_dt >= end_dt {

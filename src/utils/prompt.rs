@@ -8,7 +8,7 @@ pub fn prompt_for_input(prompt: &str) -> String {
     io::stdin()
         .read_line(&mut input)
         .expect("Failed to read line");
-    
+
     input.trim().to_string()
 }
 

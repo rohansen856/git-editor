@@ -12,7 +12,7 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     let end = args.end.as_ref().unwrap();
     
     let email_re = Regex::new(r"(?i)^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$")?;
-    if !email_re.is_match(&email) {
+    if !email_re.is_match(email) {
         eprintln!("Invalid email format: {}", email);
         process::exit(1);
     }
@@ -22,13 +22,13 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     }
 
     let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
-    if !start_re.is_match(&start) {
+    if !start_re.is_match(start) {
         eprintln!("Invalid start date format: {}", start);
         process::exit(1);
     }
 
     let end_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
-    if !end_re.is_match(&end) {
+    if !end_re.is_match(end) {
         eprintln!("Invalid end date format: {}", end);
         process::exit(1);
     }

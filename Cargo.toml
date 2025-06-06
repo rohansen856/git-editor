@@ -2,6 +2,11 @@
 name = "git-editor"
 version = "0.1.0"
 edition = "2021"
+description = "A command-line tool to edit git commit messages with a web-based editor"
+license = "MIT"
+homepage = "https://github.com/rohansen856/git_editor"
+authors = ["Rohan Sen", "rohansen856@gmail.com"]
+repository = "https://github.com/rohansen856/git_editor"
 
 [dependencies]
 git2 = "0.20.1"

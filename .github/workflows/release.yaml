@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - ses: actions-rs/toolchain@v1
+      - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
@@ -40,7 +40,7 @@ jobs:
   publish-cratesio:
     name: Publish to crates.io
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: check
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -59,7 +59,7 @@ jobs:
   github-release:
     name: Upload Binaries to GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: cross-build
+    needs: test
     runs-on: ubuntu-latest
 
     steps:

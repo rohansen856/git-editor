@@ -1,12 +1,10 @@
-name: Test the pachaged binart
+name: Test the packaged binary
 
 on:
   push:
     branches: '**' 
-    tags:
-      - "v*"
   pull_request:
-    branches: [main]
+    branches: '**'
 
 jobs:
   test:

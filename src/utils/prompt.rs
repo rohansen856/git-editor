@@ -1,3 +1,4 @@
+use colored::*;
 use std::io::{self, Write};
 
 pub fn prompt_for_input(prompt: &str) -> String {
@@ -13,6 +14,10 @@ pub fn prompt_for_input(prompt: &str) -> String {
 }
 
 pub fn prompt_for_missing_arg(arg_name: &str) -> String {
-    let hint = format!("Please provide a value for '{}'", arg_name);
+    let hint = format!(
+        "{} '{}'",
+        "Please provide a value for".yellow(),
+        arg_name.yellow().bold()
+    );
     prompt_for_input(&hint)
 }

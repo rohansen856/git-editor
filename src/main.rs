@@ -1,3 +1,5 @@
+use colored::*;
+
 mod args;
 mod datetime;
 mod rewrite;
@@ -18,11 +20,20 @@ fn main() -> Result<()> {
     args.ensure_all_args_present();
 
     if let Err(e) = validate_inputs(&args) {
-        eprintln!("Validation error: {}", e);
+        eprintln!(
+            "{} {}",
+            "Validation error:".red().bold(),
+            e.to_string().red()
+        );
         return Err(e);
     }
 
+    println!("{}", "Generating timestamps...".cyan());
     let timestamps = generate_timestamps(&args)?;
+
+    println!("{}", "Rewriting commits...".cyan());
     rewrite_commits(&args, timestamps)?;
+
+    println!("{}", "Operation completed successfully!".green().bold());
     Ok(())
 }

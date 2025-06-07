@@ -1,5 +1,6 @@
 use crate::args::Args;
 use crate::types::Result;
+use colored::*;
 use regex::Regex;
 use std::process;
 
@@ -13,23 +14,32 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
 
     let email_re = Regex::new(r"(?i)^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$")?;
     if !email_re.is_match(email) {
-        eprintln!("Invalid email format: {}", email);
+        eprintln!("{} {}", "Invalid email format".red().bold(), email.yellow());
         process::exit(1);
     }
 
     if name.trim().is_empty() {
-        return Err("Name cannot be empty".into());
+        eprintln!("{}", "Name cannot be empty".red().bold());
+        process::exit(1);
     }
 
     let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
     if !start_re.is_match(start) {
-        eprintln!("Invalid start date format: {}", start);
+        eprintln!(
+            "{} {}",
+            "Invalid start date format".red().bold(),
+            start.yellow()
+        );
         process::exit(1);
     }
 
     let end_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
     if !end_re.is_match(end) {
-        eprintln!("Invalid end date format: {}", end);
+        eprintln!(
+            "{} {}",
+            "Invalid end date format".red().bold(),
+            end.yellow()
+        );
         process::exit(1);
     }
 
@@ -43,16 +53,16 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
         process::exit(1);
     }
     if !std::path::Path::new(repo_path).exists() {
-        eprintln!("Repository path does not exist: {}", repo_path);
+        eprintln!("Repository path does not exist {}", repo_path);
         process::exit(1);
     }
     if !std::path::Path::new(repo_path).is_dir() {
-        eprintln!("Repository path is not a directory: {}", repo_path);
+        eprintln!("Repository path is not a directory {}", repo_path);
         process::exit(1);
     }
     if !std::path::Path::new(repo_path).join(".git").exists() {
         eprintln!(
-            "Repository path does not contain a valid Git repository: {}",
+            "Repository path does not contain a valid Git repository {}",
             repo_path
         );
         process::exit(1);

@@ -1,6 +1,7 @@
 use crate::args::Args;
 use crate::types::Result;
 use chrono::NaiveDateTime;
+use colored::Colorize;
 use git2::{Repository, Signature, Sort, Time};
 use std::collections::HashMap;
 
@@ -55,7 +56,12 @@ pub fn rewrite_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Result<()
 
     if let Some(new_head) = last_new_oid {
         repo.reference(&full_ref, new_head, true, "history rewritten")?;
-        println!("Rewritten branch '{}' -> {}", branch_name, new_head);
+        println!(
+            "{} '{}' -> {}",
+            "Rewritten branch".green(),
+            branch_name.cyan(),
+            new_head.to_string().cyan()
+        );
     }
 
     Ok(())

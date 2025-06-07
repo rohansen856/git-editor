@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     }
 
     println!("{}", "Generating timestamps...".cyan());
-    let timestamps = generate_timestamps(&args)?;
+    let timestamps = generate_timestamps(&mut args)?;
 
     println!("{}", "Rewriting commits...".cyan());
     rewrite_commits(&args, timestamps)?;

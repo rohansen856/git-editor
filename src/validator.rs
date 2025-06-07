@@ -3,6 +3,7 @@ use crate::types::Result;
 use colored::*;
 use regex::Regex;
 use std::process;
+use url::Url;
 
 pub fn validate_inputs(args: &Args) -> Result<()> {
     // Access fields with unwrap since we know they're populated after ensure_all_args_present
@@ -52,20 +53,26 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
         eprintln!("Repository path cannot be empty");
         process::exit(1);
     }
-    if !std::path::Path::new(repo_path).exists() {
-        eprintln!("Repository path does not exist {}", repo_path);
-        process::exit(1);
-    }
-    if !std::path::Path::new(repo_path).is_dir() {
-        eprintln!("Repository path is not a directory {}", repo_path);
-        process::exit(1);
-    }
-    if !std::path::Path::new(repo_path).join(".git").exists() {
+    if Url::parse(repo_path).is_err() && !std::path::Path::new(repo_path).exists() {
         eprintln!(
-            "Repository path does not contain a valid Git repository {}",
-            repo_path
+            "{} {}",
+            "Invalid repository path or URL".red().bold(),
+            repo_path.yellow()
         );
         process::exit(1);
+    }
+    if std::path::Path::new(repo_path).exists() {
+        if !std::path::Path::new(repo_path).is_dir() {
+            eprintln!("Repository path is not a directory {}", repo_path);
+            process::exit(1);
+        }
+        if !std::path::Path::new(repo_path).join(".git").exists() {
+            eprintln!(
+                "Repository path does not contain a valid Git repository {}",
+                repo_path
+            );
+            process::exit(1);
+        }
     }
 
     Ok(())

@@ -3,7 +3,7 @@ use clap::Parser;
 #[derive(Parser)]
 #[command(author, version, about)]
 pub struct Args {
-    #[arg(long, help = "Path to the repository")]
+    #[arg(long, help = "Path or URI to the repository")]
     pub repo_path: Option<String>,
 
     #[arg(long, help = "Email associated with the commits")]

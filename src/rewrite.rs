@@ -62,7 +62,45 @@ pub fn rewrite_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Result<()
             branch_name.cyan(),
             new_head.to_string().cyan()
         );
+        print_updated_history(&args)?;
     }
 
+    Ok(())
+}
+
+fn print_updated_history(args: &Args) -> Result<()> {
+    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
+    
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push_head()?;
+    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
+    
+    println!("\n{}", "Updated Commit History:".bold().green());
+    println!("{}", "=".repeat(50).cyan());
+    
+    for oid_result in revwalk {
+        let oid = oid_result?;
+        let commit = repo.find_commit(oid)?;
+        
+        let timestamp = commit.time();
+        let datetime = chrono::DateTime::from_timestamp(timestamp.seconds(), 0)
+            .unwrap_or_default()
+            .naive_utc();
+        
+        let short_hash = &oid.to_string()[..8];
+        let message = commit.message().unwrap_or("(no message)");
+        let author = commit.author();
+        
+        println!(
+            "{} {} {} {}",
+            short_hash.yellow().bold(),
+            datetime.format("%Y-%m-%d %H:%M:%S").to_string().blue(),
+            author.name().unwrap_or("Unknown").magenta(),
+            message.lines().next().unwrap_or("").white()
+        );
+    }
+    
+    println!("{}", "=".repeat(50).cyan());
+    
     Ok(())
 }

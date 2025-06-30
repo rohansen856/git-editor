@@ -62,7 +62,9 @@ pub fn rewrite_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Result<()
             branch_name.cyan(),
             new_head.to_string().cyan()
         );
-        print_updated_history(&args)?;
+        if args.show_history {
+            print_updated_history(&args)?;
+        }
     }
 
     Ok(())

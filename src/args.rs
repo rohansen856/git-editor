@@ -17,6 +17,13 @@ pub struct Args {
 
     #[arg(long, help = "End date for the commits in YYYY-MM-DD format")]
     pub end: Option<String>,
+
+    #[arg(
+        short = 's',
+        long = "show-history",
+        help = "Show updated commit history after rewriting"
+    )]
+    pub show_history: bool,
 }
 
 impl Args {

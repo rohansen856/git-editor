@@ -1,5 +1,5 @@
 use crate::args::Args;
-use crate::types::Result;
+use crate::utils::types::Result;
 use colored::*;
 use regex::Regex;
 use std::process;

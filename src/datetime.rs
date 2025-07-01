@@ -1,5 +1,5 @@
 use crate::args::Args;
-use crate::types::Result;
+use crate::utils::types::Result;
 use chrono::{Duration, NaiveDateTime};
 use colored::*;
 use rand::Rng;

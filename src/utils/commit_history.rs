@@ -1,6 +1,5 @@
-use crate::args::Args;
 use crate::utils::types::Result;
-use chrono::NaiveDateTime;
+use crate::{args::Args, utils::types::CommitInfo};
 use colored::Colorize;
 use git2::{Repository, Sort};
 
@@ -105,17 +104,6 @@ pub fn print_updated_history(args: &Args) -> Result<()> {
     println!("{}", "=".repeat(60).cyan());
 
     Ok(())
-}
-
-#[derive(Debug, Clone)]
-pub struct CommitInfo {
-    pub oid: git2::Oid,
-    pub short_hash: String,
-    pub timestamp: NaiveDateTime,
-    pub author_name: String,
-    pub author_email: String,
-    pub message: String,
-    pub parent_count: usize,
 }
 
 pub fn get_commit_history(args: &Args) -> Result<Vec<CommitInfo>> {

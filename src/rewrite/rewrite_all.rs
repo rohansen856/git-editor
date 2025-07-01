@@ -1,5 +1,5 @@
 use crate::utils::types::Result;
-use crate::{args::Args, utils::commit_history::print_updated_history};
+use crate::{args::Args, utils::commit_history::get_commit_history};
 use chrono::NaiveDateTime;
 use colored::Colorize;
 use git2::{Repository, Signature, Sort, Time};
@@ -63,7 +63,7 @@ pub fn rewrite_all_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Resul
             new_head.to_string().cyan()
         );
         if args.show_history {
-            print_updated_history(args)?;
+            get_commit_history(args, true)?;
         }
     }
 

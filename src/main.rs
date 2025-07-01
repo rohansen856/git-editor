@@ -3,14 +3,13 @@ use colored::*;
 mod args;
 mod rewrite;
 mod utils;
-mod validator;
 
 use crate::utils::datetime::generate_timestamps;
 use crate::utils::types::Result;
+use crate::utils::validator::validate_inputs;
 use args::Args;
 use clap::Parser;
 use rewrite::rewrite_commits;
-use validator::validate_inputs;
 
 fn main() -> Result<()> {
     let mut args = Args::parse();

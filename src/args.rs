@@ -12,10 +12,18 @@ pub struct Args {
     #[arg(short = 'n', long = "name", help = "Name associated with the commits")]
     pub name: Option<String>,
 
-    #[arg(short = 'b', long = "begin", help = "Start date for the commits in YYYY-MM-DD format")]
+    #[arg(
+        short = 'b',
+        long = "begin",
+        help = "Start date for the commits in YYYY-MM-DD format"
+    )]
     pub start: Option<String>,
 
-    #[arg(short = 'e', long = "end", help = "End date for the commits in YYYY-MM-DD format")]
+    #[arg(
+        short = 'e',
+        long = "end",
+        help = "End date for the commits in YYYY-MM-DD format"
+    )]
     pub end: Option<String>,
 
     #[arg(

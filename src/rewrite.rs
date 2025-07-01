@@ -1,4 +1,4 @@
-use crate::types::Result;
+use crate::utils::types::Result;
 use crate::{args::Args, utils::print_history::print_updated_history};
 use chrono::NaiveDateTime;
 use colored::Colorize;

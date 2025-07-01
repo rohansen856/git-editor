@@ -1,15 +1,14 @@
 use colored::*;
 
 mod args;
-mod datetime;
 mod rewrite;
 mod utils;
 mod validator;
 
+use crate::utils::datetime::generate_timestamps;
 use crate::utils::types::Result;
 use args::Args;
 use clap::Parser;
-use datetime::generate_timestamps;
 use rewrite::rewrite_commits;
 use validator::validate_inputs;
 

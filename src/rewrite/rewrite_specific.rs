@@ -1,7 +1,6 @@
-use crate::utils::commit_history::get_commit_history;
 use crate::utils::types::Result;
 use crate::utils::types::{CommitInfo, EditOptions};
-use crate::{args::Args, utils::commit_history::print_updated_history};
+use crate::{args::Args, utils::commit_history::get_commit_history};
 use chrono::NaiveDateTime;
 use colored::Colorize;
 use git2::{Repository, Signature, Sort, Time};
@@ -197,7 +196,7 @@ pub fn get_edit_options() -> Result<EditOptions> {
 }
 
 pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
-    let commits = get_commit_history(args)?;
+    let commits = get_commit_history(args, false)?;
 
     if commits.is_empty() {
         println!("{}", "No commits found!".red());
@@ -264,7 +263,7 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     println!("\n{}", "✓ Commit successfully edited!".green().bold());
 
     if args.show_history {
-        print_updated_history(args)?;
+        get_commit_history(args, true)?;
     }
 
     Ok(())

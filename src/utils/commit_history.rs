@@ -1,5 +1,6 @@
 use crate::args::Args;
 use crate::utils::types::Result;
+use chrono::NaiveDateTime;
 use colored::Colorize;
 use git2::{Repository, Sort};
 
@@ -104,4 +105,52 @@ pub fn print_updated_history(args: &Args) -> Result<()> {
     println!("{}", "=".repeat(60).cyan());
 
     Ok(())
+}
+
+#[derive(Debug, Clone)]
+pub struct CommitInfo {
+    pub oid: git2::Oid,
+    pub short_hash: String,
+    pub timestamp: NaiveDateTime,
+    pub author_name: String,
+    pub author_email: String,
+    pub message: String,
+    pub parent_count: usize,
+}
+
+pub fn get_commit_history(args: &Args) -> Result<Vec<CommitInfo>> {
+    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
+
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push_head()?;
+    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
+
+    let mut commits = Vec::new();
+
+    for oid_result in revwalk {
+        let oid = oid_result?;
+        let commit = repo.find_commit(oid)?;
+        let timestamp = commit.time();
+        let datetime = chrono::DateTime::from_timestamp(timestamp.seconds(), 0)
+            .unwrap_or_default()
+            .naive_utc();
+
+        let commit_info = CommitInfo {
+            oid,
+            short_hash: oid.to_string()[..8].to_string(),
+            timestamp: datetime,
+            author_name: commit.author().name().unwrap_or("Unknown").to_string(),
+            author_email: commit
+                .author()
+                .email()
+                .unwrap_or("unknown@email.com")
+                .to_string(),
+            message: commit.message().unwrap_or("(no message)").to_string(),
+            parent_count: commit.parent_count(),
+        };
+
+        commits.push(commit_info);
+    }
+
+    Ok(commits)
 }

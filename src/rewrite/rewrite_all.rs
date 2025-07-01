@@ -1,11 +1,11 @@
 use crate::utils::types::Result;
-use crate::{args::Args, utils::print_history::print_updated_history};
+use crate::{args::Args, utils::commit_history::print_updated_history};
 use chrono::NaiveDateTime;
 use colored::Colorize;
 use git2::{Repository, Signature, Sort, Time};
 use std::collections::HashMap;
 
-pub fn rewrite_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Result<()> {
+pub fn rewrite_all_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Result<()> {
     let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
     let head_ref = repo.head()?;
     let branch_name = head_ref

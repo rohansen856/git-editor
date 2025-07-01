@@ -4,12 +4,13 @@ mod args;
 mod rewrite;
 mod utils;
 
+use crate::rewrite::rewrite_specific::rewrite_specific_commits;
 use crate::utils::datetime::generate_timestamps;
 use crate::utils::types::Result;
 use crate::utils::validator::validate_inputs;
 use args::Args;
 use clap::Parser;
-use rewrite::rewrite_commits;
+use rewrite::rewrite_all::rewrite_all_commits;
 
 fn main() -> Result<()> {
     let mut args = Args::parse();
@@ -29,7 +30,11 @@ fn main() -> Result<()> {
     let timestamps = generate_timestamps(&mut args)?;
 
     println!("{}", "Rewriting commits...".cyan());
-    rewrite_commits(&args, timestamps)?;
+    if args.pic_specific_commits {
+        rewrite_specific_commits(&args)?;
+    } else {
+        rewrite_all_commits(&args, timestamps)?;
+    }
 
     println!("{}", "Operation completed successfully!".green().bold());
     Ok(())

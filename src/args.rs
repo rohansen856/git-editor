@@ -9,13 +9,13 @@ pub struct Args {
     #[arg(long, help = "Email associated with the commits")]
     pub email: Option<String>,
 
-    #[arg(long, help = "Name associated with the commits")]
+    #[arg(short = 'n', long = "name", help = "Name associated with the commits")]
     pub name: Option<String>,
 
-    #[arg(long, help = "Start date for the commits in YYYY-MM-DD format")]
+    #[arg(short = 'b', long = "begin", help = "Start date for the commits in YYYY-MM-DD format")]
     pub start: Option<String>,
 
-    #[arg(long, help = "End date for the commits in YYYY-MM-DD format")]
+    #[arg(short = 'e', long = "end", help = "End date for the commits in YYYY-MM-DD format")]
     pub end: Option<String>,
 
     #[arg(
@@ -24,6 +24,13 @@ pub struct Args {
         help = "Show updated commit history after rewriting"
     )]
     pub show_history: bool,
+
+    #[arg(
+        short = 'p',
+        long = "pick-specific-commits",
+        help = "Pick specific commits to rewrite. Provide a comma-separated list of commit hashes."
+    )]
+    pub pic_specific_commits: bool,
 }
 
 impl Args {

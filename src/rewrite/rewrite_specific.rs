@@ -188,7 +188,7 @@ pub fn get_edit_options() -> Result<EditOptions> {
                 }
                 options.message = Some(message.trim().to_string());
             }
-            _ => println!("Invalid option: {}", selection),
+            _ => println!("Invalid option: {selection}"),
         }
     }
 
@@ -279,7 +279,7 @@ fn apply_commit_changes(
     let branch_name = head_ref
         .shorthand()
         .ok_or("Detached HEAD or invalid branch")?;
-    let full_ref = format!("refs/heads/{}", branch_name);
+    let full_ref = format!("refs/heads/{branch_name}");
 
     let mut revwalk = repo.revwalk()?;
     revwalk.push_head()?;

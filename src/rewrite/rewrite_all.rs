@@ -11,7 +11,7 @@ pub fn rewrite_all_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Resul
     let branch_name = head_ref
         .shorthand()
         .ok_or("Detached HEAD or invalid branch")?;
-    let full_ref = format!("refs/heads/{}", branch_name);
+    let full_ref = format!("refs/heads/{branch_name}");
 
     let mut revwalk = repo.revwalk()?;
     revwalk.push_head()?;

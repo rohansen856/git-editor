@@ -63,14 +63,11 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     }
     if std::path::Path::new(repo_path).exists() {
         if !std::path::Path::new(repo_path).is_dir() {
-            eprintln!("Repository path is not a directory {}", repo_path);
+            eprintln!("Repository path is not a directory {repo_path}");
             process::exit(1);
         }
         if !std::path::Path::new(repo_path).join(".git").exists() {
-            eprintln!(
-                "Repository path does not contain a valid Git repository {}",
-                repo_path
-            );
+            eprintln!("Repository path does not contain a valid Git repository {repo_path}");
             process::exit(1);
         }
     }

@@ -2,7 +2,7 @@ use colored::*;
 use std::io::{self, Write};
 
 pub fn prompt_for_input(prompt: &str) -> String {
-    print!("{}: ", prompt);
+    print!("{prompt}: ");
     io::stdout().flush().expect("Failed to flush stdout");
 
     let mut input = String::new();

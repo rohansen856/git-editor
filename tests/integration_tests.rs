@@ -241,7 +241,7 @@ fn test_full_rewrite_mode_insufficient_date_range() {
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
     // Test with very small date range that's insufficient for commits
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),

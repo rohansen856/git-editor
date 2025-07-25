@@ -487,7 +487,7 @@ mod tests {
     #[test]
     fn test_commit_selection_validation() {
         // Test the selection validation logic that's used in select_commit
-        let commits = vec![CommitInfo {
+        let commits = [CommitInfo {
             oid: git2::Oid::from_str("1234567890abcdef1234567890abcdef12345678").unwrap(),
             short_hash: "12345678".to_string(),
             timestamp: NaiveDateTime::parse_from_str("2023-01-01 12:00:00", "%Y-%m-%d %H:%M:%S")
@@ -532,7 +532,7 @@ mod tests {
     #[test]
     fn test_apply_commit_changes_logic() {
         let (_temp_dir, repo_path) = create_test_repo_with_commits();
-        let repo = Repository::open(&repo_path).unwrap();
+        let _repo = Repository::open(&repo_path).unwrap();
 
         // Get commit info
         let args = Args {

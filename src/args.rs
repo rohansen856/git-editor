@@ -93,8 +93,8 @@ mod tests {
         assert_eq!(args.name, None);
         assert_eq!(args.start, None);
         assert_eq!(args.end, None);
-        assert_eq!(args.show_history, false);
-        assert_eq!(args.pic_specific_commits, false);
+        assert!(!args.show_history);
+        assert!(!args.pic_specific_commits);
     }
 
     #[test]
@@ -110,8 +110,8 @@ mod tests {
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
-        assert_eq!(args.show_history, true);
-        assert_eq!(args.pic_specific_commits, false);
+        assert!(args.show_history);
+        assert!(!args.pic_specific_commits);
     }
 
     #[test]
@@ -127,8 +127,8 @@ mod tests {
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
-        assert_eq!(args.show_history, false);
-        assert_eq!(args.pic_specific_commits, true);
+        assert!(!args.show_history);
+        assert!(args.pic_specific_commits);
     }
 
     #[test]

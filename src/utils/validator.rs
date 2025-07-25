@@ -173,7 +173,7 @@ mod tests {
     #[test]
     fn test_validate_inputs_invalid_email() {
         let (_temp_dir, repo_path) = create_test_repo();
-        let args = Args {
+        let _args = Args {
             repo_path: Some(repo_path),
             email: Some("invalid-email".to_string()),
             name: Some("Test User".to_string()),
@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn test_validate_inputs_invalid_date_format() {
         let (_temp_dir, repo_path) = create_test_repo();
-        let args = Args {
+        let _args = Args {
             repo_path: Some(repo_path),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_validate_inputs_nonexistent_repo() {
-        let args = Args {
+        let _args = Args {
             repo_path: Some("/nonexistent/path".to_string()),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),

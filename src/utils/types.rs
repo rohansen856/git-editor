@@ -23,7 +23,6 @@ pub struct EditOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveDateTime;
 
     #[test]
     fn test_commit_info_creation() {

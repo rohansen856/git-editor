@@ -7,6 +7,8 @@ Git Editor is a powerful Rust-based command-line utility designed to safely rewr
 ## Features
 
 - Rewrite commit timestamps within a specified date range
+- Pick and edit specific commits interactively
+- Show commit history with detailed statistics
 - Preserve commit order and relationships
 - Maintain author and committer information
 - Compatible with any Git repository
@@ -24,7 +26,7 @@ Git Editor is a powerful Rust-based command-line utility designed to safely rewr
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/git-editor.git
+git clone https://github.com/rohansen856/git-editor.git
 cd git-editor
 
 # Build the project
@@ -35,25 +37,50 @@ cargo build --release
 
 ## Usage
 
+Git Editor supports three main modes of operation:
+
+### 1. Full History Rewrite (Default)
 ```bash
-git-editor --repo-path "/path/to/repo" --email "user@example.com" --name "Author Name" --start "YYYY-MM-DD HH:MM:SS" --end "YYYY-MM-DD HH:MM:SS"
+git-editor --repo-path "/path/to/repo" --email "user@example.com" --name "Author Name" --begin "YYYY-MM-DD HH:MM:SS" --end "YYYY-MM-DD HH:MM:SS"
+```
+
+### 2. Show History Only
+```bash
+git-editor --repo-path "/path/to/repo" --show-history
+# or
+git-editor --repo-path "/path/to/repo" -s
+```
+
+### 3. Pick Specific Commits
+```bash
+git-editor --repo-path "/path/to/repo" --pick-specific-commits
+# or
+git-editor --repo-path "/path/to/repo" -p
 ```
 
 ### Arguments
 
-| Option | Description |
-| ------ | ----------- |
-| `--repo-path` | Path to the Git repository |
-| `--email` | Email address to associate with rewritten commits |
-| `--name` | Name to associate with rewritten commits |
-| `--start` | Start date for commits (format: YYYY-MM-DD HH:MM:SS) |
-| `--end` | End date for commits (format: YYYY-MM-DD HH:MM:SS) |
+| Option | Short | Description | Required |
+| ------ | ----- | ----------- | -------- |
+| `--repo-path` | | Path to the Git repository | Always |
+| `--email` | | Email address to associate with rewritten commits | Only for full rewrite |
+| `--name` | `-n` | Name to associate with rewritten commits | Only for full rewrite |
+| `--begin` | `-b` | Start date for commits (format: YYYY-MM-DD HH:MM:SS) | Only for full rewrite |
+| `--end` | `-e` | End date for commits (format: YYYY-MM-DD HH:MM:SS) | Only for full rewrite |
+| `--show-history` | `-s` | Show commit history with statistics | Optional |
+| `--pick-specific-commits` | `-p` | Interactive mode to edit specific commits | Optional |
 
 ### Examples
 
 ```bash
-# Rewrite commits to occur between January 1 and January 7, 2023
-git-editor --repo-path "/path/to/repo" --email "john.doe@example.com" --name "John Doe" --start "2023-01-01 00:00:00" --end "2023-01-07 23:59:59"
+# Full rewrite: Rewrite commits to occur between January 1 and January 7, 2023
+git-editor --repo-path "/path/to/repo" --email "john.doe@example.com" --name "John Doe" --begin "2023-01-01 00:00:00" --end "2023-01-07 23:59:59"
+
+# Show history: Display commit history with detailed statistics
+git-editor --repo-path "/path/to/repo" -s
+
+# Pick specific commits: Interactively select and edit individual commits
+git-editor --repo-path "/path/to/repo" -p
 
 # Using the Makefile (after editing the parameters)
 make run

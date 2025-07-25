@@ -49,6 +49,11 @@ impl Args {
             self.repo_path = Some(prompt_for_missing_arg("repository path"));
         }
 
+        // Skip prompting for email, name, start, and end if using show_history or pic_specific_commits
+        if self.show_history || self.pic_specific_commits {
+            return;
+        }
+
         if self.email.is_none() {
             self.email = Some(prompt_for_missing_arg("email"));
         }

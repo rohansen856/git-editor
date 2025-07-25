@@ -26,13 +26,18 @@ fn main() -> Result<()> {
         return Err(e);
     }
 
-    println!("{}", "Generating timestamps...".cyan());
-    let timestamps = generate_timestamps(&mut args)?;
-
-    println!("{}", "Rewriting commits...".cyan());
     if args.pic_specific_commits {
+        println!("{}", "Picking specific commits...".cyan());
         rewrite_specific_commits(&args)?;
+    } else if args.show_history {
+        println!("{}", "Showing commit history...".cyan());
+        use crate::utils::commit_history::get_commit_history;
+        get_commit_history(&args, true)?;
     } else {
+        println!("{}", "Generating timestamps...".cyan());
+        let timestamps = generate_timestamps(&mut args)?;
+        
+        println!("{}", "Rewriting commits...".cyan());
         rewrite_all_commits(&args, timestamps)?;
     }
 

@@ -6,8 +6,38 @@ use std::process;
 use url::Url;
 
 pub fn validate_inputs(args: &Args) -> Result<()> {
-    // Access fields with unwrap since we know they're populated after ensure_all_args_present
+    // Always validate repo_path since it's required for all operations
     let repo_path = args.repo_path.as_ref().unwrap();
+    
+    if repo_path.is_empty() {
+        eprintln!("Repository path cannot be empty");
+        process::exit(1);
+    }
+    if Url::parse(repo_path).is_err() && !std::path::Path::new(repo_path).exists() {
+        eprintln!(
+            "{} {}",
+            "Invalid repository path or URL".red().bold(),
+            repo_path.yellow()
+        );
+        process::exit(1);
+    }
+    if std::path::Path::new(repo_path).exists() {
+        if !std::path::Path::new(repo_path).is_dir() {
+            eprintln!("Repository path is not a directory {repo_path}");
+            process::exit(1);
+        }
+        if !std::path::Path::new(repo_path).join(".git").exists() {
+            eprintln!("Repository path does not contain a valid Git repository {repo_path}");
+            process::exit(1);
+        }
+    }
+
+    // Skip validation for email, name, start, end if using show_history or pic_specific_commits
+    if args.show_history || args.pic_specific_commits {
+        return Ok(());
+    }
+
+    // Validate email, name, start, end only for full rewrite operations
     let email = args.email.as_ref().unwrap();
     let name = args.name.as_ref().unwrap();
     let start = args.start.as_ref().unwrap();
@@ -47,29 +77,6 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     if start >= end {
         eprintln!("Start date must be before end date");
         process::exit(1);
-    }
-
-    if repo_path.is_empty() {
-        eprintln!("Repository path cannot be empty");
-        process::exit(1);
-    }
-    if Url::parse(repo_path).is_err() && !std::path::Path::new(repo_path).exists() {
-        eprintln!(
-            "{} {}",
-            "Invalid repository path or URL".red().bold(),
-            repo_path.yellow()
-        );
-        process::exit(1);
-    }
-    if std::path::Path::new(repo_path).exists() {
-        if !std::path::Path::new(repo_path).is_dir() {
-            eprintln!("Repository path is not a directory {repo_path}");
-            process::exit(1);
-        }
-        if !std::path::Path::new(repo_path).join(".git").exists() {
-            eprintln!("Repository path does not contain a valid Git repository {repo_path}");
-            process::exit(1);
-        }
     }
 
     Ok(())

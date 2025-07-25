@@ -26,12 +26,12 @@ fn main() -> Result<()> {
         return Err(e);
     }
 
-    if args.show_history && !args.pic_specific_commits {
+    if args.show_history && !args.pick_specific_commits {
         // Just show history without rewriting
         use crate::utils::commit_history::get_commit_history;
         println!("{}", "Displaying commit history...".cyan());
         get_commit_history(&args, true)?;
-    } else if args.pic_specific_commits {
+    } else if args.pick_specific_commits {
         println!("{}", "Rewriting commits...".cyan());
         rewrite_specific_commits(&args)?;
     } else {

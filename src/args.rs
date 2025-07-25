@@ -38,7 +38,7 @@ pub struct Args {
         long = "pick-specific-commits",
         help = "Pick specific commits to rewrite. Provide a comma-separated list of commit hashes."
     )]
-    pub pic_specific_commits: bool,
+    pub pick_specific_commits: bool,
 }
 
 impl Args {
@@ -50,7 +50,7 @@ impl Args {
         }
 
         // Only prompt for other args if we're not in pick-specific-commits mode or show-history mode
-        if !self.pic_specific_commits && !self.show_history {
+        if !self.pick_specific_commits && !self.show_history {
             if self.email.is_none() {
                 self.email = Some(prompt_for_missing_arg("email"));
             }

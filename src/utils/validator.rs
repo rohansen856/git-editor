@@ -33,7 +33,7 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     }
 
     // Only validate other fields if not in pick-specific-commits mode or show-history mode
-    if !args.pic_specific_commits && !args.show_history {
+    if !args.pick_specific_commits && !args.show_history {
         let email = args.email.as_ref().unwrap();
         let name = args.name.as_ref().unwrap();
         let start = args.start.as_ref().unwrap();

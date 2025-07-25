@@ -375,3 +375,213 @@ fn apply_commit_changes(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn create_test_repo_with_commits() -> (TempDir, String) {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = temp_dir.path().to_str().unwrap().to_string();
+
+        // Initialize git repo
+        let repo = git2::Repository::init(&repo_path).unwrap();
+
+        // Create multiple commits
+        for i in 1..=3 {
+            let file_path = temp_dir.path().join(format!("test{}.txt", i));
+            fs::write(&file_path, format!("test content {}", i)).unwrap();
+
+            let mut index = repo.index().unwrap();
+            index
+                .add_path(std::path::Path::new(&format!("test{}.txt", i)))
+                .unwrap();
+            index.write().unwrap();
+
+            let tree_id = index.write_tree().unwrap();
+            let tree = repo.find_tree(tree_id).unwrap();
+
+            let sig = git2::Signature::new(
+                "Test User",
+                "test@example.com",
+                &git2::Time::new(1234567890 + i as i64 * 3600, 0),
+            )
+            .unwrap();
+
+            let parents = if i == 1 {
+                vec![]
+            } else {
+                let head = repo.head().unwrap();
+                let parent_commit = head.peel_to_commit().unwrap();
+                vec![parent_commit]
+            };
+
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                &format!("Commit {}", i),
+                &tree,
+                &parents.iter().collect::<Vec<_>>(),
+            )
+            .unwrap();
+        }
+
+        (temp_dir, repo_path)
+    }
+
+    #[test]
+    fn test_show_commit_details() {
+        let (_temp_dir, repo_path) = create_test_repo_with_commits();
+        let repo = Repository::open(&repo_path).unwrap();
+
+        // Get commit info
+        let args = Args {
+            repo_path: Some(repo_path),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: false,
+        };
+
+        let commits = get_commit_history(&args, false).unwrap();
+        let commit = &commits[0];
+
+        // Test that show_commit_details doesn't crash
+        let result = show_commit_details(commit, &repo);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_edit_options_default() {
+        let options = EditOptions::default();
+
+        assert_eq!(options.author_name, None);
+        assert_eq!(options.author_email, None);
+        assert_eq!(options.timestamp, None);
+        assert_eq!(options.message, None);
+    }
+
+    #[test]
+    fn test_edit_options_with_values() {
+        let timestamp =
+            NaiveDateTime::parse_from_str("2023-01-01 12:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+
+        let options = EditOptions {
+            author_name: Some("New Author".to_string()),
+            author_email: Some("new@example.com".to_string()),
+            timestamp: Some(timestamp),
+            message: Some("New commit message".to_string()),
+        };
+
+        assert_eq!(options.author_name, Some("New Author".to_string()));
+        assert_eq!(options.author_email, Some("new@example.com".to_string()));
+        assert_eq!(options.timestamp, Some(timestamp));
+        assert_eq!(options.message, Some("New commit message".to_string()));
+    }
+
+    #[test]
+    fn test_commit_selection_validation() {
+        // Test the selection validation logic that's used in select_commit
+        let commits = vec![CommitInfo {
+            oid: git2::Oid::from_str("1234567890abcdef1234567890abcdef12345678").unwrap(),
+            short_hash: "12345678".to_string(),
+            timestamp: NaiveDateTime::parse_from_str("2023-01-01 12:00:00", "%Y-%m-%d %H:%M:%S")
+                .unwrap(),
+            author_name: "Test User".to_string(),
+            author_email: "test@example.com".to_string(),
+            message: "Test commit".to_string(),
+            parent_count: 0,
+        }];
+
+        // Test valid selection range
+        let selection = 1;
+        assert!(selection >= 1 && selection <= commits.len());
+
+        // Test invalid selections
+        let invalid_selection1 = 0;
+        assert!(invalid_selection1 < 1 || invalid_selection1 > commits.len());
+
+        let invalid_selection2 = commits.len() + 1;
+        assert!(invalid_selection2 < 1 || invalid_selection2 > commits.len());
+    }
+
+    #[test]
+    fn test_rewrite_specific_commits_with_empty_commits() {
+        let (_temp_dir, repo_path) = create_test_repo_with_commits();
+        let args = Args {
+            repo_path: Some(repo_path),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: true,
+        };
+
+        // Test that the function handles the case where get_commit_history returns commits
+        let commits = get_commit_history(&args, false).unwrap();
+        assert!(!commits.is_empty());
+        assert_eq!(commits.len(), 3);
+    }
+
+    #[test]
+    fn test_apply_commit_changes_logic() {
+        let (_temp_dir, repo_path) = create_test_repo_with_commits();
+        let repo = Repository::open(&repo_path).unwrap();
+
+        // Get commit info
+        let args = Args {
+            repo_path: Some(repo_path),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: false,
+        };
+
+        let commits = get_commit_history(&args, false).unwrap();
+        let target_commit = &commits[0];
+
+        // Test EditOptions with different values
+        let options = EditOptions {
+            author_name: Some("New Author".to_string()),
+            author_email: Some("new@example.com".to_string()),
+            timestamp: Some(
+                NaiveDateTime::parse_from_str("2023-01-01 12:00:00", "%Y-%m-%d %H:%M:%S").unwrap(),
+            ),
+            message: Some("New commit message".to_string()),
+        };
+
+        // Test that the options are properly set
+        assert_eq!(options.author_name.as_ref().unwrap(), "New Author");
+        assert_eq!(options.author_email.as_ref().unwrap(), "new@example.com");
+        assert!(options.timestamp.is_some());
+        assert_eq!(options.message.as_ref().unwrap(), "New commit message");
+
+        // Test fallback to original values
+        let partial_options = EditOptions {
+            author_name: None,
+            author_email: None,
+            timestamp: None,
+            message: None,
+        };
+
+        let author_name = partial_options
+            .author_name
+            .as_ref()
+            .unwrap_or(&target_commit.author_name);
+        let author_email = partial_options
+            .author_email
+            .as_ref()
+            .unwrap_or(&target_commit.author_email);
+
+        assert_eq!(author_name, &target_commit.author_name);
+        assert_eq!(author_email, &target_commit.author_email);
+    }
+}

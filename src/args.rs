@@ -71,3 +71,82 @@ impl Args {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_args_default_values() {
+        let args = Args {
+            repo_path: None,
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: false,
+        };
+
+        assert_eq!(args.repo_path, None);
+        assert_eq!(args.email, None);
+        assert_eq!(args.name, None);
+        assert_eq!(args.start, None);
+        assert_eq!(args.end, None);
+        assert_eq!(args.show_history, false);
+        assert_eq!(args.pic_specific_commits, false);
+    }
+
+    #[test]
+    fn test_args_with_show_history() {
+        let args = Args {
+            repo_path: Some("/test/repo".to_string()),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: true,
+            pic_specific_commits: false,
+        };
+
+        assert_eq!(args.repo_path, Some("/test/repo".to_string()));
+        assert_eq!(args.show_history, true);
+        assert_eq!(args.pic_specific_commits, false);
+    }
+
+    #[test]
+    fn test_args_with_pick_specific_commits() {
+        let args = Args {
+            repo_path: Some("/test/repo".to_string()),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: true,
+        };
+
+        assert_eq!(args.repo_path, Some("/test/repo".to_string()));
+        assert_eq!(args.show_history, false);
+        assert_eq!(args.pic_specific_commits, true);
+    }
+
+    #[test]
+    fn test_args_full_rewrite() {
+        let args = Args {
+            repo_path: Some("/test/repo".to_string()),
+            email: Some("test@example.com".to_string()),
+            name: Some("Test User".to_string()),
+            start: Some("2023-01-01 00:00:00".to_string()),
+            end: Some("2023-01-02 00:00:00".to_string()),
+            show_history: false,
+            pic_specific_commits: false,
+        };
+
+        assert_eq!(args.repo_path, Some("/test/repo".to_string()));
+        assert_eq!(args.email, Some("test@example.com".to_string()));
+        assert_eq!(args.name, Some("Test User".to_string()));
+        assert_eq!(args.start, Some("2023-01-01 00:00:00".to_string()));
+        assert_eq!(args.end, Some("2023-01-02 00:00:00".to_string()));
+    }
+}

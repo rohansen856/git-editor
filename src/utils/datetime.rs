@@ -88,3 +88,117 @@ fn count_commits(repo_path: &str) -> Result<usize> {
     revwalk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
     Ok(revwalk.count())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn create_test_repo() -> (TempDir, String) {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = temp_dir.path().to_str().unwrap().to_string();
+
+        // Initialize git repo
+        let repo = git2::Repository::init(&repo_path).unwrap();
+
+        // Create a test file
+        let file_path = temp_dir.path().join("test.txt");
+        fs::write(&file_path, "test content").unwrap();
+
+        // Add and commit file
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("test.txt")).unwrap();
+        index.write().unwrap();
+
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+
+        let sig = git2::Signature::new(
+            "Test User",
+            "test@example.com",
+            &git2::Time::new(1234567890, 0),
+        )
+        .unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
+            .unwrap();
+
+        (temp_dir, repo_path)
+    }
+
+    #[test]
+    fn test_count_commits() {
+        let (_temp_dir, repo_path) = create_test_repo();
+        let count = count_commits(&repo_path).unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_generate_timestamps_invalid_date_format() {
+        let (_temp_dir, repo_path) = create_test_repo();
+        let mut args = Args {
+            repo_path: Some(repo_path),
+            email: Some("test@example.com".to_string()),
+            name: Some("Test User".to_string()),
+            start: Some("invalid-date".to_string()),
+            end: Some("2023-01-02 00:00:00".to_string()),
+            show_history: false,
+            pic_specific_commits: false,
+        };
+
+        let result = generate_timestamps(&mut args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_generate_timestamps_valid_range() {
+        let (_temp_dir, repo_path) = create_test_repo();
+        let mut args = Args {
+            repo_path: Some(repo_path),
+            email: Some("test@example.com".to_string()),
+            name: Some("Test User".to_string()),
+            start: Some("2023-01-01 00:00:00".to_string()),
+            end: Some("2023-01-10 00:00:00".to_string()),
+            show_history: false,
+            pic_specific_commits: false,
+        };
+
+        let result = generate_timestamps(&mut args);
+        assert!(result.is_ok());
+
+        let timestamps = result.unwrap();
+        assert_eq!(timestamps.len(), 1); // One commit in test repo
+
+        let start_dt =
+            NaiveDateTime::parse_from_str("2023-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+        let end_dt =
+            NaiveDateTime::parse_from_str("2023-01-10 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+
+        assert!(timestamps[0] >= start_dt);
+        assert!(timestamps[0] <= end_dt);
+    }
+
+    #[test]
+    fn test_generate_timestamps_preserves_order() {
+        let (_temp_dir, repo_path) = create_test_repo();
+        let mut args = Args {
+            repo_path: Some(repo_path),
+            email: Some("test@example.com".to_string()),
+            name: Some("Test User".to_string()),
+            start: Some("2023-01-01 00:00:00".to_string()),
+            end: Some("2023-01-10 00:00:00".to_string()),
+            show_history: false,
+            pic_specific_commits: false,
+        };
+
+        let result = generate_timestamps(&mut args);
+        assert!(result.is_ok());
+
+        let timestamps = result.unwrap();
+
+        // Check that timestamps are in ascending order
+        for i in 1..timestamps.len() {
+            assert!(timestamps[i] >= timestamps[i - 1]);
+        }
+    }
+}

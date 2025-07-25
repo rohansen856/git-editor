@@ -1,0 +1,71 @@
+name: Multi-Platform Test Suite
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }} with Rust ${{ matrix.rust }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable, beta]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🦀 Set up Rust ${{ matrix.rust }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          override: true
+          components: clippy, rustfmt
+
+      - name: Install dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Install dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install pkg-config openssl
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 📦 Install dependencies
+        run: cargo fetch
+
+      - name: 🔍 Type check
+        run: cargo check --all --all-targets
+
+      - name: 🧪 Run unit tests
+        run: cargo test --lib --verbose
+
+      - name: 🔧 Run integration tests
+        run: cargo test --test integration_tests --verbose
+
+      - name: 🚀 Run all tests
+        run: cargo test --verbose
+
+      - name: 📦 Test release build
+        run: cargo build --release
+
+      - name: 🧹 Run formatter check
+        run: cargo fmt --all --check
+
+      - name: 🔎 Run Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings

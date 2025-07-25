@@ -48,7 +48,13 @@ jobs:
       - name: 🔎 Run Clippy (Linter)
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Run tests
+      - name: 🧪 Run unit tests
+        run: cargo test --lib --verbose
+
+      - name: 🔧 Run integration tests
+        run: cargo test --test integration_tests --verbose
+
+      - name: 🚀 Run all tests
         run: cargo test --verbose
 
   cross-build:
@@ -82,4 +88,5 @@ jobs:
         with:
           name: binary-${{ matrix.os }}
           path: |
-            target/release/<your-binary-name>
+            target/release/git-editor
+            target/release/git-editor.exe

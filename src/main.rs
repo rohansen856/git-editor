@@ -1,8 +1,8 @@
 use colored::*;
 
-mod args;
-mod rewrite;
-mod utils;
+pub mod args;
+pub mod rewrite;
+pub mod utils;
 
 use crate::rewrite::rewrite_specific::rewrite_specific_commits;
 use crate::utils::datetime::generate_timestamps;
@@ -36,7 +36,7 @@ fn main() -> Result<()> {
     } else {
         println!("{}", "Generating timestamps...".cyan());
         let timestamps = generate_timestamps(&mut args)?;
-        
+
         println!("{}", "Rewriting commits...".cyan());
         rewrite_all_commits(&args, timestamps)?;
     }

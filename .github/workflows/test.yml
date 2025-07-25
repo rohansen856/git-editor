@@ -1,4 +1,4 @@
-name: Test the packaged binary
+name: Comprehensive Test Suite
 
 on:
   push:
@@ -6,16 +6,46 @@ on:
   pull_request:
     branches: '**'
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   test:
-    name: Run Tests
+    name: Run Comprehensive Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: 🦀 Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
           components: clippy, rustfmt
-      - run: cargo test --all
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 📦 Install dependencies
+        run: cargo fetch
+
+      - name: 🧪 Run unit tests
+        run: cargo test --lib --verbose
+
+      - name: 🔧 Run integration tests
+        run: cargo test --test integration_tests --verbose
+
+      - name: 📊 Generate test report
+        run: cargo test --verbose -- --nocapture
+
+      - name: 🚀 Run all tests with coverage info
+        run: cargo test --all --verbose

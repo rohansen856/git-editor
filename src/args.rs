@@ -38,31 +38,34 @@ pub struct Args {
         long = "pick-specific-commits",
         help = "Pick specific commits to rewrite. Provide a comma-separated list of commit hashes."
     )]
-    pub pic_specific_commits: bool,
+    pub pick_specific_commits: bool,
 }
 
 impl Args {
-    pub fn ensure_all_args_present(&mut self) {
+    pub fn ensure_required_args_present(&mut self) {
         use crate::utils::prompt::prompt_for_missing_arg;
 
         if self.repo_path.is_none() {
             self.repo_path = Some(prompt_for_missing_arg("repository path"));
         }
 
-        if self.email.is_none() {
-            self.email = Some(prompt_for_missing_arg("email"));
-        }
+        // Only prompt for other args if we're not in pick-specific-commits mode or show-history mode
+        if !self.pick_specific_commits && !self.show_history {
+            if self.email.is_none() {
+                self.email = Some(prompt_for_missing_arg("email"));
+            }
 
-        if self.name.is_none() {
-            self.name = Some(prompt_for_missing_arg("name"));
-        }
+            if self.name.is_none() {
+                self.name = Some(prompt_for_missing_arg("name"));
+            }
 
-        if self.start.is_none() {
-            self.start = Some(prompt_for_missing_arg("start date (YYYY-MM-DD HH:MM:SS)"));
-        }
+            if self.start.is_none() {
+                self.start = Some(prompt_for_missing_arg("start date (YYYY-MM-DD HH:MM:SS)"));
+            }
 
-        if self.end.is_none() {
-            self.end = Some(prompt_for_missing_arg("end date (YYYY-MM-DD HH:MM:SS)"));
+            if self.end.is_none() {
+                self.end = Some(prompt_for_missing_arg("end date (YYYY-MM-DD HH:MM:SS)"));
+            }
         }
     }
 }

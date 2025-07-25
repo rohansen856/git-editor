@@ -15,7 +15,7 @@ use rewrite::rewrite_all::rewrite_all_commits;
 fn main() -> Result<()> {
     let mut args = Args::parse();
 
-    args.ensure_all_args_present();
+    args.ensure_required_args_present();
 
     if let Err(e) = validate_inputs(&args) {
         eprintln!(
@@ -26,13 +26,18 @@ fn main() -> Result<()> {
         return Err(e);
     }
 
-    println!("{}", "Generating timestamps...".cyan());
-    let timestamps = generate_timestamps(&mut args)?;
-
-    println!("{}", "Rewriting commits...".cyan());
-    if args.pic_specific_commits {
+    if args.show_history && !args.pic_specific_commits {
+        // Just show history without rewriting
+        use crate::utils::commit_history::get_commit_history;
+        println!("{}", "Displaying commit history...".cyan());
+        get_commit_history(&args, true)?;
+    } else if args.pic_specific_commits {
+        println!("{}", "Rewriting commits...".cyan());
         rewrite_specific_commits(&args)?;
     } else {
+        println!("{}", "Rewriting commits...".cyan());
+        println!("{}", "Generating timestamps...".cyan());
+        let timestamps = generate_timestamps(&mut args)?;
         rewrite_all_commits(&args, timestamps)?;
     }
 

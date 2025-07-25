@@ -6,12 +6,11 @@ Git Editor is a powerful Rust-based command-line utility designed to safely rewr
 
 ## Features
 
-- Rewrite commit metadata within a specified date or range
+- Rewrite commit timestamps within a specified date range
 - Preserve commit order and relationships
 - Maintain author and committer information
 - Compatible with any Git repository
 - Docker support for containerized execution
-- Interactive mode for step-by-step commit rewriting
 
 ## Installation
 
@@ -20,13 +19,12 @@ Git Editor is a powerful Rust-based command-line utility designed to safely rewr
 - Rust 1.72+ ([Install Rust](https://www.rust-lang.org/tools/install))
 - Git ([Install Git](https://git-scm.com/downloads))
 - OpenSSL development libraries
-- Docker (optional, for containerized execution)
 
 ### From Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/rohansen856/git-editor.git
+git clone https://github.com/yourusername/git-editor.git
 cd git-editor
 
 # Build the project
@@ -35,39 +33,27 @@ cargo build --release
 # The binary will be available at target/release/git-editor
 ```
 
-### Using Docker
-
-```bash
-# Build the Docker image
-docker build -t git-editor .
-
-# Run the tool inside the container
-docker run --rm -v /path/to/repo:/repo git-editor --repo-path "/repo" --email "user@example.com" --name "Author Name" --begin "YYYY-MM-DD HH:MM:SS" --end "YYYY-MM-DD HH:MM:SS"
-```
-
 ## Usage
 
 ```bash
-git-editor --repo-path "/path/to/repo" --email "user@example.com" --name "Author Name" --begin "YYYY-MM-DD HH:MM:SS" --end "YYYY-MM-DD HH:MM:SS"
+git-editor --repo-path "/path/to/repo" --email "user@example.com" --name "Author Name" --start "YYYY-MM-DD HH:MM:SS" --end "YYYY-MM-DD HH:MM:SS"
 ```
 
 ### Arguments
 
 | Option | Description |
 | ------ | ----------- |
-| `--repo-path` | Path or URI to the Git repository |
+| `--repo-path` | Path to the Git repository |
 | `--email` | Email address to associate with rewritten commits |
 | `--name` | Name to associate with rewritten commits |
-| `--begin` | Start date for commits (format: YYYY-MM-DD) |
-| `--end` | End date for commits (format: YYYY-MM-DD) |
-| `--show-history` | Show updated commit history after rewriting |
-| `--pick-specific-commits`| Pick specific commits to rewrite. Provide a comma-separated list of commit hashes. |
+| `--start` | Start date for commits (format: YYYY-MM-DD HH:MM:SS) |
+| `--end` | End date for commits (format: YYYY-MM-DD HH:MM:SS) |
 
 ### Examples
 
 ```bash
 # Rewrite commits to occur between January 1 and January 7, 2023
-git-editor --repo-path "/path/to/repo" --email "john.doe@example.com" --name "John Doe" --begin "2023-01-01 00:00:00" --end "2023-01-07 23:59:59"
+git-editor --repo-path "/path/to/repo" --email "john.doe@example.com" --name "John Doe" --start "2023-01-01 00:00:00" --end "2023-01-07 23:59:59"
 
 # Using the Makefile (after editing the parameters)
 make run
@@ -113,12 +99,6 @@ git-editor/
 
 ```bash
 cargo test
-```
-
-### Linting
-
-```bash
-cargo clippy
 ```
 
 ## License

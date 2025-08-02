@@ -3,7 +3,11 @@ use clap::Parser;
 #[derive(Parser)]
 #[command(author, version, about)]
 pub struct Args {
-    #[arg(long, help = "Path or URI to the repository")]
+    #[arg(
+        short = 'r',
+        long = "repo-path",
+        help = "Path or URI to the repository"
+    )]
     pub repo_path: Option<String>,
 
     #[arg(long, help = "Email associated with the commits")]
@@ -46,7 +50,7 @@ impl Args {
         use crate::utils::prompt::prompt_for_missing_arg;
 
         if self.repo_path.is_none() {
-            self.repo_path = Some(prompt_for_missing_arg("repository path"));
+            self.repo_path = Some(String::from("./"));
         }
 
         // Skip prompting for email, name, start, and end if using show_history or pic_specific_commits

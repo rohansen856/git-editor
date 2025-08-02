@@ -136,12 +136,12 @@ mod tests {
 
         // Create multiple commits
         for i in 1..=3 {
-            let file_path = temp_dir.path().join(format!("test{}.txt", i));
-            fs::write(&file_path, format!("test content {}", i)).unwrap();
+            let file_path = temp_dir.path().join(format!("test{i}.txt"));
+            fs::write(&file_path, format!("test content {i}")).unwrap();
 
             let mut index = repo.index().unwrap();
             index
-                .add_path(std::path::Path::new(&format!("test{}.txt", i)))
+                .add_path(std::path::Path::new(&format!("test{i}.txt")))
                 .unwrap();
             index.write().unwrap();
 
@@ -167,7 +167,7 @@ mod tests {
                 Some("HEAD"),
                 &sig,
                 &sig,
-                &format!("Commit {}", i),
+                &format!("Commit {i}"),
                 &tree,
                 &parents.iter().collect::<Vec<_>>(),
             )

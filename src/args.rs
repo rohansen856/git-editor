@@ -53,6 +53,16 @@ pub struct Args {
 }
 
 impl Args {
+    pub fn is_help_request(&self) -> bool {
+        !self.show_history 
+            && !self.pic_specific_commits 
+            && !self.range 
+            && self.email.is_none() 
+            && self.name.is_none() 
+            && self.start.is_none() 
+            && self.end.is_none()
+    }
+
     pub fn ensure_all_args_present(&mut self) {
         use crate::utils::prompt::prompt_for_missing_arg;
 
@@ -188,5 +198,86 @@ mod tests {
         assert!(!args.show_history);
         assert!(!args.pic_specific_commits);
         assert!(args.range);
+    }
+
+    #[test]
+    fn test_is_help_request() {
+        // Default args should trigger help
+        let args = Args {
+            repo_path: None,
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: false,
+            range: false,
+        };
+        assert!(args.is_help_request());
+
+        // Args with repo_path only should still trigger help
+        let args = Args {
+            repo_path: Some("/test/repo".to_string()),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: false,
+            range: false,
+        };
+        assert!(args.is_help_request());
+
+        // Args with show_history should NOT trigger help
+        let args = Args {
+            repo_path: None,
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: true,
+            pic_specific_commits: false,
+            range: false,
+        };
+        assert!(!args.is_help_request());
+
+        // Args with email should NOT trigger help
+        let args = Args {
+            repo_path: None,
+            email: Some("test@example.com".to_string()),
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: false,
+            range: false,
+        };
+        assert!(!args.is_help_request());
+
+        // Args with range should NOT trigger help
+        let args = Args {
+            repo_path: None,
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: false,
+            range: true,
+        };
+        assert!(!args.is_help_request());
+
+        // Args with pic_specific_commits should NOT trigger help
+        let args = Args {
+            repo_path: None,
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: true,
+            range: false,
+        };
+        assert!(!args.is_help_request());
     }
 }

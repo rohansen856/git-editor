@@ -1,0 +1,41 @@
+use colored::*;
+
+pub fn print_help() {
+    println!("{}", "Git Editor - Git History Rewriting Tool".green().bold());
+    println!();
+    println!("{}", "A powerful Rust-based command-line utility designed to safely rewrite Git commit metadata.".white());
+    println!();
+    println!("{}", "USAGE:".yellow().bold());
+    println!("    {} [OPTIONS]", "git-editor".cyan());
+    println!();
+    println!("{}", "OPERATION MODES:".yellow().bold());
+    println!("  {} Full History Rewrite (default)", "•".green());
+    println!("    Requires: --email, --name, --begin, --end");
+    println!("    Example: git-editor --email user@example.com --name \"User\" --begin \"2023-01-01 00:00:00\" --end \"2023-01-07 23:59:59\"");
+    println!();
+    println!("  {} Show History", "•".green());
+    println!("    Flag: -s, --show-history");
+    println!("    Example: git-editor -s");
+    println!();
+    println!("  {} Pick Specific Commits", "•".green());
+    println!("    Flag: -p, --pick-specific-commits");
+    println!("    Example: git-editor -p");
+    println!();
+    println!("  {} Range Editing", "•".green());
+    println!("    Flag: -x, --range");
+    println!("    Example: git-editor -x");
+    println!();
+    println!("{}", "OPTIONS:".yellow().bold());
+    println!("  {:<25} {}", "-r, --repo-path <PATH>".cyan(), "Path to Git repository (defaults to current directory)");
+    println!("  {:<25} {}", "--email <EMAIL>".cyan(), "Email for rewritten commits");
+    println!("  {:<25} {}", "-n, --name <NAME>".cyan(), "Name for rewritten commits");
+    println!("  {:<25} {}", "-b, --begin <DATE>".cyan(), "Start date (YYYY-MM-DD HH:MM:SS)");
+    println!("  {:<25} {}", "-e, --end <DATE>".cyan(), "End date (YYYY-MM-DD HH:MM:SS)");
+    println!("  {:<25} {}", "-s, --show-history".cyan(), "Show commit history");
+    println!("  {:<25} {}", "-p, --pick-specific-commits".cyan(), "Interactive commit selection");
+    println!("  {:<25} {}", "-x, --range".cyan(), "Interactive range editing");
+    println!("  {:<25} {}", "-h, --help".cyan(), "Print help information");
+    println!("  {:<25} {}", "-V, --version".cyan(), "Print version information");
+    println!();
+    println!("{}", "For more detailed usage information, use: git-editor --help".white().italic());
+}

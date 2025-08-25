@@ -3,3 +3,4 @@ pub mod datetime;
 pub mod prompt;
 pub mod types;
 pub mod validator;
+pub mod help;

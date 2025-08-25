@@ -4,8 +4,10 @@ pub mod args;
 pub mod rewrite;
 pub mod utils;
 
+use crate::rewrite::rewrite_range::rewrite_range_commits;
 use crate::rewrite::rewrite_specific::rewrite_specific_commits;
 use crate::utils::datetime::generate_timestamps;
+use crate::utils::help::print_help;
 use crate::utils::types::Result;
 use crate::utils::validator::validate_inputs;
 use args::Args;
@@ -14,6 +16,12 @@ use rewrite::rewrite_all::rewrite_all_commits;
 
 fn main() -> Result<()> {
     let mut args = Args::parse();
+
+    // Check if this is a help request (no meaningful arguments provided)
+    if args.is_help_request() {
+        print_help();
+        return Ok(());
+    }
 
     args.ensure_all_args_present();
 
@@ -26,7 +34,10 @@ fn main() -> Result<()> {
         return Err(e);
     }
 
-    if args.pic_specific_commits {
+    if args.range {
+        println!("{}", "Editing commit range...".cyan());
+        rewrite_range_commits(&args)?;
+    } else if args.pic_specific_commits {
         println!("{}", "Picking specific commits...".cyan());
         rewrite_specific_commits(&args)?;
     } else if args.show_history {

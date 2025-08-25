@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Git Editor is a powerful Rust-based command-line utility designed to safely rewrite Git commit timestamps within a specified date range. Perfect for fixing commit dates, adding consistency to repositories, or reconstructing development timelines.
+Git Editor is a powerful Rust-based command-line utility designed to safely rewrite Git commit metadata within a specified date range. Perfect for fixing commit dates, adding consistency to repositories, or reconstructing development timelines.
 
 ## Features
 
@@ -37,7 +37,7 @@ cargo build --release
 
 ## Usage
 
-Git Editor supports three main modes of operation:
+Git Editor supports four main modes of operation:
 
 ### 1. Full History Rewrite (Default)
 ```bash
@@ -58,17 +58,25 @@ git-editor --repo-path "/path/to/repo" --pick-specific-commits
 git-editor --repo-path "/path/to/repo" -p
 ```
 
+### 4. Range Editing
+```bash
+git-editor --repo-path "/path/to/repo" --range
+# or
+git-editor --repo-path "/path/to/repo" -x
+```
+
 ### Arguments
 
 | Option | Short | Description | Required |
 | ------ | ----- | ----------- | -------- |
-| `--repo-path` | | Path to the Git repository | Always |
+| `--repo-path` | `-r` | Path to the Git repository (defaults to current directory) | Optional |
 | `--email` | | Email address to associate with rewritten commits | Only for full rewrite |
 | `--name` | `-n` | Name to associate with rewritten commits | Only for full rewrite |
 | `--begin` | `-b` | Start date for commits (format: YYYY-MM-DD HH:MM:SS) | Only for full rewrite |
 | `--end` | `-e` | End date for commits (format: YYYY-MM-DD HH:MM:SS) | Only for full rewrite |
 | `--show-history` | `-s` | Show commit history with statistics | Optional |
 | `--pick-specific-commits` | `-p` | Interactive mode to edit specific commits | Optional |
+| `--range` | `-x` | Interactive mode to edit a specific range of commits | Optional |
 
 ### Examples
 
@@ -81,6 +89,9 @@ git-editor --repo-path "/path/to/repo" -s
 
 # Pick specific commits: Interactively select and edit individual commits
 git-editor --repo-path "/path/to/repo" -p
+
+# Range editing: Interactively select and edit a range of commits
+git-editor --repo-path "/path/to/repo" -x
 
 # Using the Makefile (after editing the parameters)
 make run
@@ -109,23 +120,45 @@ The tool ensures that commit order is maintained and distributes commits evenly 
 ```
 git-editor/
 ├── src/
-│   ├── main.rs        # Entry point
-│   ├── args.rs        # Command line argument handling
-│   ├── datetime.rs    # Date and time functions
-│   ├── validator.rs   # Input validation
-│   ├── rewrite.rs     # Git history rewriting logic
-│   ├── types.rs       # Type definitions
-│   ├── heatmap.rs     # GitHub contribution data handling
-│   └── utils/         # Utility functions
-├── Cargo.toml         # Project dependencies
-├── Dockerfile         # Docker configuration
-└── Makefile           # Build automation
+│   ├── main.rs           # Entry point
+│   ├── args.rs           # Command line argument handling
+│   ├── rewrite/          # Git history rewriting logic
+│   │   ├── mod.rs        # Module definition
+│   │   ├── rewrite_all.rs    # Full repository history rewriting
+│   │   ├── rewrite_specific.rs # Interactive commit selection
+│   │   └── rewrite_range.rs    # Interactive range selection
+│   ├── utils/            # Utility modules
+│   │   ├── mod.rs        # Module definition
+│   │   ├── types.rs      # Type definitions and custom Result
+│   │   ├── validator.rs  # Input validation
+│   │   ├── datetime.rs   # Date and time functions
+│   │   ├── commit_history.rs # Git commit operations
+│   │   └── prompt.rs     # Interactive user prompts
+│   └── lib.rs            # Library interface
+├── tests/
+│   └── integration_tests.rs # Integration tests
+├── Cargo.toml            # Project dependencies
+├── Dockerfile            # Docker configuration
+├── Makefile              # Build automation
+└── CLAUDE.md             # Development guidance
 ```
 
 ### Testing
 
+The project includes comprehensive test coverage with both unit and integration tests:
+
 ```bash
+# Run all tests (53 tests total: 45 unit + 8 integration)
 cargo test
+
+# Run only unit tests
+cargo test --lib
+
+# Run only integration tests
+cargo test --test integration_tests
+
+# Run specific integration test with output
+cargo test --test integration_tests test_show_history_mode_integration -- --nocapture
 ```
 
 ## License

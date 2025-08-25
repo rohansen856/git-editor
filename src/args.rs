@@ -43,6 +43,13 @@ pub struct Args {
         help = "Pick specific commits to rewrite. Provide a comma-separated list of commit hashes."
     )]
     pub pic_specific_commits: bool,
+
+    #[arg(
+        short = 'x',
+        long = "range",
+        help = "Edit a range of commits (e.g., --range to interactively select range)"
+    )]
+    pub range: bool,
 }
 
 impl Args {
@@ -55,6 +62,11 @@ impl Args {
 
         // Skip prompting for email, name, start, and end if using show_history or pic_specific_commits
         if self.show_history || self.pic_specific_commits {
+            return;
+        }
+
+        // Range mode will prompt for its own parameters interactively
+        if self.range {
             return;
         }
 
@@ -90,6 +102,7 @@ mod tests {
             end: None,
             show_history: false,
             pic_specific_commits: false,
+            range: false,
         };
 
         assert_eq!(args.repo_path, None);
@@ -99,6 +112,7 @@ mod tests {
         assert_eq!(args.end, None);
         assert!(!args.show_history);
         assert!(!args.pic_specific_commits);
+        assert!(!args.range);
     }
 
     #[test]
@@ -111,6 +125,7 @@ mod tests {
             end: None,
             show_history: true,
             pic_specific_commits: false,
+            range: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -128,6 +143,7 @@ mod tests {
             end: None,
             show_history: false,
             pic_specific_commits: true,
+            range: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -145,6 +161,7 @@ mod tests {
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
             pic_specific_commits: false,
+            range: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -152,5 +169,24 @@ mod tests {
         assert_eq!(args.name, Some("Test User".to_string()));
         assert_eq!(args.start, Some("2023-01-01 00:00:00".to_string()));
         assert_eq!(args.end, Some("2023-01-02 00:00:00".to_string()));
+    }
+
+    #[test]
+    fn test_args_with_range() {
+        let args = Args {
+            repo_path: Some("/test/repo".to_string()),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: false,
+            range: true,
+        };
+
+        assert_eq!(args.repo_path, Some("/test/repo".to_string()));
+        assert!(!args.show_history);
+        assert!(!args.pic_specific_commits);
+        assert!(args.range);
     }
 }

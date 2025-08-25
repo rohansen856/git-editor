@@ -69,6 +69,7 @@ git-editor --repo-path "/path/to/repo" -p
 | `--end` | `-e` | End date for commits (format: YYYY-MM-DD HH:MM:SS) | Only for full rewrite |
 | `--show-history` | `-s` | Show commit history with statistics | Optional |
 | `--pick-specific-commits` | `-p` | Interactive mode to edit specific commits | Optional |
+| `--range` | `-x` | Interactive mode to edit a specific range of commits | Optional |
 
 ### Examples
 

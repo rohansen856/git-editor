@@ -69,7 +69,7 @@ fn test_show_history_mode_integration() {
         end: None,
         show_history: true,
         pic_specific_commits: false,
-            range: false,
+        range: false,
     };
 
     // Test validation passes for show_history mode
@@ -102,7 +102,7 @@ fn test_pick_specific_commits_mode_integration() {
         end: None,
         show_history: false,
         pic_specific_commits: true,
-            range: false,
+        range: false,
     };
 
     // Test validation passes for pick_specific_commits mode
@@ -138,7 +138,7 @@ fn test_full_rewrite_mode_integration() {
         end: Some("2025-01-10 00:00:00".to_string()),
         show_history: false,
         pic_specific_commits: false,
-            range: false,
+        range: false,
     };
 
     // Test validation passes for full rewrite mode
@@ -184,7 +184,7 @@ fn test_mode_flag_precedence() {
         end: None,
         show_history: true,
         pic_specific_commits: true,
-            range: false,
+        range: false,
     };
 
     let validation_result = validate_inputs(&args);
@@ -205,7 +205,7 @@ fn test_invalid_repo_path_all_modes() {
         end: None,
         show_history: true,
         pic_specific_commits: false,
-            range: false,
+        range: false,
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -220,7 +220,7 @@ fn test_invalid_repo_path_all_modes() {
         end: None,
         show_history: false,
         pic_specific_commits: true,
-            range: false,
+        range: false,
     };
 
     let history_result = get_commit_history(&args_pick, false);
@@ -235,7 +235,7 @@ fn test_invalid_repo_path_all_modes() {
         end: Some("2023-01-10 00:00:00".to_string()),
         show_history: false,
         pic_specific_commits: false,
-            range: false,
+        range: false,
     };
 
     let timestamp_result = generate_timestamps(&mut args_full);
@@ -256,7 +256,7 @@ fn test_full_rewrite_mode_insufficient_date_range() {
         end: Some("2023-01-01 01:00:00".to_string()), // Only 1 hour for 3 commits
         show_history: false,
         pic_specific_commits: false,
-            range: false,
+        range: false,
     };
 
     let validation_result = validate_inputs(&args);
@@ -290,7 +290,7 @@ fn test_full_rewrite_mode_invalid_date_format() {
         end: Some("2023-01-10 00:00:00".to_string()),
         show_history: false,
         pic_specific_commits: false,
-            range: false,
+        range: false,
     };
 
     let timestamp_result = generate_timestamps(&mut args);
@@ -311,7 +311,7 @@ fn test_workflow_show_history_then_pick_commits() {
         end: None,
         show_history: true,
         pic_specific_commits: false,
-            range: false,
+        range: false,
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -328,7 +328,7 @@ fn test_workflow_show_history_then_pick_commits() {
         end: None,
         show_history: false,
         pic_specific_commits: true,
-            range: false,
+        range: false,
     };
 
     let validation_result = validate_inputs(&args_pick);

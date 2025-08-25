@@ -4,6 +4,7 @@ pub mod args;
 pub mod rewrite;
 pub mod utils;
 
+use crate::rewrite::rewrite_range::rewrite_range_commits;
 use crate::rewrite::rewrite_specific::rewrite_specific_commits;
 use crate::utils::datetime::generate_timestamps;
 use crate::utils::types::Result;
@@ -26,7 +27,10 @@ fn main() -> Result<()> {
         return Err(e);
     }
 
-    if args.pic_specific_commits {
+    if args.range {
+        println!("{}", "Editing commit range...".cyan());
+        rewrite_range_commits(&args)?;
+    } else if args.pic_specific_commits {
         println!("{}", "Picking specific commits...".cyan());
         rewrite_specific_commits(&args)?;
     } else if args.show_history {

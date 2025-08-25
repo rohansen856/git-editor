@@ -1,7 +1,10 @@
 use colored::*;
 
 pub fn print_help() {
-    println!("{}", "Git Editor - Git History Rewriting Tool".green().bold());
+    println!(
+        "{}",
+        "Git Editor - Git History Rewriting Tool".green().bold()
+    );
     println!();
     println!("{}", "A powerful Rust-based command-line utility designed to safely rewrite Git commit metadata.".white());
     println!();
@@ -26,16 +29,39 @@ pub fn print_help() {
     println!("    Example: git-editor -x");
     println!();
     println!("{}", "OPTIONS:".yellow().bold());
-    println!("  {:<25} {}", "-r, --repo-path <PATH>".cyan(), "Path to Git repository (defaults to current directory)");
-    println!("  {:<25} {}", "--email <EMAIL>".cyan(), "Email for rewritten commits");
-    println!("  {:<25} {}", "-n, --name <NAME>".cyan(), "Name for rewritten commits");
-    println!("  {:<25} {}", "-b, --begin <DATE>".cyan(), "Start date (YYYY-MM-DD HH:MM:SS)");
-    println!("  {:<25} {}", "-e, --end <DATE>".cyan(), "End date (YYYY-MM-DD HH:MM:SS)");
-    println!("  {:<25} {}", "-s, --show-history".cyan(), "Show commit history");
-    println!("  {:<25} {}", "-p, --pick-specific-commits".cyan(), "Interactive commit selection");
-    println!("  {:<25} {}", "-x, --range".cyan(), "Interactive range editing");
-    println!("  {:<25} {}", "-h, --help".cyan(), "Print help information");
-    println!("  {:<25} {}", "-V, --version".cyan(), "Print version information");
+    println!(
+        "  {:<25} Path to Git repository (defaults to current directory)",
+        "-r, --repo-path <PATH>".cyan()
+    );
+    println!(
+        "  {:<25} Email for rewritten commits",
+        "--email <EMAIL>".cyan()
+    );
+    println!(
+        "  {:<25} Name for rewritten commits",
+        "-n, --name <NAME>".cyan()
+    );
+    println!(
+        "  {:<25} Start date (YYYY-MM-DD HH:MM:SS)",
+        "-b, --begin <DATE>".cyan()
+    );
+    println!(
+        "  {:<25} End date (YYYY-MM-DD HH:MM:SS)",
+        "-e, --end <DATE>".cyan()
+    );
+    println!("  {:<25} Show commit history", "-s, --show-history".cyan());
+    println!(
+        "  {:<25} Interactive commit selection",
+        "-p, --pick-specific-commits".cyan()
+    );
+    println!("  {:<25} Interactive range editing", "-x, --range".cyan());
+    println!("  {:<25} Print help information", "-h, --help".cyan());
+    println!("  {:<25} Print version information", "-V, --version".cyan());
     println!();
-    println!("{}", "For more detailed usage information, use: git-editor --help".white().italic());
+    println!(
+        "{}",
+        "For more detailed usage information, use: git-editor --help"
+            .white()
+            .italic()
+    );
 }

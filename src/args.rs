@@ -54,12 +54,12 @@ pub struct Args {
 
 impl Args {
     pub fn is_help_request(&self) -> bool {
-        !self.show_history 
-            && !self.pic_specific_commits 
-            && !self.range 
-            && self.email.is_none() 
-            && self.name.is_none() 
-            && self.start.is_none() 
+        !self.show_history
+            && !self.pic_specific_commits
+            && !self.range
+            && self.email.is_none()
+            && self.name.is_none()
+            && self.start.is_none()
             && self.end.is_none()
     }
 

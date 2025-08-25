@@ -446,6 +446,7 @@ mod tests {
             end: None,
             show_history: false,
             pic_specific_commits: false,
+            range: false,
         };
 
         let commits = get_commit_history(&args, false).unwrap();
@@ -521,6 +522,7 @@ mod tests {
             end: None,
             show_history: false,
             pic_specific_commits: true,
+            range: false,
         };
 
         // Test that the function handles the case where get_commit_history returns commits
@@ -543,6 +545,7 @@ mod tests {
             end: None,
             show_history: false,
             pic_specific_commits: false,
+            range: false,
         };
 
         let commits = get_commit_history(&args, false).unwrap();

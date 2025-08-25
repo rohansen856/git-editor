@@ -32,8 +32,8 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
         }
     }
 
-    // Skip validation for email, name, start, end if using show_history or pic_specific_commits
-    if args.show_history || args.pic_specific_commits {
+    // Skip validation for email, name, start, end if using show_history, pic_specific_commits, or range
+    if args.show_history || args.pic_specific_commits || args.range {
         return Ok(());
     }
 
@@ -130,6 +130,7 @@ mod tests {
             end: None,
             show_history: true,
             pic_specific_commits: false,
+            range: false,
         };
 
         let result = validate_inputs(&args);
@@ -147,6 +148,7 @@ mod tests {
             end: None,
             show_history: false,
             pic_specific_commits: true,
+            range: false,
         };
 
         let result = validate_inputs(&args);
@@ -164,6 +166,7 @@ mod tests {
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
             pic_specific_commits: false,
+            range: false,
         };
 
         let result = validate_inputs(&args);
@@ -181,6 +184,7 @@ mod tests {
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
             pic_specific_commits: false,
+            range: false,
         };
 
         // This test would normally call process::exit, so we can't test it directly
@@ -201,6 +205,7 @@ mod tests {
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
             pic_specific_commits: false,
+            range: false,
         };
 
         let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$").unwrap();
@@ -218,6 +223,7 @@ mod tests {
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
             pic_specific_commits: false,
+            range: false,
         };
 
         // This would normally call process::exit, so we test the path validation logic
@@ -258,5 +264,73 @@ mod tests {
         assert!(!datetime_re.is_match("2023-01-01T00:00:00"));
         assert!(!datetime_re.is_match("23-01-01 00:00:00"));
         assert!(!datetime_re.is_match("2023-01-01 00:00"));
+    }
+
+    fn create_test_repo_with_commits() -> (TempDir, String) {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = temp_dir.path().to_str().unwrap().to_string();
+
+        // Initialize git repo
+        let repo = git2::Repository::init(&repo_path).unwrap();
+
+        // Create multiple commits
+        for i in 1..=3 {
+            let file_path = temp_dir.path().join(format!("test{i}.txt"));
+            std::fs::write(&file_path, format!("test content {i}")).unwrap();
+
+            let mut index = repo.index().unwrap();
+            index
+                .add_path(std::path::Path::new(&format!("test{i}.txt")))
+                .unwrap();
+            index.write().unwrap();
+
+            let tree_id = index.write_tree().unwrap();
+            let tree = repo.find_tree(tree_id).unwrap();
+
+            let sig = git2::Signature::new(
+                "Test User",
+                "test@example.com",
+                &git2::Time::new(1234567890 + i as i64 * 3600, 0),
+            )
+            .unwrap();
+
+            let parents = if i == 1 {
+                vec![]
+            } else {
+                let head = repo.head().unwrap();
+                let parent_commit = head.peel_to_commit().unwrap();
+                vec![parent_commit]
+            };
+
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                &format!("Commit {i}"),
+                &tree,
+                &parents.iter().collect::<Vec<_>>(),
+            )
+            .unwrap();
+        }
+
+        (temp_dir, repo_path)
+    }
+
+    #[test]
+    fn test_validate_inputs_range_mode() {
+        let (_temp_dir, repo_path) = create_test_repo_with_commits();
+        let args = Args {
+            repo_path: Some(repo_path),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pic_specific_commits: false,
+            range: true,
+        };
+
+        let result = validate_inputs(&args);
+        assert!(result.is_ok());
     }
 }

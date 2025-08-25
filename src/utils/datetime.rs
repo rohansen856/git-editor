@@ -144,6 +144,7 @@ mod tests {
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
             pic_specific_commits: false,
+            range: false,
         };
 
         let result = generate_timestamps(&mut args);
@@ -161,6 +162,7 @@ mod tests {
             end: Some("2023-01-10 00:00:00".to_string()),
             show_history: false,
             pic_specific_commits: false,
+            range: false,
         };
 
         let result = generate_timestamps(&mut args);
@@ -189,6 +191,7 @@ mod tests {
             end: Some("2023-01-10 00:00:00".to_string()),
             show_history: false,
             pic_specific_commits: false,
+            range: false,
         };
 
         let result = generate_timestamps(&mut args);

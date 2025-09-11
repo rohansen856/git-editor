@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   lint:
     name: Lint & Format
@@ -49,13 +52,74 @@ jobs:
         run: cargo test --test integration_tests --verbose
       - name: 🚀 Run all tests
         run: cargo test --all --verbose
+
+  build:
+    name: Build release binaries
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: git-editor-linux-x86_64
+            
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            name: git-editor-macos-x86_64
+            
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            name: git-editor-macos-aarch64
+            
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            name: git-editor-windows-x86_64.exe
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 🦀 Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 📦 Install dependencies
+        run: cargo fetch
+
       - name: 📦 Build release
-        run: cargo build --release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Prepare binary (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cp target/${{ matrix.target }}/release/git-editor ${{ matrix.name }}
+          
+      - name: Prepare binary (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          copy target\${{ matrix.target }}\release\git-editor.exe ${{ matrix.name }}
+
       - name: Upload release binary
         uses: actions/upload-artifact@v4
         with:
-          name: git-editor
-          path: target/release/git-editor
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
 
   publish-cratesio:
     name: Publish to crates.io
@@ -71,17 +135,37 @@ jobs:
 
   github-release:
     name: Upload Binaries to GitHub Release
-    needs: test
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: git-editor
           path: artifacts/
-      - run: ls -la artifacts/
+          
+      - name: Display structure of downloaded files
+        run: ls -la artifacts/
+        
+      - name: Prepare release files
+        run: |
+          mkdir -p release/
+          find artifacts/ -name "git-editor*" -type f -exec cp {} release/ \;
+          ls -la release/
+          
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/git-editor
+          files: release/*
+          body: |
+            ## 🚀 Release Notes
+            
+            This release includes pre-built binaries for multiple platforms:
+            
+            - **Linux (x86_64)**: `git-editor-linux-x86_64`
+            - **macOS (x86_64)**: `git-editor-macos-x86_64` 
+            - **macOS (Apple Silicon)**: `git-editor-macos-aarch64`
+            - **Windows (x86_64)**: `git-editor-windows-x86_64.exe`
+            
+            Download the appropriate binary for your platform and make it executable (Unix/macOS: `chmod +x <binary>`).
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

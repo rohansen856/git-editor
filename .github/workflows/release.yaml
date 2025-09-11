@@ -73,6 +73,8 @@ jobs:
     name: Upload Binaries to GitHub Release
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:

@@ -1,7 +1,6 @@
 use crate::args::Args;
 use crate::utils::types::Result;
 use chrono::{Duration, NaiveDateTime};
-use colored::*;
 use rand::Rng;
 use uuid::Uuid;
 
@@ -11,11 +10,7 @@ pub fn generate_timestamps(args: &mut Args) -> Result<Vec<NaiveDateTime>> {
     let end_dt = NaiveDateTime::parse_from_str(args.end.as_ref().unwrap(), "%Y-%m-%d %H:%M:%S")?;
 
     if start_dt >= end_dt {
-        eprintln!(
-            "{}",
-            "Start datetime must be before end datetime".red().bold()
-        );
-        std::process::exit(1);
+        return Err("Start datetime must be before end datetime".into());
     }
 
     if url::Url::parse(args.repo_path.as_ref().unwrap()).is_ok()
@@ -33,8 +28,7 @@ pub fn generate_timestamps(args: &mut Args) -> Result<Vec<NaiveDateTime>> {
             .status()?;
 
         if !status.success() {
-            eprintln!("{}", "Failed to clone repository".red().bold());
-            std::process::exit(1);
+            return Err("Failed to clone repository".into());
         }
 
         // Update repo_path to point to the cloned repository
@@ -42,21 +36,18 @@ pub fn generate_timestamps(args: &mut Args) -> Result<Vec<NaiveDateTime>> {
     }
     let total_commits = count_commits(args.repo_path.as_ref().unwrap())?;
     if total_commits == 0 {
-        eprintln!("{}", "No commits found in repository".red().bold());
-        std::process::exit(1);
+        return Err("No commits found in repository".into());
     }
 
     let min_span = Duration::hours(3 * (total_commits as i64 - 1));
     let total_span = end_dt - start_dt;
 
     if total_span < min_span {
-        eprintln!(
-            "{} {} {}",
-            "Date range too small for".red().bold(),
-            total_commits.to_string().yellow(),
-            "commits".red().bold()
-        );
-        std::process::exit(1);
+        return Err(format!(
+            "Date range too small for {} commits. Need at least {} hours between start and end dates.",
+            total_commits,
+            min_span.num_hours()
+        ).into());
     }
 
     let slack = total_span - min_span;

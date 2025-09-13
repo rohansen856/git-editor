@@ -22,7 +22,12 @@ pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
                 .to_string()
                 .blue(),
             commit.author_name.magenta(),
-            commit.message.lines().next().unwrap_or("(no message)").white()
+            commit
+                .message
+                .lines()
+                .next()
+                .unwrap_or("(no message)")
+                .white()
         );
     }
 

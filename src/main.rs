@@ -122,38 +122,74 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
         create_specific_commit_simulation(&commits, 0, None, None, None, None)?
     } else {
         // Full rewrite simulation - check if we have the required arguments
-        if args.email.is_some() && args.name.is_some() && args.start.is_some() && args.end.is_some() {
+        if args.email.is_some() && args.name.is_some() && args.start.is_some() && args.end.is_some()
+        {
             // We have all required arguments, do full simulation
             let timestamps = generate_timestamps(args)?;
             create_full_rewrite_simulation(&commits, &timestamps, args)?
         } else {
             // Missing required arguments - show what's needed
-            println!("{}", "\n⚠️  Incomplete arguments for full simulation.".yellow().bold());
-            
+            println!(
+                "{}",
+                "\n⚠️  Incomplete arguments for full simulation."
+                    .yellow()
+                    .bold()
+            );
+
             let missing = vec![
-                if args.name.is_none() { Some("--name") } else { None },
-                if args.email.is_none() { Some("--email") } else { None },
-                if args.start.is_none() { Some("--begin") } else { None },
-                if args.end.is_none() { Some("--end") } else { None },
-            ].into_iter().flatten().collect::<Vec<_>>();
-            
+                if args.name.is_none() {
+                    Some("--name")
+                } else {
+                    None
+                },
+                if args.email.is_none() {
+                    Some("--email")
+                } else {
+                    None
+                },
+                if args.start.is_none() {
+                    Some("--begin")
+                } else {
+                    None
+                },
+                if args.end.is_none() {
+                    Some("--end")
+                } else {
+                    None
+                },
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
             if !missing.is_empty() {
-                println!("{} {}", "Missing required arguments:".red(), missing.join(", ").yellow());
+                println!(
+                    "{} {}",
+                    "Missing required arguments:".red(),
+                    missing.join(", ").yellow()
+                );
                 println!("{}", "\nExample usage:".bold());
-                println!("{}", "git-editor --simulate --name \"Your Name\" --email \"your@email.com\" \\".cyan());
-                println!("{}", "    --begin \"2023-01-01 09:00:00\" --end \"2023-12-31 17:00:00\"".cyan());
+                println!(
+                    "{}",
+                    "git-editor --simulate --name \"Your Name\" --email \"your@email.com\" \\"
+                        .cyan()
+                );
+                println!(
+                    "{}",
+                    "    --begin \"2023-01-01 09:00:00\" --end \"2023-12-31 17:00:00\"".cyan()
+                );
                 println!();
             }
-            
+
             // Still show basic repository info
-            use crate::utils::simulation::{SimulationStats, SimulationResult};
+            use crate::utils::simulation::{SimulationResult, SimulationStats};
             let stats = SimulationStats::new(&commits);
             let result = SimulationResult {
                 changes: vec![],
                 stats,
                 operation_mode: "Repository Analysis".to_string(),
             };
-            
+
             result.stats.print_summary(&result.operation_mode);
             return Ok(());
         }

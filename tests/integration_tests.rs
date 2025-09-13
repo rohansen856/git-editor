@@ -70,6 +70,8 @@ fn test_show_history_mode_integration() {
         show_history: true,
         pick_specific_commits: false,
         range: false,
+        simulate: false,
+        show_diff: false,
     };
 
     // Test validation passes for show_history mode
@@ -103,6 +105,8 @@ fn test_pick_specific_commits_mode_integration() {
         show_history: false,
         pick_specific_commits: true,
         range: false,
+        simulate: false,
+        show_diff: false,
     };
 
     // Test validation passes for pick_specific_commits mode
@@ -139,6 +143,8 @@ fn test_full_rewrite_mode_integration() {
         show_history: false,
         pick_specific_commits: false,
         range: false,
+        simulate: false,
+        show_diff: false,
     };
 
     // Test validation passes for full rewrite mode
@@ -185,6 +191,8 @@ fn test_mode_flag_precedence() {
         show_history: true,
         pick_specific_commits: true,
         range: false,
+        simulate: false,
+        show_diff: false,
     };
 
     let validation_result = validate_inputs(&args);
@@ -206,6 +214,8 @@ fn test_invalid_repo_path_all_modes() {
         show_history: true,
         pick_specific_commits: false,
         range: false,
+        simulate: false,
+        show_diff: false,
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -221,6 +231,8 @@ fn test_invalid_repo_path_all_modes() {
         show_history: false,
         pick_specific_commits: true,
         range: false,
+        simulate: false,
+        show_diff: false,
     };
 
     let history_result = get_commit_history(&args_pick, false);
@@ -236,6 +248,8 @@ fn test_invalid_repo_path_all_modes() {
         show_history: false,
         pick_specific_commits: false,
         range: false,
+        simulate: false,
+        show_diff: false,
     };
 
     let timestamp_result = generate_timestamps(&mut args_full);
@@ -257,6 +271,8 @@ fn test_full_rewrite_mode_insufficient_date_range() {
         show_history: false,
         pick_specific_commits: false,
         range: false,
+        simulate: false,
+        show_diff: false,
     };
 
     let validation_result = validate_inputs(&args);
@@ -291,6 +307,8 @@ fn test_full_rewrite_mode_invalid_date_format() {
         show_history: false,
         pick_specific_commits: false,
         range: false,
+        simulate: false,
+        show_diff: false,
     };
 
     let timestamp_result = generate_timestamps(&mut args);
@@ -312,6 +330,8 @@ fn test_workflow_show_history_then_pick_commits() {
         show_history: true,
         pick_specific_commits: false,
         range: false,
+        simulate: false,
+        show_diff: false,
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -329,6 +349,8 @@ fn test_workflow_show_history_then_pick_commits() {
         show_history: false,
         pick_specific_commits: true,
         range: false,
+        simulate: false,
+        show_diff: false,
     };
 
     let validation_result = validate_inputs(&args_pick);

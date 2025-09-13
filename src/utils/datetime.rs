@@ -136,6 +136,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = generate_timestamps(&mut args);
@@ -154,6 +156,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = generate_timestamps(&mut args);
@@ -183,6 +187,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = generate_timestamps(&mut args);

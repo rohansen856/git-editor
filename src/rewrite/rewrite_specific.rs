@@ -22,7 +22,12 @@ pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
                 .to_string()
                 .blue(),
             commit.author_name.magenta(),
-            commit.message.lines().next().unwrap_or("").white()
+            commit
+                .message
+                .lines()
+                .next()
+                .unwrap_or("(no message)")
+                .white()
         );
     }
 
@@ -445,7 +450,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -521,7 +526,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: true,
+            pick_specific_commits: true,
             range: false,
         };
 
@@ -544,7 +549,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 

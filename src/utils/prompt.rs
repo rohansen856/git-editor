@@ -1,19 +1,22 @@
+use crate::utils::types::Result;
 use colored::*;
 use std::io::{self, Write};
 
-pub fn prompt_for_input(prompt: &str) -> String {
+pub fn prompt_for_input(prompt: &str) -> Result<String> {
     print!("{prompt}: ");
-    io::stdout().flush().expect("Failed to flush stdout");
+    io::stdout()
+        .flush()
+        .map_err(|e| format!("Failed to flush stdout: {e}"))?;
 
     let mut input = String::new();
     io::stdin()
         .read_line(&mut input)
-        .expect("Failed to read line");
+        .map_err(|e| format!("Failed to read line: {e}"))?;
 
-    input.trim().to_string()
+    Ok(input.trim().to_string())
 }
 
-pub fn prompt_for_missing_arg(arg_name: &str) -> String {
+pub fn prompt_for_missing_arg(arg_name: &str) -> Result<String> {
     let hint = format!(
         "{} '{}'",
         "Please provide a value for".yellow(),
@@ -43,7 +46,7 @@ mod tests {
         // (though we can't test interactive behavior in unit tests)
 
         // These functions exist and have the right signatures
-        let _prompt_fn: fn(&str) -> String = prompt_for_input;
-        let _prompt_missing_fn: fn(&str) -> String = prompt_for_missing_arg;
+        let _prompt_fn: fn(&str) -> Result<String> = prompt_for_input;
+        let _prompt_missing_fn: fn(&str) -> Result<String> = prompt_for_missing_arg;
     }
 }

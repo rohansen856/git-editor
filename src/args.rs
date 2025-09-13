@@ -42,7 +42,7 @@ pub struct Args {
         long = "pick-specific-commits",
         help = "Pick specific commits to rewrite. Provide a comma-separated list of commit hashes."
     )]
-    pub pic_specific_commits: bool,
+    pub pick_specific_commits: bool,
 
     #[arg(
         short = 'x',
@@ -55,7 +55,7 @@ pub struct Args {
 impl Args {
     pub fn is_help_request(&self) -> bool {
         !self.show_history
-            && !self.pic_specific_commits
+            && !self.pick_specific_commits
             && !self.range
             && self.email.is_none()
             && self.name.is_none()
@@ -63,38 +63,40 @@ impl Args {
             && self.end.is_none()
     }
 
-    pub fn ensure_all_args_present(&mut self) {
+    pub fn ensure_all_args_present(&mut self) -> crate::utils::types::Result<()> {
         use crate::utils::prompt::prompt_for_missing_arg;
 
         if self.repo_path.is_none() {
             self.repo_path = Some(String::from("./"));
         }
 
-        // Skip prompting for email, name, start, and end if using show_history or pic_specific_commits
-        if self.show_history || self.pic_specific_commits {
-            return;
+        // Skip prompting for email, name, start, and end if using show_history or pick_specific_commits
+        if self.show_history || self.pick_specific_commits {
+            return Ok(());
         }
 
         // Range mode will prompt for its own parameters interactively
         if self.range {
-            return;
+            return Ok(());
         }
 
         if self.email.is_none() {
-            self.email = Some(prompt_for_missing_arg("email"));
+            self.email = Some(prompt_for_missing_arg("email")?);
         }
 
         if self.name.is_none() {
-            self.name = Some(prompt_for_missing_arg("name"));
+            self.name = Some(prompt_for_missing_arg("name")?);
         }
 
         if self.start.is_none() {
-            self.start = Some(prompt_for_missing_arg("start date (YYYY-MM-DD HH:MM:SS)"));
+            self.start = Some(prompt_for_missing_arg("start date (YYYY-MM-DD HH:MM:SS)")?);
         }
 
         if self.end.is_none() {
-            self.end = Some(prompt_for_missing_arg("end date (YYYY-MM-DD HH:MM:SS)"));
+            self.end = Some(prompt_for_missing_arg("end date (YYYY-MM-DD HH:MM:SS)")?);
         }
+
+        Ok(())
     }
 }
 
@@ -111,7 +113,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -121,7 +123,7 @@ mod tests {
         assert_eq!(args.start, None);
         assert_eq!(args.end, None);
         assert!(!args.show_history);
-        assert!(!args.pic_specific_commits);
+        assert!(!args.pick_specific_commits);
         assert!(!args.range);
     }
 
@@ -134,13 +136,13 @@ mod tests {
             start: None,
             end: None,
             show_history: true,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
         assert!(args.show_history);
-        assert!(!args.pic_specific_commits);
+        assert!(!args.pick_specific_commits);
     }
 
     #[test]
@@ -152,13 +154,13 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: true,
+            pick_specific_commits: true,
             range: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
         assert!(!args.show_history);
-        assert!(args.pic_specific_commits);
+        assert!(args.pick_specific_commits);
     }
 
     #[test]
@@ -170,7 +172,7 @@ mod tests {
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -190,13 +192,13 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: true,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
         assert!(!args.show_history);
-        assert!(!args.pic_specific_commits);
+        assert!(!args.pick_specific_commits);
         assert!(args.range);
     }
 
@@ -210,7 +212,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
         assert!(args.is_help_request());
@@ -223,7 +225,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
         assert!(args.is_help_request());
@@ -236,7 +238,7 @@ mod tests {
             start: None,
             end: None,
             show_history: true,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
         assert!(!args.is_help_request());
@@ -249,7 +251,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
         assert!(!args.is_help_request());
@@ -262,12 +264,12 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: true,
         };
         assert!(!args.is_help_request());
 
-        // Args with pic_specific_commits should NOT trigger help
+        // Args with pick_specific_commits should NOT trigger help
         let args = Args {
             repo_path: None,
             email: None,
@@ -275,7 +277,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: true,
+            pick_specific_commits: true,
             range: false,
         };
         assert!(!args.is_help_request());

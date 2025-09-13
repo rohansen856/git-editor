@@ -25,8 +25,8 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
         }
     }
 
-    // Skip validation for email, name, start, end if using show_history, pick_specific_commits, or range
-    if args.show_history || args.pick_specific_commits || args.range {
+    // Skip validation for email, name, start, end if using show_history, pick_specific_commits, range, or simulate
+    if args.show_history || args.pick_specific_commits || args.range || args.simulate {
         return Ok(());
     }
 
@@ -115,6 +115,8 @@ mod tests {
             show_history: true,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = validate_inputs(&args);
@@ -133,6 +135,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: true,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = validate_inputs(&args);
@@ -151,6 +155,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = validate_inputs(&args);
@@ -169,6 +175,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         // This test would normally call process::exit, so we can't test it directly
@@ -190,6 +198,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$").unwrap();
@@ -208,6 +218,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         // This would normally call process::exit, so we test the path validation logic
@@ -312,6 +324,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: true,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = validate_inputs(&args);

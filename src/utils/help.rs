@@ -28,6 +28,12 @@ pub fn print_help() {
     println!("    Flag: -x, --range");
     println!("    Example: git-editor -x");
     println!();
+    println!("  {} Simulation Mode (Dry-Run)", "•".green());
+    println!("    Flag: --simulate");
+    println!("    Shows what changes would be made without applying them");
+    println!("    Example: git-editor --simulate --name \"Author\" --email \"author@example.com\"");
+    println!("    Example: git-editor --simulate --show-diff --name \"Author\" --email \"author@example.com\"");
+    println!();
     println!("{}", "OPTIONS:".yellow().bold());
     println!(
         "  {:<25} Path to Git repository (defaults to current directory)",
@@ -55,6 +61,14 @@ pub fn print_help() {
         "-p, --pick-specific-commits".cyan()
     );
     println!("  {:<25} Interactive range editing", "-x, --range".cyan());
+    println!(
+        "  {:<25} Dry-run mode - preview changes without applying",
+        "--simulate".cyan()
+    );
+    println!(
+        "  {:<25} Show detailed diff in simulation (requires --simulate)",
+        "--show-diff".cyan()
+    );
     println!("  {:<25} Print help information", "-h, --help".cyan());
     println!("  {:<25} Print version information", "-V, --version".cyan());
     println!();

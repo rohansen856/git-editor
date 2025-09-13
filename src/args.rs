@@ -50,6 +50,18 @@ pub struct Args {
         help = "Edit a range of commits (e.g., --range to interactively select range)"
     )]
     pub range: bool,
+
+    #[arg(
+        long = "simulate",
+        help = "Show what changes would be made without applying them (dry-run mode)"
+    )]
+    pub simulate: bool,
+
+    #[arg(
+        long = "show-diff",
+        help = "Show detailed diff preview in simulation mode (requires --simulate)"
+    )]
+    pub show_diff: bool,
 }
 
 impl Args {
@@ -57,6 +69,7 @@ impl Args {
         !self.show_history
             && !self.pick_specific_commits
             && !self.range
+            && !self.simulate
             && self.email.is_none()
             && self.name.is_none()
             && self.start.is_none()
@@ -70,8 +83,8 @@ impl Args {
             self.repo_path = Some(String::from("./"));
         }
 
-        // Skip prompting for email, name, start, and end if using show_history or pick_specific_commits
-        if self.show_history || self.pick_specific_commits {
+        // Skip prompting for email, name, start, and end if using show_history, pick_specific_commits, or simulation modes
+        if self.show_history || self.pick_specific_commits || self.simulate {
             return Ok(());
         }
 
@@ -98,6 +111,13 @@ impl Args {
 
         Ok(())
     }
+
+    pub fn validate_simulation_args(&self) -> crate::utils::types::Result<()> {
+        if self.show_diff && !self.simulate {
+            return Err("--show-diff requires --simulate to be enabled".into());
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -115,6 +135,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         assert_eq!(args.repo_path, None);
@@ -138,6 +160,8 @@ mod tests {
             show_history: true,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -156,6 +180,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: true,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -174,6 +200,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -194,6 +222,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: true,
+            simulate: false,
+            show_diff: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -214,6 +244,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
         assert!(args.is_help_request());
 
@@ -227,6 +259,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
         assert!(args.is_help_request());
 
@@ -240,6 +274,8 @@ mod tests {
             show_history: true,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
         assert!(!args.is_help_request());
 
@@ -253,6 +289,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
         assert!(!args.is_help_request());
 
@@ -266,6 +304,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: true,
+            simulate: false,
+            show_diff: false,
         };
         assert!(!args.is_help_request());
 
@@ -279,7 +319,71 @@ mod tests {
             show_history: false,
             pick_specific_commits: true,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
         assert!(!args.is_help_request());
+    }
+
+    #[test]
+    fn test_args_with_simulate() {
+        let args = Args {
+            repo_path: Some("/test/repo".to_string()),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pick_specific_commits: false,
+            range: false,
+            simulate: true,
+            show_diff: false,
+        };
+
+        assert!(!args.is_help_request());
+        assert!(args.simulate);
+        assert!(!args.show_diff);
+    }
+
+    #[test]
+    fn test_validate_simulation_args_valid() {
+        let args = Args {
+            repo_path: Some("/test/repo".to_string()),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pick_specific_commits: false,
+            range: false,
+            simulate: true,
+            show_diff: true,
+        };
+
+        let result = args.validate_simulation_args();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_simulation_args_invalid() {
+        let args = Args {
+            repo_path: Some("/test/repo".to_string()),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pick_specific_commits: false,
+            range: false,
+            simulate: false,
+            show_diff: true,
+        };
+
+        let result = args.validate_simulation_args();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("--show-diff requires --simulate"));
     }
 }

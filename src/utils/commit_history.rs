@@ -189,6 +189,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = get_commit_history(&args, false);
@@ -215,6 +217,8 @@ mod tests {
             show_history: true,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = get_commit_history(&args, true);
@@ -236,6 +240,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = get_commit_history(&args, false);
@@ -270,6 +276,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = get_commit_history(&args, false);
@@ -288,6 +296,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = get_commit_history(&args, false);
@@ -306,6 +316,8 @@ mod tests {
             show_history: false,
             pick_specific_commits: false,
             range: false,
+            simulate: false,
+            show_diff: false,
         };
 
         let result = get_commit_history(&args, false);

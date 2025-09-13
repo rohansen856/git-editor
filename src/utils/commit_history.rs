@@ -187,7 +187,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -213,7 +213,7 @@ mod tests {
             start: None,
             end: None,
             show_history: true,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -234,7 +234,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -268,7 +268,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -286,7 +286,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -304,7 +304,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 

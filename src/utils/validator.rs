@@ -32,8 +32,8 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
         }
     }
 
-    // Skip validation for email, name, start, end if using show_history, pic_specific_commits, or range
-    if args.show_history || args.pic_specific_commits || args.range {
+    // Skip validation for email, name, start, end if using show_history, pick_specific_commits, or range
+    if args.show_history || args.pick_specific_commits || args.range {
         return Ok(());
     }
 
@@ -129,7 +129,7 @@ mod tests {
             start: None,
             end: None,
             show_history: true,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -147,7 +147,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: true,
+            pick_specific_commits: true,
             range: false,
         };
 
@@ -165,7 +165,7 @@ mod tests {
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -183,7 +183,7 @@ mod tests {
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -204,7 +204,7 @@ mod tests {
             start: Some("invalid-date".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -222,7 +222,7 @@ mod tests {
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -326,7 +326,7 @@ mod tests {
             start: None,
             end: None,
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: true,
         };
 

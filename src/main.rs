@@ -23,7 +23,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    args.ensure_all_args_present();
+    args.ensure_all_args_present()?;
 
     if let Err(e) = validate_inputs(&args) {
         eprintln!(
@@ -37,7 +37,7 @@ fn main() -> Result<()> {
     if args.range {
         println!("{}", "Editing commit range...".cyan());
         rewrite_range_commits(&args)?;
-    } else if args.pic_specific_commits {
+    } else if args.pick_specific_commits {
         println!("{}", "Picking specific commits...".cyan());
         rewrite_specific_commits(&args)?;
     } else if args.show_history {

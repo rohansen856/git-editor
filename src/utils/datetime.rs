@@ -143,7 +143,7 @@ mod tests {
             start: Some("invalid-date".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -161,7 +161,7 @@ mod tests {
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-10 00:00:00".to_string()),
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 
@@ -190,7 +190,7 @@ mod tests {
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-10 00:00:00".to_string()),
             show_history: false,
-            pic_specific_commits: false,
+            pick_specific_commits: false,
             range: false,
         };
 

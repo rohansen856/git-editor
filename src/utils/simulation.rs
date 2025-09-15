@@ -537,6 +537,9 @@ mod tests {
             range: false,
             simulate: true,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = create_full_rewrite_simulation(&commits, &timestamps, &args).unwrap();

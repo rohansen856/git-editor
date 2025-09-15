@@ -117,6 +117,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = validate_inputs(&args);
@@ -137,6 +140,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = validate_inputs(&args);
@@ -157,6 +163,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = validate_inputs(&args);
@@ -177,6 +186,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         // This test would normally call process::exit, so we can't test it directly
@@ -200,6 +212,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$").unwrap();
@@ -220,6 +235,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         // This would normally call process::exit, so we test the path validation logic
@@ -326,6 +344,9 @@ mod tests {
             range: true,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = validate_inputs(&args);

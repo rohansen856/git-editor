@@ -5,7 +5,7 @@ use chrono::NaiveDateTime;
 use colored::Colorize;
 use git2::{Repository, Signature, Sort, Time};
 use std::collections::HashMap;
-use std::io::{self, Write, Read};
+use std::io::{self, Read, Write};
 use std::os::unix::io::AsRawFd;
 
 #[derive(Debug, Clone)]
@@ -50,9 +50,14 @@ struct InteractiveTable {
 }
 
 impl InteractiveTable {
-    fn new(commits: Vec<CommitInfo>, start_idx: usize, end_idx: usize, editable_fields: (bool, bool, bool, bool)) -> Self {
+    fn new(
+        commits: Vec<CommitInfo>,
+        start_idx: usize,
+        end_idx: usize,
+        editable_fields: (bool, bool, bool, bool),
+    ) -> Self {
         let mut commit_edits = Vec::new();
-        
+
         for (i, commit) in commits[start_idx..=end_idx].iter().enumerate() {
             commit_edits.push(CommitEdit {
                 index: start_idx + i,
@@ -67,13 +72,17 @@ impl InteractiveTable {
         }
 
         // Find the first editable column as starting position
-        let starting_col = if editable_fields.0 { // author_name
+        let starting_col = if editable_fields.0 {
+            // author_name
             TableColumn::AuthorName
-        } else if editable_fields.1 { // author_email
+        } else if editable_fields.1 {
+            // author_email
             TableColumn::AuthorEmail
-        } else if editable_fields.2 { // timestamp
+        } else if editable_fields.2 {
+            // timestamp
             TableColumn::Timestamp
-        } else if editable_fields.3 { // message
+        } else if editable_fields.3 {
+            // message
             TableColumn::Message
         } else {
             TableColumn::AuthorName // fallback
@@ -94,21 +103,34 @@ impl InteractiveTable {
     fn draw_table(&self) {
         // Clear screen
         print!("\x1B[2J\x1B[H");
-        
-        println!("{}", "Interactive Commit Editor - Range Mode".bold().green());
-        
+
+        println!(
+            "{}",
+            "Interactive Commit Editor - Range Mode".bold().green()
+        );
+
         // Show which fields are editable
         let editable_info = if self.editable_fields == (true, true, true, true) {
             "All fields editable".to_string()
         } else {
             let mut editable = Vec::new();
-            if self.editable_fields.0 || self.editable_fields.1 { editable.push("Author"); }
-            if self.editable_fields.2 { editable.push("Time"); }
-            if self.editable_fields.3 { editable.push("Message"); }
+            if self.editable_fields.0 || self.editable_fields.1 {
+                editable.push("Author");
+            }
+            if self.editable_fields.2 {
+                editable.push("Time");
+            }
+            if self.editable_fields.3 {
+                editable.push("Message");
+            }
             format!("Editable: {}", editable.join(", "))
         };
         println!("{}", editable_info.cyan());
-        println!("{}", "Use Arrow Keys to navigate, Enter to edit, Esc to save & exit, Ctrl+C to cancel".yellow());
+        println!(
+            "{}",
+            "Use Arrow Keys to navigate, Enter to edit, Esc to save & exit, Ctrl+C to cancel"
+                .yellow()
+        );
         println!();
 
         // Print header
@@ -125,7 +147,7 @@ impl InteractiveTable {
         // Draw rows
         for (row_idx, commit) in self.commits.iter().enumerate() {
             let is_current_row = row_idx == self.current_row;
-            
+
             // Prepare content
             let index_str = format!("{}", commit.index + 1);
             let hash_str = self.truncate_text(&commit.original.short_hash, 8);
@@ -136,59 +158,69 @@ impl InteractiveTable {
             let message_str = self.truncate_text(first_line_message, 40);
 
             // Add modification indicators and current cell brackets
-            let _is_current_cell_index = is_current_row && matches!(self.current_col, TableColumn::Index);
-            let _is_current_cell_hash = is_current_row && matches!(self.current_col, TableColumn::Hash);
-            let is_current_cell_author_name = is_current_row && matches!(self.current_col, TableColumn::AuthorName);
-            let is_current_cell_author_email = is_current_row && matches!(self.current_col, TableColumn::AuthorEmail);
-            let is_current_cell_timestamp = is_current_row && matches!(self.current_col, TableColumn::Timestamp);
-            let is_current_cell_message = is_current_row && matches!(self.current_col, TableColumn::Message);
-            
+            let _is_current_cell_index =
+                is_current_row && matches!(self.current_col, TableColumn::Index);
+            let _is_current_cell_hash =
+                is_current_row && matches!(self.current_col, TableColumn::Hash);
+            let is_current_cell_author_name =
+                is_current_row && matches!(self.current_col, TableColumn::AuthorName);
+            let is_current_cell_author_email =
+                is_current_row && matches!(self.current_col, TableColumn::AuthorEmail);
+            let is_current_cell_timestamp =
+                is_current_row && matches!(self.current_col, TableColumn::Timestamp);
+            let is_current_cell_message =
+                is_current_row && matches!(self.current_col, TableColumn::Message);
+
             let index_final = index_str; // Index is never editable, so no brackets
             let hash_final = hash_str; // Hash is never editable, so no brackets
-            
+
             let author_name_with_mod = if commit.modifications.author_name_changed {
-                format!("*{}", author_name_str)
+                format!("*{author_name_str}")
             } else {
                 author_name_str
             };
-            let author_name_final = if is_current_cell_author_name && !self.editing && self.editable_fields.0 {
-                format!("[{}]", author_name_with_mod)
-            } else {
-                author_name_with_mod
-            };
-            
+            let author_name_final =
+                if is_current_cell_author_name && !self.editing && self.editable_fields.0 {
+                    format!("[{author_name_with_mod}]")
+                } else {
+                    author_name_with_mod
+                };
+
             let author_email_with_mod = if commit.modifications.author_email_changed {
-                format!("*{}", author_email_str)
+                format!("*{author_email_str}")
             } else {
                 author_email_str
             };
-            let author_email_final = if is_current_cell_author_email && !self.editing && self.editable_fields.1 {
-                format!("[{}]", author_email_with_mod)
-            } else {
-                author_email_with_mod
-            };
-            
+            let author_email_final =
+                if is_current_cell_author_email && !self.editing && self.editable_fields.1 {
+                    format!("[{author_email_with_mod}]")
+                } else {
+                    author_email_with_mod
+                };
+
             let timestamp_with_mod = if commit.modifications.timestamp_changed {
-                format!("*{}", timestamp_str)
+                format!("*{timestamp_str}")
             } else {
                 timestamp_str
             };
-            let timestamp_final = if is_current_cell_timestamp && !self.editing && self.editable_fields.2 {
-                format!("[{}]", timestamp_with_mod)
-            } else {
-                timestamp_with_mod
-            };
-            
+            let timestamp_final =
+                if is_current_cell_timestamp && !self.editing && self.editable_fields.2 {
+                    format!("[{timestamp_with_mod}]")
+                } else {
+                    timestamp_with_mod
+                };
+
             let message_with_mod = if commit.modifications.message_changed {
-                format!("*{}", message_str)
+                format!("*{message_str}")
             } else {
                 message_str
             };
-            let message_final = if is_current_cell_message && !self.editing && self.editable_fields.3 {
-                format!("[{}]", message_with_mod)
-            } else {
-                message_with_mod
-            };
+            let message_final =
+                if is_current_cell_message && !self.editing && self.editable_fields.3 {
+                    format!("[{message_with_mod}]")
+                } else {
+                    message_with_mod
+                };
 
             // Apply formatting and colors
             if is_current_row {
@@ -227,12 +259,19 @@ impl InteractiveTable {
         }
 
         println!();
-        
+
         if self.editing {
             println!("{}: {}", "Editing".bold().yellow(), self.edit_buffer);
             println!("{}", "Press Enter to save, Esc to cancel edit".italic());
         } else {
-            println!("{}", "Navigation: ←→↑↓  Edit: Enter  Save & Exit: Esc  Cancel: Ctrl+C".italic());
+            println!(
+                "{}",
+                "Navigation: ←→↑↓  Edit: Enter  Save & Exit: Esc  Cancel: Ctrl+C".italic()
+            );
+            println!(
+                "{}",
+                "Tip: Use '*' when selecting range to edit ALL commits at once".dimmed()
+            );
         }
     }
 
@@ -244,77 +283,89 @@ impl InteractiveTable {
         }
     }
 
-
     fn handle_key_input(&mut self, key: u8) -> Result<bool> {
         // Handle escape sequences (arrow keys)
-        if key == 27 { // ESC
+        if key == 27 {
+            // ESC
             self.escape_sequence_buffer.clear();
             self.escape_sequence_buffer.push(key);
             return Ok(true);
         }
-        
+
         // If we're building an escape sequence
         if !self.escape_sequence_buffer.is_empty() {
             self.escape_sequence_buffer.push(key);
-            
+
             // Check for complete arrow key sequences
             if self.escape_sequence_buffer.len() == 3 {
                 let sequence = &self.escape_sequence_buffer;
-                if sequence[0] == 27 && sequence[1] == 91 { // ESC[
+                if sequence[0] == 27 && sequence[1] == 91 {
+                    // ESC[
                     match sequence[2] {
-                        65 => { // Up arrow
+                        65 => {
+                            // Up arrow
                             if self.current_row > 0 {
                                 self.current_row -= 1;
                             }
-                        },
-                        66 => { // Down arrow
+                        }
+                        66 => {
+                            // Down arrow
                             if self.current_row < self.commits.len() - 1 {
                                 self.current_row += 1;
                             }
-                        },
-                        68 => { // Left arrow
+                        }
+                        68 => {
+                            // Left arrow
                             self.move_to_prev_editable_column();
-                        },
-                        67 => { // Right arrow
+                        }
+                        67 => {
+                            // Right arrow
                             self.move_to_next_editable_column();
-                        },
+                        }
                         _ => {}
                     }
                 }
                 self.escape_sequence_buffer.clear();
-            } else if self.escape_sequence_buffer.len() == 2 && self.escape_sequence_buffer[1] != 91 {
+            } else if self.escape_sequence_buffer.len() == 2 && self.escape_sequence_buffer[1] != 91
+            {
                 // Not an arrow key sequence, handle as escape
                 self.escape_sequence_buffer.clear();
                 return Ok(false); // Exit on lone ESC
             }
             return Ok(true);
         }
-        
+
         // Regular key handling
         match key {
-            b'h' => { // Left (vim-style)
+            b'h' => {
+                // Left (vim-style)
                 self.move_to_prev_editable_column();
-            },
-            b'l' => { // Right (vim-style)
+            }
+            b'l' => {
+                // Right (vim-style)
                 self.move_to_next_editable_column();
-            },
-            b'k' => { // Up (vim-style)
+            }
+            b'k' => {
+                // Up (vim-style)
                 if self.current_row > 0 {
                     self.current_row -= 1;
                 }
-            },
-            b'j' => { // Down (vim-style)
+            }
+            b'j' => {
+                // Down (vim-style)
                 if self.current_row < self.commits.len() - 1 {
                     self.current_row += 1;
                 }
-            },
-            10 | 13 => { // Enter
+            }
+            10 | 13 => {
+                // Enter
                 self.start_editing();
                 return Ok(true);
-            },
-            3 => { // Ctrl+C
+            }
+            3 => {
+                // Ctrl+C
                 return Ok(false); // Signal to exit with cancel
-            },
+            }
             _ => {}
         }
         Ok(true)
@@ -331,32 +382,54 @@ impl InteractiveTable {
     }
 
     fn move_to_next_editable_column(&mut self) {
-        let columns = [TableColumn::Index, TableColumn::Hash, TableColumn::AuthorName, 
-                      TableColumn::AuthorEmail, TableColumn::Timestamp, TableColumn::Message];
-        
-        let current_index = columns.iter().position(|c| std::mem::discriminant(c) == std::mem::discriminant(&self.current_col)).unwrap_or(0);
-        
+        let columns = [
+            TableColumn::Index,
+            TableColumn::Hash,
+            TableColumn::AuthorName,
+            TableColumn::AuthorEmail,
+            TableColumn::Timestamp,
+            TableColumn::Message,
+        ];
+
+        let current_index = columns
+            .iter()
+            .position(|c| std::mem::discriminant(c) == std::mem::discriminant(&self.current_col))
+            .unwrap_or(0);
+
         for i in 1..columns.len() {
             let next_index = (current_index + i) % columns.len();
             let next_col = &columns[next_index];
             if self.is_column_editable(next_col) {
-                self.current_col = next_col.clone();
+                self.current_col = *next_col;
                 return;
             }
         }
     }
 
     fn move_to_prev_editable_column(&mut self) {
-        let columns = [TableColumn::Index, TableColumn::Hash, TableColumn::AuthorName, 
-                      TableColumn::AuthorEmail, TableColumn::Timestamp, TableColumn::Message];
-        
-        let current_index = columns.iter().position(|c| std::mem::discriminant(c) == std::mem::discriminant(&self.current_col)).unwrap_or(0);
-        
+        let columns = [
+            TableColumn::Index,
+            TableColumn::Hash,
+            TableColumn::AuthorName,
+            TableColumn::AuthorEmail,
+            TableColumn::Timestamp,
+            TableColumn::Message,
+        ];
+
+        let current_index = columns
+            .iter()
+            .position(|c| std::mem::discriminant(c) == std::mem::discriminant(&self.current_col))
+            .unwrap_or(0);
+
         for i in 1..columns.len() {
-            let prev_index = if current_index >= i { current_index - i } else { columns.len() - (i - current_index) };
+            let prev_index = if current_index >= i {
+                current_index - i
+            } else {
+                columns.len() - (i - current_index)
+            };
             let prev_col = &columns[prev_index];
             if self.is_column_editable(prev_col) {
-                self.current_col = prev_col.clone();
+                self.current_col = *prev_col;
                 return;
             }
         }
@@ -368,12 +441,15 @@ impl InteractiveTable {
         }
 
         self.editing = true;
-        
+
         // Initialize edit buffer with current value
         self.edit_buffer = match self.current_col {
             TableColumn::AuthorName => self.commits[self.current_row].author_name.clone(),
             TableColumn::AuthorEmail => self.commits[self.current_row].author_email.clone(),
-            TableColumn::Timestamp => self.commits[self.current_row].timestamp.format("%Y-%m-%d %H:%M:%S").to_string(),
+            TableColumn::Timestamp => self.commits[self.current_row]
+                .timestamp
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string(),
             TableColumn::Message => {
                 // Use the full original message when editing, not the truncated display version
                 if self.commits[self.current_row].modifications.message_changed {
@@ -382,35 +458,40 @@ impl InteractiveTable {
                     // Get the full original message from the first line or full message
                     self.commits[self.current_row].original.message.clone()
                 }
-            },
+            }
             _ => String::new(),
         };
     }
 
     fn handle_edit_input(&mut self, key: u8) -> Result<bool> {
         match key {
-            27 => { // Esc - cancel edit
+            27 => {
+                // Esc - cancel edit
                 self.editing = false;
                 self.edit_buffer.clear();
-            },
-            10 | 13 => { // Enter - save edit
+            }
+            10 | 13 => {
+                // Enter - save edit
                 if let Err(e) = self.save_current_edit() {
                     // On error, show message and stay in edit mode
-                    self.edit_buffer = format!("Error: {} (Press Esc to cancel)", e);
+                    self.edit_buffer = format!("Error: {e} (Press Esc to cancel)");
                     return Ok(true);
                 }
                 self.editing = false;
                 self.edit_buffer.clear();
-            },
-            127 | 8 => { // Backspace
+            }
+            127 | 8 => {
+                // Backspace
                 self.edit_buffer.pop();
-            },
-            32..=126 => { // Printable ASCII characters
+            }
+            32..=126 => {
+                // Printable ASCII characters
                 self.edit_buffer.push(key as char);
-            },
-            3 => { // Ctrl+C
+            }
+            3 => {
+                // Ctrl+C
                 return Ok(false); // Exit without saving
-            },
+            }
             _ => {}
         }
         Ok(true)
@@ -418,7 +499,7 @@ impl InteractiveTable {
 
     fn save_current_edit(&mut self) -> Result<()> {
         let commit = &mut self.commits[self.current_row];
-        
+
         match self.current_col {
             TableColumn::AuthorName => {
                 if self.edit_buffer.trim().is_empty() {
@@ -426,10 +507,11 @@ impl InteractiveTable {
                 }
                 if commit.author_name != self.edit_buffer {
                     commit.author_name = self.edit_buffer.clone();
-                    commit.modifications.author_name_changed = commit.original.author_name != commit.author_name;
+                    commit.modifications.author_name_changed =
+                        commit.original.author_name != commit.author_name;
                     commit.is_modified = true;
                 }
-            },
+            }
             TableColumn::AuthorEmail => {
                 if self.edit_buffer.trim().is_empty() {
                     return Err("Author email cannot be empty".into());
@@ -439,30 +521,34 @@ impl InteractiveTable {
                 }
                 if commit.author_email != self.edit_buffer {
                     commit.author_email = self.edit_buffer.clone();
-                    commit.modifications.author_email_changed = commit.original.author_email != commit.author_email;
+                    commit.modifications.author_email_changed =
+                        commit.original.author_email != commit.author_email;
                     commit.is_modified = true;
                 }
-            },
+            }
             TableColumn::Timestamp => {
-                let new_timestamp = NaiveDateTime::parse_from_str(&self.edit_buffer, "%Y-%m-%d %H:%M:%S")
-                    .map_err(|_| "Invalid timestamp format (use YYYY-MM-DD HH:MM:SS)")?;
-                    
+                let new_timestamp =
+                    NaiveDateTime::parse_from_str(&self.edit_buffer, "%Y-%m-%d %H:%M:%S")
+                        .map_err(|_| "Invalid timestamp format (use YYYY-MM-DD HH:MM:SS)")?;
+
                 if commit.timestamp != new_timestamp {
                     commit.timestamp = new_timestamp;
-                    commit.modifications.timestamp_changed = commit.original.timestamp != commit.timestamp;
+                    commit.modifications.timestamp_changed =
+                        commit.original.timestamp != commit.timestamp;
                     commit.is_modified = true;
                 }
-            },
+            }
             TableColumn::Message => {
                 if self.edit_buffer.trim().is_empty() {
                     return Err("Commit message cannot be empty".into());
                 }
                 if commit.message != self.edit_buffer {
                     commit.message = self.edit_buffer.clone();
-                    commit.modifications.message_changed = commit.original.message != commit.message;
+                    commit.modifications.message_changed =
+                        commit.original.message != commit.message;
                     commit.is_modified = true;
                 }
-            },
+            }
             _ => {}
         }
         Ok(())
@@ -472,7 +558,7 @@ impl InteractiveTable {
         // Set terminal to raw mode
         let stdin = io::stdin();
         let mut stdin_lock = stdin.lock();
-        
+
         // Enable raw mode
         unsafe {
             libc::tcgetattr(stdin.as_raw_fd(), &mut self.original_termios);
@@ -483,14 +569,14 @@ impl InteractiveTable {
 
         let result = loop {
             self.draw_table();
-            
+
             let mut buffer = [0; 1];
             if stdin_lock.read_exact(&mut buffer).is_err() {
                 break Ok(false);
             }
 
             let key = buffer[0];
-            
+
             let should_continue = if self.editing {
                 match self.handle_edit_input(key) {
                     Ok(cont) => cont,
@@ -514,7 +600,11 @@ impl InteractiveTable {
 
     fn restore_terminal(&self) {
         unsafe {
-            libc::tcsetattr(io::stdin().as_raw_fd(), libc::TCSANOW, &self.original_termios);
+            libc::tcsetattr(
+                io::stdin().as_raw_fd(),
+                libc::TCSANOW,
+                &self.original_termios,
+            );
         }
         print!("\x1B[2J\x1B[H"); // Clear screen
     }
@@ -524,11 +614,21 @@ impl InteractiveTable {
     }
 }
 
-pub fn parse_range_input(input: &str) -> Result<(usize, usize)> {
-    let parts: Vec<&str> = input.trim().split('-').collect();
+pub fn parse_range_input(input: &str, total_commits: usize) -> Result<(usize, usize)> {
+    let trimmed_input = input.trim();
+
+    // Check if user entered '*' to select all commits
+    if trimmed_input == "*" {
+        if total_commits == 0 {
+            return Err("No commits available to select".into());
+        }
+        return Ok((1, total_commits)); // Return 1-based indexing for all commits
+    }
+
+    let parts: Vec<&str> = trimmed_input.split('-').collect();
 
     if parts.len() != 2 {
-        return Err("Invalid range format. Use format like '5-11'".into());
+        return Err("Invalid range format. Use format like '5-11' or '*' for all commits".into());
     }
 
     let start = parts[0]
@@ -573,7 +673,7 @@ pub fn select_commit_range(commits: &[CommitInfo]) -> Result<(usize, usize)> {
     println!("{}", "-".repeat(80).cyan());
     println!(
         "\n{}",
-        "Enter range in format 'start-end' (e.g., '5-11'):"
+        "Enter range in format 'start-end' (e.g., '5-11') or '*' for all commits:"
             .bold()
             .green()
     );
@@ -583,7 +683,7 @@ pub fn select_commit_range(commits: &[CommitInfo]) -> Result<(usize, usize)> {
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
 
-    let (start, end) = parse_range_input(&input)?;
+    let (start, end) = parse_range_input(&input, commits.len())?;
 
     if start > commits.len() || end > commits.len() {
         return Err(format!(
@@ -597,7 +697,14 @@ pub fn select_commit_range(commits: &[CommitInfo]) -> Result<(usize, usize)> {
 }
 
 pub fn show_range_details(commits: &[CommitInfo], start_idx: usize, end_idx: usize) -> Result<()> {
-    println!("\n{}", "Selected Commit Range:".bold().green());
+    let total_selected = end_idx - start_idx + 1;
+    let is_all_commits = total_selected == commits.len();
+
+    if is_all_commits {
+        println!("\n{}", "Selected All Commits for Editing:".bold().green());
+    } else {
+        println!("\n{}", "Selected Commit Range:".bold().green());
+    }
     println!("{}", "=".repeat(80).cyan());
 
     for (idx, commit) in commits[start_idx..=end_idx].iter().enumerate() {
@@ -629,11 +736,20 @@ pub fn show_range_details(commits: &[CommitInfo], start_idx: usize, end_idx: usi
     }
 
     println!("\n{}", "=".repeat(80).cyan());
-    println!(
-        "{} {} commits selected for editing",
-        "Total:".bold(),
-        (end_idx - start_idx + 1).to_string().green()
-    );
+    if is_all_commits {
+        println!(
+            "{} {} commits selected for editing {}",
+            "Total:".bold(),
+            total_selected.to_string().green(),
+            "(ALL COMMITS)".bold().yellow()
+        );
+    } else {
+        println!(
+            "{} {} commits selected for editing",
+            "Total:".bold(),
+            total_selected.to_string().green()
+        );
+    }
 
     Ok(())
 }
@@ -726,10 +842,10 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     }
 
     let (start_idx, end_idx) = select_commit_range(&commits)?;
-    
+
     // Get editable fields based on command line flags
     let editable_fields = args.get_editable_fields();
-    
+
     // Launch interactive table editor
     let mut table = InteractiveTable::new(commits.clone(), start_idx, end_idx, editable_fields);
     let should_save = table.run()?;
@@ -740,7 +856,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     }
 
     let modified_commits = table.get_modified_commits();
-    
+
     if modified_commits.is_empty() {
         println!("{}", "No changes made.".yellow());
         return Ok(());
@@ -749,7 +865,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     // Show summary of changes
     println!("\n{}", "Summary of Changes:".bold().green());
     println!("{}", "=".repeat(80).cyan());
-    
+
     for commit_edit in &modified_commits {
         println!(
             "\n{}: {} ({})",
@@ -757,7 +873,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
             commit_edit.original.short_hash.yellow(),
             &commit_edit.original.oid.to_string()[..8]
         );
-        
+
         if commit_edit.modifications.author_name_changed {
             println!(
                 "  {}: {} -> {}",
@@ -766,7 +882,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
                 commit_edit.author_name.green()
             );
         }
-        
+
         if commit_edit.modifications.author_email_changed {
             println!(
                 "  {}: {} -> {}",
@@ -775,16 +891,25 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
                 commit_edit.author_email.green()
             );
         }
-        
+
         if commit_edit.modifications.timestamp_changed {
             println!(
                 "  {}: {} -> {}",
                 "Timestamp".bold(),
-                commit_edit.original.timestamp.format("%Y-%m-%d %H:%M:%S").to_string().red(),
-                commit_edit.timestamp.format("%Y-%m-%d %H:%M:%S").to_string().green()
+                commit_edit
+                    .original
+                    .timestamp
+                    .format("%Y-%m-%d %H:%M:%S")
+                    .to_string()
+                    .red(),
+                commit_edit
+                    .timestamp
+                    .format("%Y-%m-%d %H:%M:%S")
+                    .to_string()
+                    .green()
             );
         }
-        
+
         if commit_edit.modifications.message_changed {
             let original_first_line = commit_edit.original.message.lines().next().unwrap_or("");
             let new_first_line = commit_edit.message.lines().next().unwrap_or("");
@@ -910,7 +1035,12 @@ fn apply_interactive_range_changes(
     }
 
     if let Some(new_head) = last_new_oid {
-        repo.reference(&full_ref, new_head, true, "edited commit range interactively")?;
+        repo.reference(
+            &full_ref,
+            new_head,
+            true,
+            "edited commit range interactively",
+        )?;
         println!(
             "{} '{}' -> {}",
             "Updated branch".green(),
@@ -921,7 +1051,6 @@ fn apply_interactive_range_changes(
 
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -981,7 +1110,7 @@ mod tests {
 
     #[test]
     fn test_parse_range_input_valid() {
-        let result = parse_range_input("5-11");
+        let result = parse_range_input("5-11", 20);
         assert!(result.is_ok());
         let (start, end) = result.unwrap();
         assert_eq!(start, 5);
@@ -990,7 +1119,7 @@ mod tests {
 
     #[test]
     fn test_parse_range_input_with_spaces() {
-        let result = parse_range_input(" 3 - 8 ");
+        let result = parse_range_input(" 3 - 8 ", 20);
         assert!(result.is_ok());
         let (start, end) = result.unwrap();
         assert_eq!(start, 3);
@@ -998,23 +1127,36 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_range_input_asterisk() {
+        let result = parse_range_input("*", 10);
+        assert!(result.is_ok());
+        let (start, end) = result.unwrap();
+        assert_eq!(start, 1);
+        assert_eq!(end, 10);
+
+        // Test with empty repository
+        let result = parse_range_input("*", 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_parse_range_input_invalid_format() {
-        let result = parse_range_input("5");
+        let result = parse_range_input("5", 20);
         assert!(result.is_err());
 
-        let result = parse_range_input("5-11-15");
+        let result = parse_range_input("5-11-15", 20);
         assert!(result.is_err());
 
-        let result = parse_range_input("abc-def");
+        let result = parse_range_input("abc-def", 20);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_parse_range_input_invalid_range() {
-        let result = parse_range_input("11-5");
+        let result = parse_range_input("11-5", 20);
         assert!(result.is_err());
 
-        let result = parse_range_input("0-5");
+        let result = parse_range_input("0-5", 20);
         assert!(result.is_err());
     }
 

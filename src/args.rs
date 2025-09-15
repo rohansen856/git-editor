@@ -75,10 +75,7 @@ pub struct Args {
     )]
     pub edit_author: bool,
 
-    #[arg(
-        long = "time",
-        help = "Edit only timestamps in range mode (-x)"
-    )]
+    #[arg(long = "time", help = "Edit only timestamps in range mode (-x)")]
     pub edit_time: bool,
 }
 

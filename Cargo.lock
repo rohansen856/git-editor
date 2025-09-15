@@ -438,6 +438,7 @@ dependencies = [
  "colored",
  "dotenv",
  "git2",
+ "libc",
  "rand",
  "regex",
  "reqwest",

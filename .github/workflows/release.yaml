@@ -53,7 +53,7 @@ jobs:
       - name: 🚀 Run all tests
         run: cargo test --all --verbose
 
-  build:
+  build-binaries:
     name: Build release binaries
     needs: test
     strategy:
@@ -70,6 +70,10 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             name: git-editor-windows-x86_64.exe
+            
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: git-editor-linux-aarch64
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -86,6 +90,12 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
 
+      - name: Install cross compilation dependencies (aarch64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -97,6 +107,11 @@ jobs:
 
       - name: 📦 Install dependencies
         run: cargo fetch
+
+      - name: Set cross compilation environment
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: 📦 Build release
         run: cargo build --release --target ${{ matrix.target }}
@@ -117,6 +132,212 @@ jobs:
           name: ${{ matrix.name }}
           path: ${{ matrix.name }}
 
+  build-packages:
+    name: Build Linux packages
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 🦀 Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu
+          override: true
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev rpm
+
+      - name: Install cargo-deb and cargo-generate-rpm
+        run: |
+          cargo install cargo-deb
+          cargo install cargo-generate-rpm
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-package-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 📦 Build release binary for packaging
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: 📦 Build .deb package
+        run: |
+          cargo deb --target x86_64-unknown-linux-gnu --no-build
+          mv target/x86_64-unknown-linux-gnu/debian/*.deb ./git-editor_amd64.deb
+
+      - name: 📦 Build .rpm package  
+        run: |
+          cargo generate-rpm --target x86_64-unknown-linux-gnu
+          mv target/x86_64-unknown-linux-gnu/generate-rpm/*.rpm ./git-editor.x86_64.rpm
+
+      - name: Upload .deb package
+        uses: actions/upload-artifact@v4
+        with:
+          name: git-editor_amd64.deb
+          path: git-editor_amd64.deb
+
+      - name: Upload .rpm package
+        uses: actions/upload-artifact@v4
+        with:
+          name: git-editor.x86_64.rpm
+          path: git-editor.x86_64.rpm
+
+  build-windows-installer:
+    name: Build Windows installer (.msi)
+    needs: test
+    runs-on: windows-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 🦀 Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-msvc
+          override: true
+
+      - name: Install WiX Toolset
+        run: |
+          # Download and install WiX
+          Invoke-WebRequest -Uri "https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip" -OutFile "wix.zip"
+          Expand-Archive -Path "wix.zip" -DestinationPath "wix"
+          echo "$env:GITHUB_WORKSPACE\wix" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install cargo-wix
+        run: cargo install cargo-wix
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-wix-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 📦 Build release
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Initialize wix configuration
+        run: cargo wix init
+
+      - name: 📦 Build .msi installer
+        run: |
+          cargo wix -p git-editor --target x86_64-pc-windows-msvc --no-build
+          move target\wix\*.msi git-editor-installer.msi
+
+      - name: Upload .msi installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: git-editor-installer.msi
+          path: git-editor-installer.msi
+
+  build-macos-packages:
+    name: Build macOS packages
+    needs: test
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+    runs-on: macos-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 🦀 Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-macos-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 📦 Build release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Create .pkg installer
+        run: |
+          # Create package structure
+          mkdir -p package/usr/local/bin
+          cp target/${{ matrix.target }}/release/git-editor package/usr/local/bin/
+          chmod +x package/usr/local/bin/git-editor
+          
+          # Create .pkg
+          pkgbuild --root package \
+                   --identifier com.rohansen856.git-editor \
+                   --version ${{ github.ref_name }} \
+                   --install-location / \
+                   git-editor-${{ matrix.target }}.pkg
+
+      - name: Upload .pkg installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: git-editor-${{ matrix.target }}.pkg
+          path: git-editor-${{ matrix.target }}.pkg
+
+  build-archives:
+    name: Build compressed archives
+    needs: build-binaries
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: git-editor-linux-x86_64
+            archive: git-editor-linux-x86_64.tar.gz
+            
+          - os: ubuntu-latest  
+            binary: git-editor-linux-aarch64
+            archive: git-editor-linux-aarch64.tar.gz
+            
+          - os: macos-latest
+            binary: git-editor-macos-aarch64
+            archive: git-editor-macos-aarch64.tar.gz
+            
+          - os: windows-latest
+            binary: git-editor-windows-x86_64.exe
+            archive: git-editor-windows-x86_64.zip
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.binary }}
+          
+      - name: Create archive (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          chmod +x ${{ matrix.binary }}
+          tar -czf ${{ matrix.archive }} ${{ matrix.binary }} README.md CHANGELOG.md
+          
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          7z a ${{ matrix.archive }} ${{ matrix.binary }} README.md CHANGELOG.md
+          
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}
+
   publish-cratesio:
     name: Publish to crates.io
     needs: test
@@ -127,11 +348,13 @@ jobs:
         with:
           toolchain: stable
           override: true
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
       - run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   github-release:
-    name: Upload Binaries to GitHub Release
-    needs: build
+    name: Upload All Artifacts to GitHub Release
+    needs: [build-binaries, build-packages, build-windows-installer, build-macos-packages, build-archives]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -140,12 +363,12 @@ jobs:
           path: artifacts/
           
       - name: Display structure of downloaded files
-        run: ls -la artifacts/
+        run: find artifacts/ -type f -exec ls -la {} \;
         
       - name: Prepare release files
         run: |
           mkdir -p release/
-          find artifacts/ -name "git-editor*" -type f -exec cp {} release/ \;
+          find artifacts/ -type f \( -name "git-editor*" -o -name "*.deb" -o -name "*.rpm" -o -name "*.msi" -o -name "*.pkg" -o -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release/ \;
           ls -la release/
           
       - name: Publish Release
@@ -155,13 +378,45 @@ jobs:
           body: |
             ## 🚀 Release Notes
             
-            This release includes pre-built binaries for multiple platforms:
+            This release includes pre-built binaries and packages for multiple platforms:
             
+            ### 📦 Native Binaries
             - **Linux (x86_64)**: `git-editor-linux-x86_64`
-            - **macOS (x86_64)**: `git-editor-macos-x86_64` 
+            - **Linux (ARM64)**: `git-editor-linux-aarch64`
             - **macOS (Apple Silicon)**: `git-editor-macos-aarch64`
             - **Windows (x86_64)**: `git-editor-windows-x86_64.exe`
             
-            Download the appropriate binary for your platform and make it executable (Unix/macOS: `chmod +x <binary>`).
+            ### 📦 Linux Package Managers
+            - **Debian/Ubuntu**: `git-editor_amd64.deb` - Install with `sudo dpkg -i git-editor_amd64.deb`
+            - **RedHat/CentOS/Fedora**: `git-editor.x86_64.rpm` - Install with `sudo rpm -i git-editor.x86_64.rpm`
+            
+            ### 📦 macOS Installers
+            - **macOS (Intel)**: `git-editor-x86_64-apple-darwin.pkg`
+            - **macOS (Apple Silicon)**: `git-editor-aarch64-apple-darwin.pkg`
+            
+            ### 📦 Windows Installers
+            - **Windows MSI**: `git-editor-installer.msi` - Double-click to install
+            
+            ### 📦 Compressed Archives
+            - **Linux x86_64**: `git-editor-linux-x86_64.tar.gz`
+            - **Linux ARM64**: `git-editor-linux-aarch64.tar.gz`
+            - **macOS**: `git-editor-macos-aarch64.tar.gz`  
+            - **Windows**: `git-editor-windows-x86_64.zip`
+            
+            ---
+            
+            **Quick Install:**
+            ```bash
+            # Debian/Ubuntu
+            wget https://github.com/rohansen856/git_editor/releases/latest/download/git-editor_amd64.deb
+            sudo dpkg -i git-editor_amd64.deb
+            
+            # RedHat/CentOS/Fedora
+            wget https://github.com/rohansen856/git_editor/releases/latest/download/git-editor.x86_64.rpm
+            sudo rpm -i git-editor.x86_64.rpm
+            
+            # Manual install (all platforms)
+            # Download appropriate binary and make executable (Unix: chmod +x <binary>)
+            ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

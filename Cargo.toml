@@ -1,6 +1,6 @@
 [package]
 name = "git-editor"
-version = "1.7.0"
+version = "1.8.0"
 edition = "2021"
 description = "A command-line tool to edit git commit timestamps, messages, and author information"
 license = "MIT"

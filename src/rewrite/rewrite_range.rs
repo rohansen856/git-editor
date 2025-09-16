@@ -3,10 +3,15 @@ use crate::utils::types::Result;
 use crate::{args::Args, utils::commit_history::get_commit_history};
 use chrono::NaiveDateTime;
 use colored::Colorize;
+use crossterm::{
+    cursor,
+    event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+    terminal::{self, Clear, ClearType},
+    ExecutableCommand,
+};
 use git2::{Repository, Signature, Sort, Time};
 use std::collections::HashMap;
-use std::io::{self, Read, Write};
-use std::os::unix::io::AsRawFd;
+use std::io::{self, Write};
 
 #[derive(Debug, Clone)]
 struct CommitEdit {
@@ -44,8 +49,6 @@ struct InteractiveTable {
     current_col: TableColumn,
     editing: bool,
     edit_buffer: String,
-    original_termios: libc::termios,
-    escape_sequence_buffer: Vec<u8>,
     editable_fields: (bool, bool, bool, bool), // (author_name, author_email, timestamp, message)
 }
 
@@ -94,15 +97,14 @@ impl InteractiveTable {
             current_col: starting_col,
             editing: false,
             edit_buffer: String::new(),
-            original_termios: unsafe { std::mem::zeroed() },
-            escape_sequence_buffer: Vec::new(),
             editable_fields,
         }
     }
 
     fn draw_table(&self) {
-        // Clear screen
-        print!("\x1B[2J\x1B[H");
+        // Clear screen using crossterm
+        let _ = io::stdout().execute(Clear(ClearType::All));
+        let _ = io::stdout().execute(cursor::MoveTo(0, 0));
 
         println!(
             "{}",
@@ -283,88 +285,50 @@ impl InteractiveTable {
         }
     }
 
-    fn handle_key_input(&mut self, key: u8) -> Result<bool> {
-        // Handle escape sequences (arrow keys)
-        if key == 27 {
-            // ESC
-            self.escape_sequence_buffer.clear();
-            self.escape_sequence_buffer.push(key);
-            return Ok(true);
-        }
-
-        // If we're building an escape sequence
-        if !self.escape_sequence_buffer.is_empty() {
-            self.escape_sequence_buffer.push(key);
-
-            // Check for complete arrow key sequences
-            if self.escape_sequence_buffer.len() == 3 {
-                let sequence = &self.escape_sequence_buffer;
-                if sequence[0] == 27 && sequence[1] == 91 {
-                    // ESC[
-                    match sequence[2] {
-                        65 => {
-                            // Up arrow
-                            if self.current_row > 0 {
-                                self.current_row -= 1;
-                            }
-                        }
-                        66 => {
-                            // Down arrow
-                            if self.current_row < self.commits.len() - 1 {
-                                self.current_row += 1;
-                            }
-                        }
-                        68 => {
-                            // Left arrow
-                            self.move_to_prev_editable_column();
-                        }
-                        67 => {
-                            // Right arrow
-                            self.move_to_next_editable_column();
-                        }
-                        _ => {}
-                    }
-                }
-                self.escape_sequence_buffer.clear();
-            } else if self.escape_sequence_buffer.len() == 2 && self.escape_sequence_buffer[1] != 91
-            {
-                // Not an arrow key sequence, handle as escape
-                self.escape_sequence_buffer.clear();
-                return Ok(false); // Exit on lone ESC
-            }
-            return Ok(true);
-        }
-
-        // Regular key handling
+    fn handle_navigation_key_input(&mut self, key: KeyCode) -> Result<bool> {
         match key {
-            b'h' => {
+            KeyCode::Up => {
+                if self.current_row > 0 {
+                    self.current_row -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if self.current_row < self.commits.len() - 1 {
+                    self.current_row += 1;
+                }
+            }
+            KeyCode::Left => {
+                self.move_to_prev_editable_column();
+            }
+            KeyCode::Right => {
+                self.move_to_next_editable_column();
+            }
+            KeyCode::Char('h') => {
                 // Left (vim-style)
                 self.move_to_prev_editable_column();
             }
-            b'l' => {
+            KeyCode::Char('l') => {
                 // Right (vim-style)
                 self.move_to_next_editable_column();
             }
-            b'k' => {
+            KeyCode::Char('k') => {
                 // Up (vim-style)
                 if self.current_row > 0 {
                     self.current_row -= 1;
                 }
             }
-            b'j' => {
+            KeyCode::Char('j') => {
                 // Down (vim-style)
                 if self.current_row < self.commits.len() - 1 {
                     self.current_row += 1;
                 }
             }
-            10 | 13 => {
-                // Enter
+            KeyCode::Enter => {
                 self.start_editing();
                 return Ok(true);
             }
-            3 => {
-                // Ctrl+C
-                return Ok(false); // Signal to exit with cancel
+            KeyCode::Esc => {
+                return Ok(false); // Exit and save
             }
             _ => {}
         }
@@ -463,14 +427,14 @@ impl InteractiveTable {
         };
     }
 
-    fn handle_edit_input(&mut self, key: u8) -> Result<bool> {
+    fn handle_edit_key_input(&mut self, key: KeyCode) -> Result<bool> {
         match key {
-            27 => {
+            KeyCode::Esc => {
                 // Esc - cancel edit
                 self.editing = false;
                 self.edit_buffer.clear();
             }
-            10 | 13 => {
+            KeyCode::Enter => {
                 // Enter - save edit
                 if let Err(e) = self.save_current_edit() {
                     // On error, show message and stay in edit mode
@@ -480,17 +444,12 @@ impl InteractiveTable {
                 self.editing = false;
                 self.edit_buffer.clear();
             }
-            127 | 8 => {
-                // Backspace
+            KeyCode::Backspace => {
                 self.edit_buffer.pop();
             }
-            32..=126 => {
-                // Printable ASCII characters
-                self.edit_buffer.push(key as char);
-            }
-            3 => {
-                // Ctrl+C
-                return Ok(false); // Exit without saving
+            KeyCode::Char(c) => {
+                // Handle printable characters
+                self.edit_buffer.push(c);
             }
             _ => {}
         }
@@ -555,42 +514,33 @@ impl InteractiveTable {
     }
 
     fn run(&mut self) -> Result<bool> {
-        // Set terminal to raw mode
-        let stdin = io::stdin();
-        let mut stdin_lock = stdin.lock();
-
-        // Enable raw mode
-        unsafe {
-            libc::tcgetattr(stdin.as_raw_fd(), &mut self.original_termios);
-            let mut raw = self.original_termios;
-            libc::cfmakeraw(&mut raw);
-            libc::tcsetattr(stdin.as_raw_fd(), libc::TCSANOW, &raw);
-        }
+        // Enable raw mode using crossterm
+        terminal::enable_raw_mode()?;
 
         let result = loop {
             self.draw_table();
 
-            let mut buffer = [0; 1];
-            if stdin_lock.read_exact(&mut buffer).is_err() {
-                break Ok(false);
-            }
+            if let Event::Key(KeyEvent {
+                code,
+                kind: KeyEventKind::Press,
+                ..
+            }) = event::read()?
+            {
+                let should_continue = if self.editing {
+                    match self.handle_edit_key_input(code) {
+                        Ok(cont) => cont,
+                        Err(_) => break Ok(false),
+                    }
+                } else {
+                    match self.handle_navigation_key_input(code) {
+                        Ok(cont) => cont,
+                        Err(_) => break Ok(false),
+                    }
+                };
 
-            let key = buffer[0];
-
-            let should_continue = if self.editing {
-                match self.handle_edit_input(key) {
-                    Ok(cont) => cont,
-                    Err(_) => break Ok(false),
+                if !should_continue {
+                    break Ok(true); // User wants to save
                 }
-            } else {
-                match self.handle_key_input(key) {
-                    Ok(cont) => cont,
-                    Err(_) => break Ok(false),
-                }
-            };
-
-            if !should_continue {
-                break Ok(true); // User wants to save
             }
         };
 
@@ -599,14 +549,9 @@ impl InteractiveTable {
     }
 
     fn restore_terminal(&self) {
-        unsafe {
-            libc::tcsetattr(
-                io::stdin().as_raw_fd(),
-                libc::TCSANOW,
-                &self.original_termios,
-            );
-        }
-        print!("\x1B[2J\x1B[H"); // Clear screen
+        let _ = terminal::disable_raw_mode();
+        let _ = io::stdout().execute(Clear(ClearType::All));
+        let _ = io::stdout().execute(cursor::MoveTo(0, 0));
     }
 
     fn get_modified_commits(&self) -> Vec<&CommitEdit> {
@@ -842,6 +787,9 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     }
 
     let (start_idx, end_idx) = select_commit_range(&commits)?;
+
+    // Show range details for user feedback
+    show_range_details(&commits, start_idx, end_idx)?;
 
     // Get editable fields based on command line flags
     let editable_fields = args.get_editable_fields();

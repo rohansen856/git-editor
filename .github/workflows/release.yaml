@@ -62,18 +62,14 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             name: git-editor-linux-x86_64
-            
+
           - target: aarch64-apple-darwin
             os: macos-latest
             name: git-editor-macos-aarch64
-            
+
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             name: git-editor-windows-x86_64.exe
-            
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            name: git-editor-linux-aarch64
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -90,12 +86,6 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
 
-      - name: Install cross compilation dependencies (aarch64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -108,10 +98,6 @@ jobs:
       - name: 📦 Install dependencies
         run: cargo fetch
 
-      - name: Set cross compilation environment
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: 📦 Build release
         run: cargo build --release --target ${{ matrix.target }}
@@ -245,7 +231,7 @@ jobs:
     needs: test
     strategy:
       matrix:
-        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+        target: [aarch64-apple-darwin]
     runs-on: macos-latest
     
     steps:
@@ -299,15 +285,11 @@ jobs:
           - os: ubuntu-latest
             binary: git-editor-linux-x86_64
             archive: git-editor-linux-x86_64.tar.gz
-            
-          - os: ubuntu-latest  
-            binary: git-editor-linux-aarch64
-            archive: git-editor-linux-aarch64.tar.gz
-            
+
           - os: macos-latest
             binary: git-editor-macos-aarch64
             archive: git-editor-macos-aarch64.tar.gz
-            
+
           - os: windows-latest
             binary: git-editor-windows-x86_64.exe
             archive: git-editor-windows-x86_64.zip
@@ -325,12 +307,12 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: |
           chmod +x ${{ matrix.binary }}
-          tar -czf ${{ matrix.archive }} ${{ matrix.binary }} README.md CHANGELOG.md
+          tar -czf ${{ matrix.archive }} ${{ matrix.binary }} README.md LICENSE.md
           
       - name: Create archive (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          7z a ${{ matrix.archive }} ${{ matrix.binary }} README.md CHANGELOG.md
+          7z a ${{ matrix.archive }} ${{ matrix.binary }} README.md LICENSE.md
           
       - name: Upload archive
         uses: actions/upload-artifact@v4
@@ -382,25 +364,22 @@ jobs:
             
             ### 📦 Native Binaries
             - **Linux (x86_64)**: `git-editor-linux-x86_64`
-            - **Linux (ARM64)**: `git-editor-linux-aarch64`
             - **macOS (Apple Silicon)**: `git-editor-macos-aarch64`
             - **Windows (x86_64)**: `git-editor-windows-x86_64.exe`
-            
+
             ### 📦 Linux Package Managers
             - **Debian/Ubuntu**: `git-editor_amd64.deb` - Install with `sudo dpkg -i git-editor_amd64.deb`
             - **RedHat/CentOS/Fedora**: `git-editor.x86_64.rpm` - Install with `sudo rpm -i git-editor.x86_64.rpm`
-            
+
             ### 📦 macOS Installers
-            - **macOS (Intel)**: `git-editor-x86_64-apple-darwin.pkg`
             - **macOS (Apple Silicon)**: `git-editor-aarch64-apple-darwin.pkg`
-            
+
             ### 📦 Windows Installers
             - **Windows MSI**: `git-editor-installer.msi` - Double-click to install
-            
+
             ### 📦 Compressed Archives
             - **Linux x86_64**: `git-editor-linux-x86_64.tar.gz`
-            - **Linux ARM64**: `git-editor-linux-aarch64.tar.gz`
-            - **macOS**: `git-editor-macos-aarch64.tar.gz`  
+            - **macOS**: `git-editor-macos-aarch64.tar.gz`
             - **Windows**: `git-editor-windows-x86_64.zip`
             
             ---

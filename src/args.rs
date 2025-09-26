@@ -65,10 +65,9 @@ pub struct Args {
 }
 
 impl Args {
-
     pub fn ensure_all_args_present(&mut self) -> crate::utils::types::Result<()> {
-        use crate::utils::prompt::{prompt_for_missing_arg, prompt_with_default};
         use crate::utils::git_config::{get_git_user_email, get_git_user_name};
+        use crate::utils::prompt::{prompt_for_missing_arg, prompt_with_default};
 
         if self.repo_path.is_none() {
             self.repo_path = Some(String::from("./"));
@@ -232,7 +231,6 @@ mod tests {
         assert!(!args.pick_specific_commits);
         assert!(args.range);
     }
-
 
     #[test]
     fn test_args_with_simulate() {

@@ -1,11 +1,11 @@
-use std::process::Command;
 use std::path::PathBuf;
+use std::process::Command;
 
 // Attempts to get git configuration values for user name and email. First tries the git command, then falls back to reading ~/.gitconfig directly.
 pub fn get_git_user_name() -> Option<String> {
     // Try git command first
     if let Ok(output) = Command::new("git")
-        .args(&["config", "--global", "user.name"])
+        .args(["config", "--global", "user.name"])
         .output()
     {
         if output.status.success() {
@@ -24,7 +24,7 @@ pub fn get_git_user_name() -> Option<String> {
 pub fn get_git_user_email() -> Option<String> {
     // Try git command first
     if let Ok(output) = Command::new("git")
-        .args(&["config", "--global", "user.email"])
+        .args(["config", "--global", "user.email"])
         .output()
     {
         if output.status.success() {
@@ -77,7 +77,6 @@ fn get_gitconfig_paths() -> Vec<PathBuf> {
 
 // Gets the user-level git config path for the current OS.
 fn get_user_gitconfig_path() -> Option<PathBuf> {
-
     // Try different environment variables for home directory
     let home_dir = if let Ok(home) = std::env::var("HOME") {
         // Unix-like systems (Linux, macOS)
@@ -101,7 +100,6 @@ fn get_user_gitconfig_path() -> Option<PathBuf> {
 
 // Gets the system-level git config path for the current OS.
 fn get_system_gitconfig_path() -> Option<PathBuf> {
-
     if cfg!(windows) {
         // Windows: Try common Git installation locations
         let possible_paths = vec![
@@ -137,7 +135,7 @@ fn parse_gitconfig(content: &str, target_section: &str, target_key: &str) -> Opt
 
         // Check for section headers
         if line.starts_with('[') && line.ends_with(']') {
-            let section = &line[1..line.len()-1];
+            let section = &line[1..line.len() - 1];
             in_target_section = section.trim().eq_ignore_ascii_case(target_section);
             continue;
         }
@@ -149,9 +147,10 @@ fn parse_gitconfig(content: &str, target_section: &str, target_key: &str) -> Opt
                 if key.eq_ignore_ascii_case(target_key) {
                     let value = line[eq_pos + 1..].trim();
                     // Remove quotes if present
-                    let value = if (value.starts_with('"') && value.ends_with('"')) ||
-                                   (value.starts_with('\'') && value.ends_with('\'')) {
-                        &value[1..value.len()-1]
+                    let value = if (value.starts_with('"') && value.ends_with('"'))
+                        || (value.starts_with('\'') && value.ends_with('\''))
+                    {
+                        &value[1..value.len() - 1]
                     } else {
                         value
                     };
@@ -179,9 +178,18 @@ mod tests {
     editor = vim
 "#;
 
-        assert_eq!(parse_gitconfig(config, "user", "name"), Some("John Doe".to_string()));
-        assert_eq!(parse_gitconfig(config, "user", "email"), Some("john@example.com".to_string()));
-        assert_eq!(parse_gitconfig(config, "core", "editor"), Some("vim".to_string()));
+        assert_eq!(
+            parse_gitconfig(config, "user", "name"),
+            Some("John Doe".to_string())
+        );
+        assert_eq!(
+            parse_gitconfig(config, "user", "email"),
+            Some("john@example.com".to_string())
+        );
+        assert_eq!(
+            parse_gitconfig(config, "core", "editor"),
+            Some("vim".to_string())
+        );
         assert_eq!(parse_gitconfig(config, "user", "nonexistent"), None);
         assert_eq!(parse_gitconfig(config, "nonexistent", "name"), None);
     }
@@ -194,8 +202,14 @@ mod tests {
     email = 'john@example.com'
 "#;
 
-        assert_eq!(parse_gitconfig(config, "user", "name"), Some("John Doe".to_string()));
-        assert_eq!(parse_gitconfig(config, "user", "email"), Some("john@example.com".to_string()));
+        assert_eq!(
+            parse_gitconfig(config, "user", "name"),
+            Some("John Doe".to_string())
+        );
+        assert_eq!(
+            parse_gitconfig(config, "user", "email"),
+            Some("john@example.com".to_string())
+        );
     }
 
     #[test]
@@ -206,8 +220,14 @@ mod tests {
     EMAIL = john@example.com
 "#;
 
-        assert_eq!(parse_gitconfig(config, "user", "name"), Some("John Doe".to_string()));
-        assert_eq!(parse_gitconfig(config, "user", "email"), Some("john@example.com".to_string()));
+        assert_eq!(
+            parse_gitconfig(config, "user", "name"),
+            Some("John Doe".to_string())
+        );
+        assert_eq!(
+            parse_gitconfig(config, "user", "email"),
+            Some("john@example.com".to_string())
+        );
     }
 
     #[test]
@@ -220,8 +240,14 @@ mod tests {
     email = john@example.com
 "#;
 
-        assert_eq!(parse_gitconfig(config, "user", "name"), Some("John Doe  # inline comment".to_string()));
-        assert_eq!(parse_gitconfig(config, "user", "email"), Some("john@example.com".to_string()));
+        assert_eq!(
+            parse_gitconfig(config, "user", "name"),
+            Some("John Doe  # inline comment".to_string())
+        );
+        assert_eq!(
+            parse_gitconfig(config, "user", "email"),
+            Some("john@example.com".to_string())
+        );
     }
 
     #[test]
@@ -232,8 +258,14 @@ mod tests {
     email = john@example.com
 "#;
 
-        assert_eq!(parse_gitconfig(config, "user", "name"), Some("".to_string()));
-        assert_eq!(parse_gitconfig(config, "user", "email"), Some("john@example.com".to_string()));
+        assert_eq!(
+            parse_gitconfig(config, "user", "name"),
+            Some("".to_string())
+        );
+        assert_eq!(
+            parse_gitconfig(config, "user", "email"),
+            Some("john@example.com".to_string())
+        );
     }
 
     #[test]
@@ -241,10 +273,6 @@ mod tests {
         // These functions should not panic and should return Option values
         let _name = get_git_user_name();
         let _email = get_git_user_email();
-
-        // We can't assert specific values since they depend on the environment
-        // but we can ensure the functions execute without panicking
-        assert!(true);
     }
 
     #[test]
@@ -256,17 +284,26 @@ mod tests {
         assert!(path.is_some(), "Should return a gitconfig path");
 
         let path = path.unwrap();
-        assert!(path.ends_with(".gitconfig"), "Path should end with .gitconfig");
+        assert!(
+            path.ends_with(".gitconfig"),
+            "Path should end with .gitconfig"
+        );
     }
 
     #[test]
     fn test_get_gitconfig_paths() {
         // Test that we get at least one path back
         let paths = get_gitconfig_paths();
-        assert!(!paths.is_empty(), "Should return at least one gitconfig path");
+        assert!(
+            !paths.is_empty(),
+            "Should return at least one gitconfig path"
+        );
 
         // First path should be the user config
-        assert!(paths[0].ends_with(".gitconfig"), "First path should be user config");
+        assert!(
+            paths[0].ends_with(".gitconfig"),
+            "First path should be user config"
+        );
     }
 
     #[test]
@@ -337,9 +374,5 @@ mod tests {
     fn test_system_gitconfig_path_logic() {
         // Test that system config path detection doesn't panic
         let _path = get_system_gitconfig_path();
-
-        // We can't test the actual path since it depends on the OS and Git installation
-        // but we can ensure the function doesn't panic
-        assert!(true);
     }
 }

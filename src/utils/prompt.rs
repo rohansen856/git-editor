@@ -30,7 +30,7 @@ pub fn prompt_with_default(prompt: &str, default_value: &str) -> Result<String> 
     print!(
         "{}: {} ",
         prompt.yellow().bold(),
-        format!("({})", default_value).bright_black()
+        format!("({default_value})").bright_black()
     );
     io::stdout()
         .flush()

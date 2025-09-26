@@ -65,19 +65,9 @@ pub struct Args {
 }
 
 impl Args {
-    pub fn is_help_request(&self) -> bool {
-        !self.show_history
-            && !self.pick_specific_commits
-            && !self.range
-            && !self.simulate
-            && self.email.is_none()
-            && self.name.is_none()
-            && self.start.is_none()
-            && self.end.is_none()
-    }
-
     pub fn ensure_all_args_present(&mut self) -> crate::utils::types::Result<()> {
-        use crate::utils::prompt::prompt_for_missing_arg;
+        use crate::utils::git_config::{get_git_user_email, get_git_user_name};
+        use crate::utils::prompt::{prompt_for_missing_arg, prompt_with_default};
 
         if self.repo_path.is_none() {
             self.repo_path = Some(String::from("./"));
@@ -94,11 +84,21 @@ impl Args {
         }
 
         if self.email.is_none() {
-            self.email = Some(prompt_for_missing_arg("email")?);
+            // Try to get email from git config first
+            if let Some(git_email) = get_git_user_email() {
+                self.email = Some(prompt_with_default("Email", &git_email)?);
+            } else {
+                self.email = Some(prompt_for_missing_arg("email")?);
+            }
         }
 
         if self.name.is_none() {
-            self.name = Some(prompt_for_missing_arg("name")?);
+            // Try to get name from git config first
+            if let Some(git_name) = get_git_user_name() {
+                self.name = Some(prompt_with_default("Name", &git_name)?);
+            } else {
+                self.name = Some(prompt_for_missing_arg("name")?);
+            }
         }
 
         if self.start.is_none() {
@@ -233,99 +233,6 @@ mod tests {
     }
 
     #[test]
-    fn test_is_help_request() {
-        // Default args should trigger help
-        let args = Args {
-            repo_path: None,
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-        };
-        assert!(args.is_help_request());
-
-        // Args with repo_path only should still trigger help
-        let args = Args {
-            repo_path: Some("/test/repo".to_string()),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-        };
-        assert!(args.is_help_request());
-
-        // Args with show_history should NOT trigger help
-        let args = Args {
-            repo_path: None,
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: true,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-        };
-        assert!(!args.is_help_request());
-
-        // Args with email should NOT trigger help
-        let args = Args {
-            repo_path: None,
-            email: Some("test@example.com".to_string()),
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-        };
-        assert!(!args.is_help_request());
-
-        // Args with range should NOT trigger help
-        let args = Args {
-            repo_path: None,
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: true,
-            simulate: false,
-            show_diff: false,
-        };
-        assert!(!args.is_help_request());
-
-        // Args with pick_specific_commits should NOT trigger help
-        let args = Args {
-            repo_path: None,
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: true,
-            range: false,
-            simulate: false,
-            show_diff: false,
-        };
-        assert!(!args.is_help_request());
-    }
-
-    #[test]
     fn test_args_with_simulate() {
         let args = Args {
             repo_path: Some("/test/repo".to_string()),
@@ -340,7 +247,6 @@ mod tests {
             show_diff: false,
         };
 
-        assert!(!args.is_help_request());
         assert!(args.simulate);
         assert!(!args.show_diff);
     }

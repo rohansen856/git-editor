@@ -67,7 +67,8 @@ pub struct Args {
 impl Args {
 
     pub fn ensure_all_args_present(&mut self) -> crate::utils::types::Result<()> {
-        use crate::utils::prompt::prompt_for_missing_arg;
+        use crate::utils::prompt::{prompt_for_missing_arg, prompt_with_default};
+        use crate::utils::git_config::{get_git_user_email, get_git_user_name};
 
         if self.repo_path.is_none() {
             self.repo_path = Some(String::from("./"));
@@ -84,11 +85,21 @@ impl Args {
         }
 
         if self.email.is_none() {
-            self.email = Some(prompt_for_missing_arg("email")?);
+            // Try to get email from git config first
+            if let Some(git_email) = get_git_user_email() {
+                self.email = Some(prompt_with_default("Email", &git_email)?);
+            } else {
+                self.email = Some(prompt_for_missing_arg("email")?);
+            }
         }
 
         if self.name.is_none() {
-            self.name = Some(prompt_for_missing_arg("name")?);
+            // Try to get name from git config first
+            if let Some(git_name) = get_git_user_name() {
+                self.name = Some(prompt_with_default("Name", &git_name)?);
+            } else {
+                self.name = Some(prompt_for_missing_arg("name")?);
+            }
         }
 
         if self.start.is_none() {

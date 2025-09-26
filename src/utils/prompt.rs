@@ -25,6 +25,30 @@ pub fn prompt_for_missing_arg(arg_name: &str) -> Result<String> {
     prompt_for_input(&hint)
 }
 
+// Prompts for input with a suggested default value shown in faded color. If the user presses Enter, the default is used. If they type something, that's used instead.
+pub fn prompt_with_default(prompt: &str, default_value: &str) -> Result<String> {
+    print!(
+        "{}: {} ",
+        prompt.yellow().bold(),
+        format!("({})", default_value).bright_black()
+    );
+    io::stdout()
+        .flush()
+        .map_err(|e| format!("Failed to flush stdout: {e}"))?;
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|e| format!("Failed to read line: {e}"))?;
+
+    let input = input.trim();
+    if input.is_empty() {
+        Ok(default_value.to_string())
+    } else {
+        Ok(input.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -48,5 +72,6 @@ mod tests {
         // These functions exist and have the right signatures
         let _prompt_fn: fn(&str) -> Result<String> = prompt_for_input;
         let _prompt_missing_fn: fn(&str) -> Result<String> = prompt_for_missing_arg;
+        let _prompt_with_default_fn: fn(&str, &str) -> Result<String> = prompt_with_default;
     }
 }

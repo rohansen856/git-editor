@@ -50,22 +50,15 @@ and author information. Supports interactive editing, simulation mode,
 and selective field editing.
 """
 
-# Package metadata for .rpm packages  
+# Package metadata for .rpm packages
 [package.metadata.generate-rpm]
 license = "MIT"
 summary = "A command-line tool to edit git commit timestamps, messages, and author information"
-post_install_script = "scripts/post_install.sh"
-post_uninstall_script = "scripts/post_uninstall.sh"
+assets = [
+    { source = "target/release/git-editor", dest = "/usr/bin/git-editor", mode = "755" },
+    { source = "README.md", dest = "/usr/share/doc/git-editor/README.md", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/doc/git-editor/LICENSE", mode = "644" },
+]
 
 [package.metadata.generate-rpm.requires]
 git = "*"
-openssl = "*"
-
-[[package.metadata.generate-rpm.files]]
-path = "/usr/bin/git-editor"
-mode = "755"
-
-[[package.metadata.generate-rpm.files]]
-path = "/usr/share/doc/git-editor/README.md"
-mode = "644"
-doc = true

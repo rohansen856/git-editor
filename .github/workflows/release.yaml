@@ -324,6 +324,9 @@ jobs:
     name: Publish to crates.io
     needs: test
     runs-on: ubuntu-latest
+    # Only publish to crates.io for major and minor versions (not patch versions)
+    # Pattern: v1.2.0 (yes), v1.2.1 (no), v2.0.0 (yes), v2.1.0 (yes)
+    if: contains(github.ref_name, '.0') && endsWith(github.ref_name, '.0')
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1

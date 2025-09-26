@@ -160,9 +160,9 @@ impl InteractiveTable {
             let message_str = self.truncate_text(first_line_message, 40);
 
             // Add modification indicators and current cell brackets
-            let _is_current_cell_index =
+            let is_current_cell_index =
                 is_current_row && matches!(self.current_col, TableColumn::Index);
-            let _is_current_cell_hash =
+            let is_current_cell_hash =
                 is_current_row && matches!(self.current_col, TableColumn::Hash);
             let is_current_cell_author_name =
                 is_current_row && matches!(self.current_col, TableColumn::AuthorName);
@@ -181,48 +181,28 @@ impl InteractiveTable {
             } else {
                 author_name_str
             };
-            let author_name_final =
-                if is_current_cell_author_name && !self.editing && self.editable_fields.0 {
-                    format!("[{author_name_with_mod}]")
-                } else {
-                    author_name_with_mod
-                };
+            let author_name_final = author_name_with_mod;
 
             let author_email_with_mod = if commit.modifications.author_email_changed {
                 format!("*{author_email_str}")
             } else {
                 author_email_str
             };
-            let author_email_final =
-                if is_current_cell_author_email && !self.editing && self.editable_fields.1 {
-                    format!("[{author_email_with_mod}]")
-                } else {
-                    author_email_with_mod
-                };
+            let author_email_final = author_email_with_mod;
 
             let timestamp_with_mod = if commit.modifications.timestamp_changed {
                 format!("*{timestamp_str}")
             } else {
                 timestamp_str
             };
-            let timestamp_final =
-                if is_current_cell_timestamp && !self.editing && self.editable_fields.2 {
-                    format!("[{timestamp_with_mod}]")
-                } else {
-                    timestamp_with_mod
-                };
+            let timestamp_final = timestamp_with_mod;
 
             let message_with_mod = if commit.modifications.message_changed {
                 format!("*{message_str}")
             } else {
                 message_str
             };
-            let message_final =
-                if is_current_cell_message && !self.editing && self.editable_fields.3 {
-                    format!("[{message_with_mod}]")
-                } else {
-                    message_with_mod
-                };
+            let message_final = message_with_mod;
 
             // Apply formatting and colors
             if is_current_row {
@@ -237,14 +217,42 @@ impl InteractiveTable {
                         message_final.black().on_yellow()
                     );
                 } else {
-                    println!(
-                        "{:<4} {:<8} {:<15} {:<20} {:<19} {}",
-                        index_final.white().on_bright_black(),
-                        hash_final.yellow().on_bright_black(),
-                        author_name_final.cyan().on_bright_black(),
-                        author_email_final.blue().on_bright_black(),
-                        timestamp_final.magenta().on_bright_black(),
+                    // Current row, not editing - highlight current cell with special background
+                    let index_styled = if is_current_cell_index {
+                        index_final.white().on_blue()
+                    } else {
+                        index_final.white().on_bright_black()
+                    };
+                    let hash_styled = if is_current_cell_hash {
+                        hash_final.white().on_blue()
+                    } else {
+                        hash_final.yellow().on_bright_black()
+                    };
+                    let author_name_styled =
+                        if is_current_cell_author_name && self.editable_fields.0 {
+                            author_name_final.white().on_blue()
+                        } else {
+                            author_name_final.cyan().on_bright_black()
+                        };
+                    let author_email_styled =
+                        if is_current_cell_author_email && self.editable_fields.1 {
+                            author_email_final.white().on_blue()
+                        } else {
+                            author_email_final.blue().on_bright_black()
+                        };
+                    let timestamp_styled = if is_current_cell_timestamp && self.editable_fields.2 {
+                        timestamp_final.white().on_blue()
+                    } else {
+                        timestamp_final.magenta().on_bright_black()
+                    };
+                    let message_styled = if is_current_cell_message && self.editable_fields.3 {
+                        message_final.white().on_blue()
+                    } else {
                         message_final.green().on_bright_black()
+                    };
+
+                    println!(
+                        "{index_styled:<4} {hash_styled:<8} {author_name_styled:<15} {author_email_styled:<20} {timestamp_styled:<19} {message_styled}"
                     );
                 }
             } else {
@@ -514,11 +522,13 @@ impl InteractiveTable {
     }
 
     fn run(&mut self) -> Result<bool> {
-        // Enable raw mode using crossterm
-        terminal::enable_raw_mode()?;
-
         let result = loop {
+            // Disable raw mode for drawing the table
+            let _ = terminal::disable_raw_mode();
             self.draw_table();
+
+            // Enable raw mode only for reading input
+            terminal::enable_raw_mode()?;
 
             if let Event::Key(KeyEvent {
                 code,

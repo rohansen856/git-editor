@@ -1,6 +1,6 @@
 [package]
 name = "git-editor"
-version = "1.8.0"
+version = "2.0.0"
 edition = "2021"
 description = "A command-line tool to edit git commit timestamps, messages, and author information"
 license = "MIT"
@@ -37,8 +37,16 @@ depends = "$auto"
 section = "utility"
 priority = "optional"
 assets = [
-    ["target/release/git-editor", "usr/bin/", "755"],
-    ["README.md", "usr/share/doc/git-editor/README", "644"],
+    [
+        "target/release/git-editor",
+        "usr/bin/",
+        "755",
+    ],
+    [
+        "README.md",
+        "usr/share/doc/git-editor/README",
+        "644",
+    ],
 ]
 extended-description = """
 A powerful command-line tool for editing git commit timestamps, messages, 

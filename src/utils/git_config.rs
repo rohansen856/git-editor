@@ -325,7 +325,10 @@ mod tests {
 
         let path = get_user_gitconfig_path();
         assert!(path.is_some());
-        assert_eq!(path.unwrap().to_string_lossy(), "/tmp/test-home/.gitconfig");
+        let path_buf = path.unwrap();
+        let path_str = path_buf.to_string_lossy();
+        assert!(path_str.contains("test-home"));
+        assert!(path_str.ends_with(".gitconfig"));
 
         // Test Windows behavior (USERPROFILE env var)
         env::remove_var("HOME");

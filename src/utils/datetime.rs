@@ -138,6 +138,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = generate_timestamps(&mut args);
@@ -158,6 +161,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = generate_timestamps(&mut args);
@@ -189,6 +195,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = generate_timestamps(&mut args);

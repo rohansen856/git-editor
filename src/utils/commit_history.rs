@@ -191,6 +191,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = get_commit_history(&args, false);
@@ -219,6 +222,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = get_commit_history(&args, true);
@@ -242,6 +248,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = get_commit_history(&args, false);
@@ -278,6 +287,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = get_commit_history(&args, false);
@@ -298,6 +310,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = get_commit_history(&args, false);
@@ -318,6 +333,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = get_commit_history(&args, false);

@@ -21,7 +21,47 @@ dotenv = "0.15.0"
 colored = "3.0.0"
 url = "2.5.4"
 uuid = { version = "1.17.0", features = ["v4"] }
+crossterm = "0.27"
 
 [dev-dependencies]
 tempfile = "3.0"
 serial_test = "3.0"
+
+# Package metadata for .deb packages
+[package.metadata.deb]
+maintainer = "Rohan Sen <rohansen856@gmail.com>"
+copyright = "2024, Rohan Sen <rohansen856@gmail.com>"
+license-file = ["LICENSE", "4"]
+changelog = "CHANGELOG.md"
+depends = "$auto"
+section = "utility"
+priority = "optional"
+assets = [
+    ["target/release/git-editor", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/git-editor/README", "644"],
+]
+extended-description = """
+A powerful command-line tool for editing git commit timestamps, messages, 
+and author information. Supports interactive editing, simulation mode, 
+and selective field editing.
+"""
+
+# Package metadata for .rpm packages  
+[package.metadata.generate-rpm]
+license = "MIT"
+summary = "A command-line tool to edit git commit timestamps, messages, and author information"
+post_install_script = "scripts/post_install.sh"
+post_uninstall_script = "scripts/post_uninstall.sh"
+
+[package.metadata.generate-rpm.requires]
+git = "*"
+openssl = "*"
+
+[[package.metadata.generate-rpm.files]]
+path = "/usr/bin/git-editor"
+mode = "755"
+
+[[package.metadata.generate-rpm.files]]
+path = "/usr/share/doc/git-editor/README.md"
+mode = "644"
+doc = true

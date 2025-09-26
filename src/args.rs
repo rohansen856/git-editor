@@ -62,6 +62,21 @@ pub struct Args {
         help = "Show detailed diff preview in simulation mode (requires --simulate)"
     )]
     pub show_diff: bool,
+
+    #[arg(
+        long = "message",
+        help = "Edit only commit messages in range mode (-x)"
+    )]
+    pub edit_message: bool,
+
+    #[arg(
+        long = "author",
+        help = "Edit only author name and email in range mode (-x)"
+    )]
+    pub edit_author: bool,
+
+    #[arg(long = "time", help = "Edit only timestamps in range mode (-x)")]
+    pub edit_time: bool,
 }
 
 impl Args {
@@ -118,6 +133,25 @@ impl Args {
         }
         Ok(())
     }
+
+    pub fn get_editable_fields(&self) -> (bool, bool, bool, bool) {
+        // (author_name, author_email, timestamp, message)
+        if self.range {
+            if self.edit_author || self.edit_time || self.edit_message {
+                // Selective editing - only edit specified fields
+                let edit_author = self.edit_author;
+                let edit_time = self.edit_time;
+                let edit_message = self.edit_message;
+                (edit_author, edit_author, edit_time, edit_message)
+            } else {
+                // Default: edit all fields when no specific flags are provided
+                (true, true, true, true)
+            }
+        } else {
+            // Not in range mode - this shouldn't be called
+            (false, false, false, false)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -137,6 +171,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         assert_eq!(args.repo_path, None);
@@ -162,6 +199,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -182,6 +222,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -202,6 +245,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -224,6 +270,9 @@ mod tests {
             range: true,
             simulate: false,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -245,6 +294,9 @@ mod tests {
             range: false,
             simulate: true,
             show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         assert!(args.simulate);
@@ -264,6 +316,9 @@ mod tests {
             range: false,
             simulate: true,
             show_diff: true,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = args.validate_simulation_args();
@@ -283,6 +338,9 @@ mod tests {
             range: false,
             simulate: false,
             show_diff: true,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
         };
 
         let result = args.validate_simulation_args();

@@ -72,6 +72,9 @@ fn test_show_history_mode_integration() {
         range: false,
         simulate: false,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     // Test validation passes for show_history mode
@@ -107,6 +110,9 @@ fn test_pick_specific_commits_mode_integration() {
         range: false,
         simulate: false,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     // Test validation passes for pick_specific_commits mode
@@ -145,6 +151,9 @@ fn test_full_rewrite_mode_integration() {
         range: false,
         simulate: false,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     // Test validation passes for full rewrite mode
@@ -193,6 +202,9 @@ fn test_mode_flag_precedence() {
         range: false,
         simulate: false,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     let validation_result = validate_inputs(&args);
@@ -216,6 +228,9 @@ fn test_invalid_repo_path_all_modes() {
         range: false,
         simulate: false,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -233,6 +248,9 @@ fn test_invalid_repo_path_all_modes() {
         range: false,
         simulate: false,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     let history_result = get_commit_history(&args_pick, false);
@@ -250,6 +268,9 @@ fn test_invalid_repo_path_all_modes() {
         range: false,
         simulate: false,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     let timestamp_result = generate_timestamps(&mut args_full);
@@ -273,6 +294,9 @@ fn test_full_rewrite_mode_insufficient_date_range() {
         range: false,
         simulate: false,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     let validation_result = validate_inputs(&args);
@@ -309,6 +333,9 @@ fn test_full_rewrite_mode_invalid_date_format() {
         range: false,
         simulate: false,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     let timestamp_result = generate_timestamps(&mut args);
@@ -332,6 +359,9 @@ fn test_workflow_show_history_then_pick_commits() {
         range: false,
         simulate: false,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -351,6 +381,9 @@ fn test_workflow_show_history_then_pick_commits() {
         range: false,
         simulate: false,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     let validation_result = validate_inputs(&args_pick);
@@ -378,6 +411,9 @@ fn test_simulation_mode_complete_args() {
         range: false,
         simulate: true,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     // Test validation passes for simulation mode with complete args
@@ -410,6 +446,9 @@ fn test_simulation_mode_incomplete_args() {
         range: false,
         simulate: true,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     // Basic validation should pass for simulation mode
@@ -441,6 +480,9 @@ fn test_simulation_mode_with_show_diff() {
         range: false,
         simulate: true,
         show_diff: true,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     // Test that simulation with show_diff passes validation
@@ -467,6 +509,9 @@ fn test_show_diff_without_simulate_fails() {
         range: false,
         simulate: false,
         show_diff: true,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     // Test that show_diff without simulate fails validation
@@ -495,6 +540,9 @@ fn test_cli_execution_simulate_incomplete_args_no_panic() {
         range: false,
         simulate: true,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     // Mock the Args::parse() result by testing the execution flow manually
@@ -533,6 +581,9 @@ fn test_cli_execution_simulate_complete_args_success() {
         range: false,
         simulate: true,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     // Test full execution path
@@ -563,6 +614,9 @@ fn test_simulation_execution_function_missing_args() {
         range: false,
         simulate: true,
         show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
     };
 
     // The issue was that the old code called generate_timestamps without checking

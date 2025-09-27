@@ -49,9 +49,10 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     if start != "KEEP_ORIGINAL" {
         let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
         if !start_re.is_match(start) {
-            return Err(
-                format!("Invalid start date format (expected YYYY-MM-DD HH:MM:SS): {start}").into(),
-            );
+            return Err(format!(
+                "Invalid start date format (expected YYYY-MM-DD HH:MM:SS): {start}"
+            )
+            .into());
         }
     }
 

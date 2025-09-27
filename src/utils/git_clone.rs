@@ -7,10 +7,7 @@ use url::Url;
 /// Checks if a string is a valid Git URL
 pub fn is_git_url(input: &str) -> bool {
     if let Ok(url) = Url::parse(input) {
-        match url.scheme() {
-            "http" | "https" | "git" | "ssh" => true,
-            _ => false,
-        }
+        matches!(url.scheme(), "http" | "https" | "git" | "ssh")
     } else {
         // Check for SSH format like git@github.com:user/repo.git
         input.contains('@') && input.contains(':') && !input.contains(' ')
@@ -32,16 +29,20 @@ pub fn clone_repository(git_url: &str) -> Result<TempDir> {
     println!("{} {}", "Repository:".bold(), git_url.yellow());
 
     // Create a temporary directory
-    let temp_dir = TempDir::new()
-        .map_err(|e| format!("Failed to create temporary directory: {}", e))?;
+    let temp_dir =
+        TempDir::new().map_err(|e| format!("Failed to create temporary directory: {e}"))?;
 
     let repo_path = temp_dir.path();
 
     // Clone the repository
     let _repo = Repository::clone(git_url, repo_path)
-        .map_err(|e| format!("Failed to clone repository '{}': {}", git_url, e))?;
+        .map_err(|e| format!("Failed to clone repository '{git_url}': {e}"))?;
 
-    println!("{} {}", "✓ Successfully cloned to:".green(), repo_path.display().to_string().cyan());
+    println!(
+        "{} {}",
+        "✓ Successfully cloned to:".green(),
+        repo_path.display().to_string().cyan()
+    );
 
     Ok(temp_dir)
 }
@@ -55,7 +56,11 @@ pub fn get_repo_name_from_url(git_url: &str) -> String {
         if let Some(segments) = url.path_segments() {
             let segments: Vec<&str> = segments.collect();
             if segments.len() >= 2 {
-                return format!("{}/{}", segments[segments.len() - 2], segments[segments.len() - 1]);
+                return format!(
+                    "{}/{}",
+                    segments[segments.len() - 2],
+                    segments[segments.len() - 1]
+                );
             } else if segments.len() == 1 {
                 return segments[0].to_string();
             }
@@ -70,7 +75,11 @@ pub fn get_repo_name_from_url(git_url: &str) -> String {
     }
 
     // Fallback: use the last part of the URL
-    normalized.split('/').last().unwrap_or("repository").to_string()
+    normalized
+        .split('/')
+        .next_back()
+        .unwrap_or("repository")
+        .to_string()
 }
 
 #[cfg(test)]

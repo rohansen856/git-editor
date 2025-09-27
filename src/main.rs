@@ -84,8 +84,10 @@ fn execute_show_history_operation(args: &Args) -> Result<()> {
 
 fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
     use crate::utils::commit_history::get_commit_history;
-    use crate::utils::simulation::{create_full_rewrite_simulation, create_specific_commit_simulation, print_detailed_diff};
     use crate::utils::prompt::prompt_for_input;
+    use crate::utils::simulation::{
+        create_full_rewrite_simulation, create_specific_commit_simulation, print_detailed_diff,
+    };
 
     // First, show a summary of what will be changed
     println!("{}", "📊 SUMMARY OF PLANNED CHANGES".bold().cyan());
@@ -108,17 +110,30 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             args.name.clone(),
             args.email.clone(),
             None, // No timestamp changes
-            None  // No message changes
+            None, // No message changes
         )?;
 
         // Show summary
-        simulation_result.stats.print_summary("Author Information Update");
+        simulation_result
+            .stats
+            .print_summary("Author Information Update");
         print_detailed_diff(&simulation_result);
 
         // Ask for confirmation
-        println!("\n{}", "⚠️  This operation will rewrite Git history!".yellow().bold());
-        println!("{}", "Only author information will be changed, timestamps will remain the same.".cyan());
-        println!("{}", "Make sure you have backed up your repository.".yellow());
+        println!(
+            "\n{}",
+            "⚠️  This operation will rewrite Git history!"
+                .yellow()
+                .bold()
+        );
+        println!(
+            "{}",
+            "Only author information will be changed, timestamps will remain the same.".cyan()
+        );
+        println!(
+            "{}",
+            "Make sure you have backed up your repository.".yellow()
+        );
 
         let confirmation = prompt_for_input("\nDo you want to proceed? (yes/no)")?;
 
@@ -127,23 +142,39 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             return Ok(());
         }
 
-        println!("{}", "\n🚀 Proceeding with author information update...".green().bold());
+        println!(
+            "{}",
+            "\n🚀 Proceeding with author information update..."
+                .green()
+                .bold()
+        );
         println!("{}", "Updating author information...".cyan());
 
         // Use the original timestamps (get them from the commits)
-        let original_timestamps: Vec<chrono::NaiveDateTime> = commits.iter().map(|c| c.timestamp).collect();
+        let original_timestamps: Vec<chrono::NaiveDateTime> =
+            commits.iter().map(|c| c.timestamp).collect();
         rewrite_all_commits(args, original_timestamps)
     } else {
         let timestamps = generate_timestamps(args)?;
         let simulation_result = create_full_rewrite_simulation(&commits, &timestamps, args)?;
 
         // Show summary
-        simulation_result.stats.print_summary("Full History Rewrite");
+        simulation_result
+            .stats
+            .print_summary("Full History Rewrite");
         print_detailed_diff(&simulation_result);
 
         // Ask for confirmation
-        println!("\n{}", "⚠️  This operation will rewrite Git history permanently!".yellow().bold());
-        println!("{}", "Make sure you have backed up your repository.".yellow());
+        println!(
+            "\n{}",
+            "⚠️  This operation will rewrite Git history permanently!"
+                .yellow()
+                .bold()
+        );
+        println!(
+            "{}",
+            "Make sure you have backed up your repository.".yellow()
+        );
 
         let confirmation = prompt_for_input("\nDo you want to proceed? (yes/no)")?;
 

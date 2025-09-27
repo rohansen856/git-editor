@@ -145,7 +145,7 @@ impl Args {
                 if let Some((ref start_date, _)) = date_range {
                     let input = prompt_with_default(
                         "Start date (YYYY-MM-DD HH:MM:SS, press Enter to keep original timestamps)",
-                        start_date
+                        start_date,
                     )?;
                     // If user input exactly matches the default, set a special flag
                     if input == *start_date {
@@ -162,10 +162,12 @@ impl Args {
                 if let Some((_, ref end_date)) = date_range {
                     let input = prompt_with_default(
                         "End date (YYYY-MM-DD HH:MM:SS, press Enter to keep original timestamps)",
-                        end_date
+                        end_date,
                     )?;
                     // If user input exactly matches the default, set a special flag
-                    if input == *end_date && self.start.as_ref() == Some(&"KEEP_ORIGINAL".to_string()) {
+                    if input == *end_date
+                        && self.start.as_ref() == Some(&"KEEP_ORIGINAL".to_string())
+                    {
                         self.end = Some("KEEP_ORIGINAL".to_string());
                     } else if self.start.as_ref() == Some(&"KEEP_ORIGINAL".to_string()) {
                         // User changed end date but kept start as default - use actual start date
@@ -186,8 +188,8 @@ impl Args {
     }
 
     pub fn should_keep_original_timestamps(&self) -> bool {
-        self.start.as_ref() == Some(&"KEEP_ORIGINAL".to_string()) &&
-        self.end.as_ref() == Some(&"KEEP_ORIGINAL".to_string())
+        self.start.as_ref() == Some(&"KEEP_ORIGINAL".to_string())
+            && self.end.as_ref() == Some(&"KEEP_ORIGINAL".to_string())
     }
 
     fn get_repository_date_range(&self) -> crate::utils::types::Result<Option<(String, String)>> {
@@ -223,8 +225,14 @@ impl Args {
                     let oldest_commit = &commits[commits.len() - 1];
 
                     // Format the dates as strings
-                    let start_date = oldest_commit.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
-                    let end_date = newest_commit.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+                    let start_date = oldest_commit
+                        .timestamp
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string();
+                    let end_date = newest_commit
+                        .timestamp
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string();
 
                     Ok(Some((start_date, end_date)))
                 }

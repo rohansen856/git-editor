@@ -457,6 +457,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let commits = get_commit_history(&args, false).unwrap();
@@ -538,6 +539,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         // Test that the function handles the case where get_commit_history returns commits
@@ -566,6 +568,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let commits = get_commit_history(&args, false).unwrap();

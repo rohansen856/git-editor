@@ -1171,6 +1171,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         // Test that get_commit_history returns commits for this repo

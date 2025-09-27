@@ -194,6 +194,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = get_commit_history(&args, false);
@@ -225,6 +226,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = get_commit_history(&args, true);
@@ -251,6 +253,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = get_commit_history(&args, false);
@@ -290,6 +293,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = get_commit_history(&args, false);
@@ -313,6 +317,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = get_commit_history(&args, false);
@@ -336,6 +341,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = get_commit_history(&args, false);

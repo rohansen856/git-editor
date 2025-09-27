@@ -75,6 +75,7 @@ fn test_show_history_mode_integration() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     // Test validation passes for show_history mode
@@ -113,6 +114,7 @@ fn test_pick_specific_commits_mode_integration() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     // Test validation passes for pick_specific_commits mode
@@ -154,6 +156,7 @@ fn test_full_rewrite_mode_integration() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     // Test validation passes for full rewrite mode
@@ -205,6 +208,7 @@ fn test_mode_flag_precedence() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     let validation_result = validate_inputs(&args);
@@ -231,6 +235,7 @@ fn test_invalid_repo_path_all_modes() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -251,6 +256,7 @@ fn test_invalid_repo_path_all_modes() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     let history_result = get_commit_history(&args_pick, false);
@@ -271,6 +277,7 @@ fn test_invalid_repo_path_all_modes() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     let timestamp_result = generate_timestamps(&mut args_full);
@@ -297,6 +304,7 @@ fn test_full_rewrite_mode_insufficient_date_range() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     let validation_result = validate_inputs(&args);
@@ -336,6 +344,7 @@ fn test_full_rewrite_mode_invalid_date_format() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     let timestamp_result = generate_timestamps(&mut args);
@@ -362,6 +371,7 @@ fn test_workflow_show_history_then_pick_commits() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -384,6 +394,7 @@ fn test_workflow_show_history_then_pick_commits() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     let validation_result = validate_inputs(&args_pick);
@@ -414,6 +425,7 @@ fn test_simulation_mode_complete_args() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     // Test validation passes for simulation mode with complete args
@@ -449,6 +461,7 @@ fn test_simulation_mode_incomplete_args() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     // Basic validation should pass for simulation mode
@@ -483,6 +496,7 @@ fn test_simulation_mode_with_show_diff() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     // Test that simulation with show_diff passes validation
@@ -512,6 +526,7 @@ fn test_show_diff_without_simulate_fails() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     // Test that show_diff without simulate fails validation
@@ -543,6 +558,7 @@ fn test_cli_execution_simulate_incomplete_args_no_panic() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     // Mock the Args::parse() result by testing the execution flow manually
@@ -584,6 +600,7 @@ fn test_cli_execution_simulate_complete_args_success() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     // Test full execution path
@@ -617,6 +634,7 @@ fn test_simulation_execution_function_missing_args() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        _temp_dir: None,
     };
 
     // The issue was that the old code called generate_timestamps without checking

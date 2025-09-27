@@ -141,6 +141,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = generate_timestamps(&mut args);
@@ -164,6 +165,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = generate_timestamps(&mut args);
@@ -198,6 +200,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = generate_timestamps(&mut args);

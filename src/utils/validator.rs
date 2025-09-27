@@ -45,21 +45,28 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
         return Err("Name cannot be empty".into());
     }
 
-    let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
-    if !start_re.is_match(start) {
-        return Err(
-            format!("Invalid start date format (expected YYYY-MM-DD HH:MM:SS): {start}").into(),
-        );
+    // Allow special "KEEP_ORIGINAL" value to skip timestamp validation
+    if start != "KEEP_ORIGINAL" {
+        let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
+        if !start_re.is_match(start) {
+            return Err(format!(
+                "Invalid start date format (expected YYYY-MM-DD HH:MM:SS): {start}"
+            )
+            .into());
+        }
     }
 
-    let end_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
-    if !end_re.is_match(end) {
-        return Err(
-            format!("Invalid end date format (expected YYYY-MM-DD HH:MM:SS): {end}").into(),
-        );
+    if end != "KEEP_ORIGINAL" {
+        let end_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
+        if !end_re.is_match(end) {
+            return Err(
+                format!("Invalid end date format (expected YYYY-MM-DD HH:MM:SS): {end}").into(),
+            );
+        }
     }
 
-    if start >= end {
+    // Skip date comparison if using KEEP_ORIGINAL
+    if start != "KEEP_ORIGINAL" && end != "KEEP_ORIGINAL" && start >= end {
         return Err("Start date must be before end date".into());
     }
 
@@ -120,6 +127,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = validate_inputs(&args);
@@ -143,6 +151,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = validate_inputs(&args);
@@ -166,6 +175,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = validate_inputs(&args);
@@ -189,6 +199,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         // This test would normally call process::exit, so we can't test it directly
@@ -215,6 +226,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$").unwrap();
@@ -238,6 +250,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         // This would normally call process::exit, so we test the path validation logic
@@ -347,6 +360,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            _temp_dir: None,
         };
 
         let result = validate_inputs(&args);

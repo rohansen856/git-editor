@@ -4,7 +4,12 @@ use regex::Regex;
 use url::Url;
 
 pub fn validate_inputs(args: &Args) -> Result<()> {
-    // Always validate repo_path since it's required for all operations
+    // Skip all validation for docs mode
+    if args.docs {
+        return Ok(());
+    }
+
+    // Always validate repo_path since it's required for all operations (except docs)
     let repo_path = args.repo_path.as_ref().unwrap();
 
     if repo_path.is_empty() {
@@ -25,8 +30,8 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
         }
     }
 
-    // Skip validation for email, name, start, end if using show_history, pick_specific_commits, range, or simulate
-    if args.show_history || args.pick_specific_commits || args.range || args.simulate {
+    // Skip validation for email, name, start, end if using show_history, pick_specific_commits, range, simulate, or docs
+    if args.show_history || args.pick_specific_commits || args.range || args.simulate || args.docs {
         return Ok(());
     }
 
@@ -127,6 +132,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -151,6 +157,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -175,6 +182,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -199,6 +207,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -226,6 +235,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -250,6 +260,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -360,6 +371,82 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
+            _temp_dir: None,
+        };
+
+        let result = validate_inputs(&args);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_inputs_docs_mode() {
+        // Test that docs mode skips all validation, even with invalid/missing data
+        let args = Args {
+            repo_path: None, // Missing repo path would normally fail
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pick_specific_commits: false,
+            range: false,
+            simulate: false,
+            show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
+            docs: true,
+            _temp_dir: None,
+        };
+
+        let result = validate_inputs(&args);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_inputs_docs_mode_with_invalid_path() {
+        // Test that docs mode skips validation even with invalid repo path
+        let args = Args {
+            repo_path: Some("/completely/invalid/path/that/does/not/exist".to_string()),
+            email: Some("invalid-email".to_string()), // Invalid email format
+            name: None,
+            start: Some("invalid-date".to_string()), // Invalid date format
+            end: None,
+            show_history: false,
+            pick_specific_commits: false,
+            range: false,
+            simulate: false,
+            show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
+            docs: true,
+            _temp_dir: None,
+        };
+
+        let result = validate_inputs(&args);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_inputs_docs_mode_precedence() {
+        // Test that docs mode takes precedence over other modes
+        let args = Args {
+            repo_path: Some("/invalid/path".to_string()),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: true, // Other modes are set but docs should take precedence
+            pick_specific_commits: true,
+            range: true,
+            simulate: true,
+            show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
+            docs: true, // Docs mode should skip all validation
             _temp_dir: None,
         };
 

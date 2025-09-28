@@ -80,6 +80,12 @@ pub struct Args {
     #[arg(long = "time", help = "Edit only timestamps in range mode (-x)")]
     pub edit_time: bool,
 
+    #[arg(
+        long = "docs",
+        help = "Open comprehensive documentation in the browser"
+    )]
+    pub docs: bool,
+
     #[clap(skip)]
     pub _temp_dir: Option<TempDir>,
 }
@@ -109,8 +115,8 @@ impl Args {
             self._temp_dir = Some(temp_dir);
         }
 
-        // Skip prompting for email, name, start, and end if using show_history, pick_specific_commits, or simulation modes
-        if self.show_history || self.pick_specific_commits || self.simulate {
+        // Skip prompting for email, name, start, and end if using show_history, pick_specific_commits, simulation, or docs modes
+        if self.show_history || self.pick_specific_commits || self.simulate || self.docs {
             return Ok(());
         }
 
@@ -211,6 +217,7 @@ impl Args {
                 edit_message: false,
                 edit_author: false,
                 edit_time: false,
+                docs: false,
                 _temp_dir: None,
             };
 
@@ -290,6 +297,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -319,6 +327,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -343,6 +352,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -367,6 +377,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -393,6 +404,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -418,6 +430,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -441,6 +454,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -464,6 +478,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -473,5 +488,57 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("--show-diff requires --simulate"));
+    }
+
+    #[test]
+    fn test_args_with_docs() {
+        let args = Args {
+            repo_path: None,
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pick_specific_commits: false,
+            range: false,
+            simulate: false,
+            show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
+            docs: true,
+            _temp_dir: None,
+        };
+
+        assert!(args.docs);
+        assert!(!args.show_history);
+        assert!(!args.simulate);
+        assert!(!args.pick_specific_commits);
+        assert!(!args.range);
+    }
+
+    #[test]
+    fn test_docs_mode_skips_validation() {
+        let mut args = Args {
+            repo_path: None, // This would normally cause validation to fail
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pick_specific_commits: false,
+            range: false,
+            simulate: false,
+            show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
+            docs: true,
+            _temp_dir: None,
+        };
+
+        // This should not fail even though repo_path is None, because docs mode skips validation
+        let result = args.ensure_all_args_present();
+        assert!(result.is_ok());
     }
 }

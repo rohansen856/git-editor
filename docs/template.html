@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Git Editor - Comprehensive Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8f9fa;
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            color: #34495e;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+            padding-left: 20px;
+        }
+
+        h3 {
+            color: #2c3e50;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+
+        .toc {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .toc ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .toc li {
+            margin: 8px 0;
+        }
+
+        .toc a {
+            color: #2980b9;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        code {
+            background: #f1f2f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            color: #c7254e;
+        }
+
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+
+        pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+        }
+
+        .example {
+            background: #e8f5e8;
+            border-left: 4px solid #27ae60;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .warning {
+            background: #fef9e7;
+            border-left: 4px solid #f39c12;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .danger {
+            background: #fdf2f2;
+            border-left: 4px solid #e74c3c;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin: 2px;
+        }
+
+        .badge-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .badge-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .badge-warning {
+            background: #f39c12;
+            color: white;
+        }
+
+        .badge-danger {
+            background: #e74c3c;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🛠️ Git Editor - Comprehensive Documentation</h1>
+
+        <div class="toc">
+            <h3>📋 Table of Contents</h3>
+            <ul>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#installation">Installation</a></li>
+                <li><a href="#operation-modes">Operation Modes</a></li>
+                <li><a href="#command-reference">Command Reference</a></li>
+                <li><a href="#examples">Usage Examples</a></li>
+                <li><a href="#advanced-features">Advanced Features</a></li>
+                <li><a href="#development">Development</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+            </ul>
+        </div>
+
+        <section id="overview">
+            <h2>🎯 Overview</h2>
+            <p><strong>Git Editor</strong> is a powerful command-line tool designed for rewriting Git commit history. It
+                allows you to modify commit timestamps, author information, and messages with precision and safety.</p>
+            <div class="warning">
+                <strong>⚠️ Important:</strong> This tool rewrites Git history permanently. Always backup your repository
+                before use.
+            </div>
+        </section>
+
+        <section id="installation">
+            <h2>💾 Installation</h2>
+            <h3>From Release Binaries</h3>
+            <pre><code># Download the latest release for your platform
+wget https://github.com/rohansen856/git-editor/releases/latest/download/git-editor-linux-x64.tar.gz
+tar -xzf git-editor-linux-x64.tar.gz
+sudo mv git-editor /usr/local/bin/</code></pre>
+            <h3>From Source</h3>
+            <pre><code># Clone the repository
+git clone https://github.com/rohansen856/git-editor.git
+cd git-editor
+
+# Build and install
+cargo build --release
+sudo cp target/release/git-editor /usr/local/bin/</code></pre>
+        </section>
+
+        <section id="operation-modes">
+            <h2>🚀 Operation Modes</h2>
+            <p>Git Editor supports multiple operation modes to suit different use cases:</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mode</th>
+                        <th>Flag</th>
+                        <th>Description</th>
+                        <th>Use Case</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge badge-primary">Full Rewrite</span></td>
+                        <td><em>Default</em></td>
+                        <td>Rewrites entire repository history</td>
+                        <td>Complete timestamp and author updates</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-success">Show History</span></td>
+                        <td><code>-s, --show-history</code></td>
+                        <td>Display commit history without changes</td>
+                        <td>Repository analysis and planning</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-warning">Pick Specific</span></td>
+                        <td><code>-p, --pick-specific-commits</code></td>
+                        <td>Interactive selection of individual commits</td>
+                        <td>Targeted commit modifications</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-warning">Range Edit</span></td>
+                        <td><code>-x, --range</code></td>
+                        <td>Select and edit commit ranges</td>
+                        <td>Batch editing of consecutive commits</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-danger">Simulation</span></td>
+                        <td><code>--simulate</code></td>
+                        <td>Preview changes without applying</td>
+                        <td>Safe testing and validation</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-primary">Documentation</span></td>
+                        <td><code>--docs</code></td>
+                        <td>Open comprehensive documentation</td>
+                        <td>Help and reference</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="command-reference">
+            <h2>📖 Command Reference</h2>
+            <h3>Basic Arguments</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Argument</th>
+                        <th>Short</th>
+                        <th>Description</th>
+                        <th>Example</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>--repo-path</code></td>
+                        <td><code>-r</code></td>
+                        <td>Repository path or URL</td>
+                        <td><code>-r /path/to/repo</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>--email</code></td>
+                        <td>-</td>
+                        <td>Author email address</td>
+                        <td><code>--email user@example.com</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>--name</code></td>
+                        <td><code>-n</code></td>
+                        <td>Author name</td>
+                        <td><code>-n "John Doe"</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>--begin</code></td>
+                        <td><code>-b</code></td>
+                        <td>Start date (YYYY-MM-DD HH:MM:SS)</td>
+                        <td><code>-b "2023-01-01 09:00:00"</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>--end</code></td>
+                        <td><code>-e</code></td>
+                        <td>End date (YYYY-MM-DD HH:MM:SS)</td>
+                        <td><code>-e "2023-12-31 17:00:00"</code></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="examples">
+            <h2>💡 Usage Examples</h2>
+            <h3>Open Documentation</h3>
+            <div class="example">
+                <pre><code>git-editor --docs</code></pre>
+                <p>Opens this comprehensive documentation in your default browser.</p>
+            </div>
+            <h3>Basic Full Rewrite</h3>
+            <div class="example">
+                <pre><code>git-editor --name "John Doe" --email john@example.com \
+           --begin "2023-01-01 09:00:00" --end "2023-12-31 17:00:00"</code></pre>
+                <p>Rewrites all commits with new author info and timestamps distributed between the specified dates.</p>
+            </div>
+            <h3>Show Repository History</h3>
+            <div class="example">
+                <pre><code>git-editor -s</code></pre>
+                <p>Displays the current commit history without making any changes.</p>
+            </div>
+            <h3>Simulation Mode</h3>
+            <div class="example">
+                <pre><code>git-editor --simulate --show-diff \
+           --name "Test User" --email test@example.com \
+           --begin "2023-01-01 09:00:00" --end "2023-01-31 17:00:00"</code></pre>
+                <p>Previews all changes with detailed diffs without applying them.</p>
+            </div>
+        </section>
+
+        <section id="advanced-features">
+            <h2>🔧 Advanced Features</h2>
+            <h3>Smart Date Distribution</h3>
+            <p>Git Editor uses intelligent algorithms to distribute commit timestamps:</p>
+            <ul>
+                <li><strong>Chronological Order:</strong> Maintains original commit sequence</li>
+                <li><strong>Realistic Spacing:</strong> Distributes commits with natural intervals</li>
+                <li><strong>Working Hours:</strong> Concentrates commits during business hours</li>
+                <li><strong>Weekend Handling:</strong> Reduces weekend commit frequency</li>
+            </ul>
+        </section>
+
+        <section id="development">
+            <h2>🛠️ Development</h2>
+            <h3>Build Commands</h3>
+            <pre><code># Debug build
+cargo build
+
+# Release build
+cargo build --release
+
+# Run with arguments
+cargo run -- --help
+cargo run -- --repo-path . -s</code></pre>
+            <h3>Testing</h3>
+            <pre><code># Run all tests
+cargo test
+
+# Run unit tests only
+cargo test --lib
+
+# Run integration tests only
+cargo test --test integration_tests</code></pre>
+        </section>
+
+        <section id="troubleshooting">
+            <h2>🔧 Troubleshooting</h2>
+            <h3>Common Issues</h3>
+            <h4>Repository Not Found</h4>
+            <div class="example">
+                <pre><code>Error: Repository not found at path: /invalid/path</code></pre>
+                <p><strong>Solution:</strong> Ensure the repository path exists and contains a valid Git repository.</p>
+            </div>
+            <h3>Getting Help</h3>
+            <p>If you encounter issues:</p>
+            <ul>
+                <li>Check the <a href="https://github.com/rohansen856/git-editor/issues">GitHub Issues</a></li>
+                <li>Review the <a href="https://github.com/rohansen856/git-editor">project README</a></li>
+                <li>Create a new issue with detailed error information</li>
+            </ul>
+        </section>
+
+        <footer
+            style="margin-top: 50px; padding-top: 30px; border-top: 1px solid #ddd; text-align: center; color: #666;">
+            <p>Git Editor v{{VERSION}} - Generated on {{DATE}}</p>
+            <p>Made with ❤️ by Rohan Sen</p>
+        </footer>
+    </div>
+</body>
+
+</html>

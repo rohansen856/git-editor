@@ -75,6 +75,7 @@ fn test_show_history_mode_integration() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -114,6 +115,7 @@ fn test_pick_specific_commits_mode_integration() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -156,6 +158,7 @@ fn test_full_rewrite_mode_integration() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -208,6 +211,7 @@ fn test_mode_flag_precedence() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -235,6 +239,7 @@ fn test_invalid_repo_path_all_modes() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -256,6 +261,7 @@ fn test_invalid_repo_path_all_modes() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -277,6 +283,7 @@ fn test_invalid_repo_path_all_modes() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -304,6 +311,7 @@ fn test_full_rewrite_mode_insufficient_date_range() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -344,6 +352,7 @@ fn test_full_rewrite_mode_invalid_date_format() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -371,6 +380,7 @@ fn test_workflow_show_history_then_pick_commits() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -394,6 +404,7 @@ fn test_workflow_show_history_then_pick_commits() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -425,6 +436,7 @@ fn test_simulation_mode_complete_args() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -461,6 +473,7 @@ fn test_simulation_mode_incomplete_args() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -496,6 +509,7 @@ fn test_simulation_mode_with_show_diff() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -526,6 +540,7 @@ fn test_show_diff_without_simulate_fails() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -558,6 +573,7 @@ fn test_cli_execution_simulate_incomplete_args_no_panic() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -600,6 +616,7 @@ fn test_cli_execution_simulate_complete_args_success() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -634,6 +651,7 @@ fn test_simulation_execution_function_missing_args() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        docs: false,
         _temp_dir: None,
     };
 
@@ -663,4 +681,153 @@ fn test_simulation_execution_function_missing_args() {
                 || args.end.is_none()
         );
     }
+}
+
+#[test]
+#[serial]
+fn test_docs_mode_execution() {
+    let output = std::process::Command::new("cargo")
+        .args(["run", "--", "--docs"])
+        .env("DISPLAY", ":0") // Mock display for headless environments
+        .output()
+        .expect("Failed to execute command");
+
+    // The command should succeed
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    // Should contain docs-related output
+    assert!(
+        stdout.contains("📚 Opening Git Editor Documentation")
+            || stderr.contains("📚 Opening Git Editor Documentation"),
+        "Expected docs message not found. Stdout: {stdout}, Stderr: {stderr}"
+    );
+
+    // Should either succeed in opening browser or fail gracefully
+    assert!(
+        stdout.contains("✅ Documentation opened")
+            || stdout.contains("⚠️  Could not open browser")
+            || stderr.contains("✅ Documentation opened")
+            || stderr.contains("⚠️  Could not open browser"),
+        "Expected either success or graceful failure message. Stdout: {stdout}, Stderr: {stderr}"
+    );
+}
+
+#[test]
+#[serial]
+fn test_docs_mode_no_repo_required() {
+    // Create a temporary directory that is NOT a git repo
+    let temp_dir = TempDir::new().unwrap();
+
+    // Build the absolute path to the binary
+    let project_root = std::env::current_dir().expect("Failed to get current dir");
+    let binary_path = project_root.join("target/debug/git-editor");
+
+    let output = std::process::Command::new(binary_path)
+        .args(["--docs"])
+        .current_dir(temp_dir.path())
+        .env("DISPLAY", ":0")
+        .output()
+        .expect("Failed to execute command");
+
+    // Should succeed even without a git repository
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    // Should not contain repository-related errors
+    assert!(
+        !stdout.contains("Repository not found") && !stderr.contains("Repository not found"),
+        "Docs mode should not require a repository. Stdout: {stdout}, Stderr: {stderr}"
+    );
+}
+
+#[test]
+#[serial]
+fn test_docs_mode_with_invalid_args() {
+    // Test that docs mode works even with invalid arguments that would normally fail
+    let output = std::process::Command::new("cargo")
+        .args([
+            "run",
+            "--",
+            "--docs",
+            "--email",
+            "invalid-email", // Invalid email format
+            "--begin",
+            "invalid-date", // Invalid date format
+            "--repo-path",
+            "/nonexistent/path", // Invalid repo path
+        ])
+        .env("DISPLAY", ":0")
+        .output()
+        .expect("Failed to execute command");
+
+    // Should still succeed because docs mode skips validation
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    // Should contain docs message
+    assert!(
+        stdout.contains("📚 Opening Git Editor Documentation")
+            || stderr.contains("📚 Opening Git Editor Documentation"),
+        "Expected docs message. Stdout: {stdout}, Stderr: {stderr}"
+    );
+}
+
+#[test]
+#[serial]
+fn test_docs_flag_in_help() {
+    let output = std::process::Command::new("cargo")
+        .args(["run", "--", "--help"])
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    // Should contain the docs flag in help output
+    assert!(stdout.contains("--docs"));
+    assert!(stdout.contains("Open comprehensive documentation in the browser"));
+}
+
+#[test]
+#[serial]
+fn test_docs_mode_precedence_over_other_modes() {
+    // Test that when docs is specified with other modes, docs takes precedence
+    let output = std::process::Command::new("cargo")
+        .args([
+            "run",
+            "--",
+            "--docs",
+            "--show-history", // These other modes should be ignored
+            "--simulate",
+            "--pick-specific-commits",
+        ])
+        .env("DISPLAY", ":0")
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    // Should execute docs mode, not other modes
+    assert!(
+        stdout.contains("📚 Opening Git Editor Documentation")
+            || stderr.contains("📚 Opening Git Editor Documentation"),
+        "Expected docs message. Stdout: {stdout}, Stderr: {stderr}"
+    );
+
+    // Should not contain messages from other modes
+    assert!(
+        !stdout.contains("Showing commit history") && !stderr.contains("Showing commit history"),
+        "Should not show history mode message. Stdout: {stdout}, Stderr: {stderr}"
+    );
 }

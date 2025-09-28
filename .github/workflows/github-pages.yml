@@ -1,0 +1,89 @@
+name: Deploy Documentation to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 🦀 Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-pages-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 📦 Build project
+        run: cargo build --release
+
+      - name: 📚 Generate documentation
+        run: |
+          # Set environment variables to prevent browser opening
+          export GIT_EDITOR_NO_BROWSER=1
+          export NO_BROWSER=1
+
+          # Create docs directory
+          mkdir -p docs-site
+
+          # Generate the documentation HTML
+          cargo run --release -- --docs
+
+          # Copy the generated HTML to docs-site directory
+          cp /tmp/git-editor-docs.html docs-site/index.html
+
+          # Create a simple robots.txt for better SEO
+          echo -e "User-agent: *\nAllow: /" > docs-site/robots.txt
+
+          # Create a .nojekyll file to bypass Jekyll processing
+          touch docs-site/.nojekyll
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './docs-site'
+
+  deploy:
+    name: Deploy to GitHub Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    # Only deploy on pushes to main/master, not on PRs
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -38,6 +38,28 @@ cargo build --release
 # The binary will be available at target/release/git-editor
 ```
 
+## Documentation
+
+📚 **Comprehensive documentation is available online:** [rohansen856.github.io/git-editor](https://rohansen856.github.io/git-editor)
+
+The online documentation includes:
+- Complete command reference with examples
+- Technical implementation details
+- Architecture overview and development guidelines
+- Interactive copy-to-clipboard code examples
+- Troubleshooting guide and FAQ
+- Advanced usage patterns and best practices
+
+### Quick Access to Documentation
+
+You can also access the documentation directly from the command line:
+
+```bash
+git-editor --docs
+```
+
+This command will generate and open the comprehensive documentation in your default browser.
+
 ## Usage
 
 Git Editor supports five main modes of operation:

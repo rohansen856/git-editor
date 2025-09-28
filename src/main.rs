@@ -1,6 +1,7 @@
 use colored::*;
 
 pub mod args;
+pub mod docs;
 pub mod rewrite;
 pub mod utils;
 
@@ -29,6 +30,7 @@ fn run() -> Result<()> {
     validate_inputs(&args)?;
 
     match determine_operation_mode(&args) {
+        OperationMode::Docs => execute_docs_operation(),
         OperationMode::Range => execute_range_operation(&args),
         OperationMode::PickSpecific => execute_pick_specific_operation(&args),
         OperationMode::ShowHistory => execute_show_history_operation(&args),
@@ -36,7 +38,7 @@ fn run() -> Result<()> {
         OperationMode::Simulate => execute_simulation_operation(&mut args),
     }?;
 
-    if !args.simulate {
+    if !args.simulate && !args.docs {
         println!("{}", "Operation completed successfully!".green().bold());
     }
     Ok(())
@@ -44,6 +46,7 @@ fn run() -> Result<()> {
 
 #[derive(Debug)]
 enum OperationMode {
+    Docs,
     Range,
     PickSpecific,
     ShowHistory,
@@ -52,7 +55,9 @@ enum OperationMode {
 }
 
 fn determine_operation_mode(args: &Args) -> OperationMode {
-    if args.simulate {
+    if args.docs {
+        OperationMode::Docs
+    } else if args.simulate {
         OperationMode::Simulate
     } else if args.range {
         OperationMode::Range
@@ -63,6 +68,10 @@ fn determine_operation_mode(args: &Args) -> OperationMode {
     } else {
         OperationMode::FullRewrite
     }
+}
+
+fn execute_docs_operation() -> Result<()> {
+    crate::docs::execute_docs_operation()
 }
 
 fn execute_range_operation(args: &Args) -> Result<()> {

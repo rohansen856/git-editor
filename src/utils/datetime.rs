@@ -141,6 +141,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -165,6 +166,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 
@@ -200,6 +202,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            docs: false,
             _temp_dir: None,
         };
 

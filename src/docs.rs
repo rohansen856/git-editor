@@ -48,6 +48,14 @@ pub fn execute_docs_operation() -> Result<()> {
 }
 
 fn open_in_browser(file_path: &std::path::Path) -> Result<()> {
+    // Skip browser opening if NO_BROWSER environment variable is set or if running in test context
+    if std::env::var("NO_BROWSER").is_ok()
+        || std::env::var("GIT_EDITOR_NO_BROWSER").is_ok()
+        || cfg!(test)
+    {
+        return Err("Browser opening disabled".into());
+    }
+
     let file_url = format!("file://{}", file_path.display());
     open::that(file_url)?;
     Ok(())

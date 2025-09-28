@@ -689,6 +689,7 @@ fn test_docs_mode_execution() {
     let output = std::process::Command::new("cargo")
         .args(["run", "--", "--docs"])
         .env("DISPLAY", ":0") // Mock display for headless environments
+        .env("GIT_EDITOR_NO_BROWSER", "1") // Disable browser opening during tests
         .output()
         .expect("Failed to execute command");
 
@@ -729,6 +730,7 @@ fn test_docs_mode_no_repo_required() {
         .args(["--docs"])
         .current_dir(temp_dir.path())
         .env("DISPLAY", ":0")
+        .env("GIT_EDITOR_NO_BROWSER", "1") // Disable browser opening during tests
         .output()
         .expect("Failed to execute command");
 
@@ -762,6 +764,7 @@ fn test_docs_mode_with_invalid_args() {
             "/nonexistent/path", // Invalid repo path
         ])
         .env("DISPLAY", ":0")
+        .env("GIT_EDITOR_NO_BROWSER", "1") // Disable browser opening during tests
         .output()
         .expect("Failed to execute command");
 
@@ -810,6 +813,7 @@ fn test_docs_mode_precedence_over_other_modes() {
             "--pick-specific-commits",
         ])
         .env("DISPLAY", ":0")
+        .env("GIT_EDITOR_NO_BROWSER", "1") // Disable browser opening during tests
         .output()
         .expect("Failed to execute command");
 

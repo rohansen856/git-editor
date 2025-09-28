@@ -91,7 +91,7 @@ mod tests {
 
         // Check that HTML template is loaded
         assert!(html.contains("<!DOCTYPE html>"));
-        assert!(html.contains("Git Editor - Comprehensive Documentation"));
+        assert!(html.contains("Git Editor - Complete Technical Documentation"));
 
         // Check that placeholders are replaced
         assert!(html.contains(&format!("Git Editor v{}", env!("CARGO_PKG_VERSION"))));

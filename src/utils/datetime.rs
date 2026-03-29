@@ -69,7 +69,8 @@ pub fn generate_timestamps(args: &mut Args) -> Result<Vec<NaiveDateTime>> {
                 // Random distribution with 5-min minimum gap
                 let slack = total_span - min_total;
                 let mut rng = rand::rng();
-                let mut weights: Vec<f64> = (0..(total_commits - 1)).map(|_| rng.random()).collect();
+                let mut weights: Vec<f64> =
+                    (0..(total_commits - 1)).map(|_| rng.random()).collect();
                 let sum: f64 = weights.iter().sum();
                 for w in &mut weights {
                     *w = (*w / sum) * slack.num_seconds() as f64;
@@ -357,7 +358,11 @@ mod tests {
         };
 
         let result = generate_timestamps(&mut args);
-        assert!(result.is_ok(), "skip_range_check should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "skip_range_check should succeed: {:?}",
+            result.err()
+        );
 
         let timestamps = result.unwrap();
         assert_eq!(timestamps.len(), 5);

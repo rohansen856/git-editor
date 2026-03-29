@@ -46,6 +46,17 @@ rustup component add clippy rustfmt
 cargo fetch
 ```
 
+### Install Pre-Commit Hooks
+
+We use [`pre-commit`](https://pre-commit.com/) to automatically run formatters, linters, and tests before each commit. This prevents failing builds in CI.
+
+1. Ensure `pre-commit` is installed on your system (`pip install pre-commit`, `brew install pre-commit`, etc.)
+2. Install the git hook scripts:
+
+```bash
+pre-commit install
+```
+
 ### Build the Project
 
 ```bash

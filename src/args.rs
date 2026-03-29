@@ -81,6 +81,12 @@ pub struct Args {
     pub edit_time: bool,
 
     #[arg(
+        long = "skip-range-check",
+        help = "Skip the minimum date range check (allows tightly packed commit timestamps)"
+    )]
+    pub skip_range_check: bool,
+
+    #[arg(
         long = "docs",
         help = "Open comprehensive documentation in the browser"
     )]
@@ -217,6 +223,7 @@ impl Args {
                 edit_message: false,
                 edit_author: false,
                 edit_time: false,
+                skip_range_check: false,
                 docs: false,
                 _temp_dir: None,
             };
@@ -297,6 +304,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            skip_range_check: false,
             docs: false,
             _temp_dir: None,
         };
@@ -327,6 +335,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            skip_range_check: false,
             docs: false,
             _temp_dir: None,
         };
@@ -352,6 +361,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            skip_range_check: false,
             docs: false,
             _temp_dir: None,
         };
@@ -377,6 +387,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            skip_range_check: false,
             docs: false,
             _temp_dir: None,
         };
@@ -404,6 +415,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            skip_range_check: false,
             docs: false,
             _temp_dir: None,
         };
@@ -430,6 +442,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            skip_range_check: false,
             docs: false,
             _temp_dir: None,
         };
@@ -454,6 +467,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            skip_range_check: false,
             docs: false,
             _temp_dir: None,
         };
@@ -478,6 +492,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            skip_range_check: false,
             docs: false,
             _temp_dir: None,
         };
@@ -506,6 +521,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            skip_range_check: false,
             docs: true,
             _temp_dir: None,
         };
@@ -533,6 +549,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            skip_range_check: false,
             docs: true,
             _temp_dir: None,
         };

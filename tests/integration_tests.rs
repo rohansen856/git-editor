@@ -75,6 +75,7 @@ fn test_show_history_mode_integration() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -115,6 +116,7 @@ fn test_pick_specific_commits_mode_integration() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -158,6 +160,7 @@ fn test_full_rewrite_mode_integration() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -211,6 +214,7 @@ fn test_mode_flag_precedence() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -239,6 +243,7 @@ fn test_invalid_repo_path_all_modes() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -261,6 +266,7 @@ fn test_invalid_repo_path_all_modes() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -283,6 +289,7 @@ fn test_invalid_repo_path_all_modes() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -311,6 +318,7 @@ fn test_full_rewrite_mode_insufficient_date_range() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -318,19 +326,109 @@ fn test_full_rewrite_mode_insufficient_date_range() {
     let validation_result = validate_inputs(&args);
     assert!(validation_result.is_ok());
 
-    // This test would normally call process::exit(1) due to insufficient date range
-    // We can't easily test this without capturing the exit, so we'll test the
-    // logic leading up to it by checking that the date range calculation would fail
-    use chrono::{Duration, NaiveDateTime};
+    // The error message should mention --skip-range-check
+    let mut args_mut = args;
+    let timestamp_result = generate_timestamps(&mut args_mut);
+    assert!(timestamp_result.is_err());
+    let err_msg = timestamp_result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("--skip-range-check"),
+        "Error should mention --skip-range-check, got: {err_msg}"
+    );
+}
 
+#[test]
+#[serial]
+fn test_skip_range_check_succeeds_with_small_range() {
+    let (_temp_dir, repo_path) = create_test_repo_with_commits();
+
+    let mut args = Args {
+        repo_path: Some(repo_path),
+        email: Some("test@example.com".to_string()),
+        name: Some("Test User".to_string()),
+        start: Some("2023-01-01 00:00:00".to_string()),
+        end: Some("2023-01-01 01:00:00".to_string()), // Only 1 hour for 3 commits
+        show_history: false,
+        pick_specific_commits: false,
+        range: false,
+        simulate: false,
+        show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
+        skip_range_check: true,
+        docs: false,
+        _temp_dir: None,
+    };
+
+    let timestamp_result = generate_timestamps(&mut args);
+    assert!(
+        timestamp_result.is_ok(),
+        "Should succeed with --skip-range-check: {:?}",
+        timestamp_result.err()
+    );
+
+    let timestamps = timestamp_result.unwrap();
+    assert_eq!(timestamps.len(), 3);
+
+    // Timestamps should be in chronological order
+    for i in 1..timestamps.len() {
+        assert!(timestamps[i] >= timestamps[i - 1]);
+    }
+
+    // Timestamps should be within the specified range
     let start_dt =
-        NaiveDateTime::parse_from_str("2023-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-    let end_dt = NaiveDateTime::parse_from_str("2023-01-01 01:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-    let total_span = end_dt - start_dt;
-    let min_span = Duration::hours(3 * (3 - 1)); // 3 commits need minimum 6 hours
+        chrono::NaiveDateTime::parse_from_str("2023-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+    let end_dt =
+        chrono::NaiveDateTime::parse_from_str("2023-01-01 01:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+    for ts in &timestamps {
+        assert!(*ts >= start_dt);
+        assert!(*ts <= end_dt);
+    }
+}
 
-    // Verify that the date range is indeed too small
-    assert!(total_span < min_span);
+#[test]
+#[serial]
+fn test_skip_range_check_with_5min_minimum_gap() {
+    let (_temp_dir, repo_path) = create_test_repo_with_commits();
+
+    // 2 hours for 3 commits - enough room for 5-min gaps with random distribution
+    let mut args = Args {
+        repo_path: Some(repo_path),
+        email: Some("test@example.com".to_string()),
+        name: Some("Test User".to_string()),
+        start: Some("2023-01-01 00:00:00".to_string()),
+        end: Some("2023-01-01 02:00:00".to_string()),
+        show_history: false,
+        pick_specific_commits: false,
+        range: false,
+        simulate: false,
+        show_diff: false,
+        edit_message: false,
+        edit_author: false,
+        edit_time: false,
+        skip_range_check: true,
+        docs: false,
+        _temp_dir: None,
+    };
+
+    let timestamp_result = generate_timestamps(&mut args);
+    assert!(timestamp_result.is_ok());
+
+    let timestamps = timestamp_result.unwrap();
+    assert_eq!(timestamps.len(), 3);
+
+    // Each gap should be >= 5 minutes
+    for i in 1..timestamps.len() {
+        let gap = timestamps[i] - timestamps[i - 1];
+        assert!(
+            gap >= chrono::Duration::minutes(5),
+            "Gap between commit {} and {} is {} mins, expected >= 5",
+            i - 1,
+            i,
+            gap.num_minutes()
+        );
+    }
 }
 
 #[test]
@@ -352,6 +450,7 @@ fn test_full_rewrite_mode_invalid_date_format() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -380,6 +479,7 @@ fn test_workflow_show_history_then_pick_commits() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -404,6 +504,7 @@ fn test_workflow_show_history_then_pick_commits() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -436,6 +537,7 @@ fn test_simulation_mode_complete_args() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -473,6 +575,7 @@ fn test_simulation_mode_incomplete_args() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -509,6 +612,7 @@ fn test_simulation_mode_with_show_diff() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -540,6 +644,7 @@ fn test_show_diff_without_simulate_fails() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -573,6 +678,7 @@ fn test_cli_execution_simulate_incomplete_args_no_panic() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -616,6 +722,7 @@ fn test_cli_execution_simulate_complete_args_success() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };
@@ -651,6 +758,7 @@ fn test_simulation_execution_function_missing_args() {
         edit_message: false,
         edit_author: false,
         edit_time: false,
+        skip_range_check: false,
         docs: false,
         _temp_dir: None,
     };

@@ -185,44 +185,6 @@ The tool ensures that:
 
 ## Development
 
-### Project Structure
-
-```
-git-editor/
-├── src/
-│   ├── main.rs           # Entry point and operation mode handling
-│   ├── args.rs           # Command line argument parsing and Git URL cloning
-│   ├── rewrite/          # Git history rewriting logic
-│   │   ├── mod.rs        # Module definition
-│   │   ├── rewrite_all.rs    # Full repository history rewriting
-│   │   ├── rewrite_specific.rs # Interactive commit selection
-│   │   └── rewrite_range.rs    # Interactive range selection and editing
-│   ├── utils/            # Utility modules
-│   │   ├── mod.rs        # Module definition
-│   │   ├── types.rs      # Type definitions and custom Result
-│   │   ├── validator.rs  # Input validation for all modes
-│   │   ├── datetime.rs   # Date and time functions
-│   │   ├── commit_history.rs # Git commit operations
-│   │   ├── prompt.rs     # Interactive user prompts
-│   │   ├── git_clone.rs  # Git URL detection and repository cloning
-│   │   ├── git_config.rs # Git configuration reading (cross-platform)
-│   │   └── simulation.rs # Simulation mode and preview functionality
-│   └── lib.rs            # Library interface
-├── tests/
-│   └── integration_tests.rs # Comprehensive integration tests (15 tests)
-├── .github/workflows/    # CI/CD pipelines
-│   ├── ci-cd.yaml        # Main build and test pipeline
-│   ├── release.yaml      # Multi-platform release automation
-│   ├── coverage.yml      # Code coverage reporting
-│   └── multi-platform-test.yml # Cross-platform testing
-├── Cargo.toml            # Project dependencies and metadata
-├── Dockerfile            # Docker configuration
-├── Makefile              # Build automation and development commands
-├── CLAUDE.md             # Development guidance for AI assistants
-├── CHANGELOG.md          # Version history and release notes
-└── LICENSE               # MIT license
-```
-
 ### Testing
 
 The project includes comprehensive test coverage with both unit and integration tests:

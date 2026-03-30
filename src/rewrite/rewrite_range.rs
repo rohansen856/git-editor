@@ -1273,9 +1273,9 @@ mod tests {
         );
 
         // All other commits should retain their original timestamps
-        for i in 1..5 {
+        for (i, commit) in updated_commits.iter().enumerate().skip(1) {
             assert_ne!(
-                updated_commits[i].timestamp, new_timestamp,
+                commit.timestamp, new_timestamp,
                 "Commit at index {i} should not have the edited timestamp"
             );
         }

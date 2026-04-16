@@ -295,15 +295,11 @@ impl InteractiveTable {
 
     fn handle_navigation_key_input(&mut self, key: KeyCode) -> Result<bool> {
         match key {
-            KeyCode::Up => {
-                if self.current_row > 0 {
-                    self.current_row -= 1;
-                }
+            KeyCode::Up if self.current_row > 0 => {
+                self.current_row -= 1;
             }
-            KeyCode::Down => {
-                if self.current_row < self.commits.len() - 1 {
-                    self.current_row += 1;
-                }
+            KeyCode::Down if self.current_row < self.commits.len() - 1 => {
+                self.current_row += 1;
             }
             KeyCode::Left => {
                 self.move_to_prev_editable_column();
@@ -319,17 +315,13 @@ impl InteractiveTable {
                 // Right (vim-style)
                 self.move_to_next_editable_column();
             }
-            KeyCode::Char('k') => {
+            KeyCode::Char('k') if self.current_row > 0 => {
                 // Up (vim-style)
-                if self.current_row > 0 {
-                    self.current_row -= 1;
-                }
+                self.current_row -= 1;
             }
-            KeyCode::Char('j') => {
+            KeyCode::Char('j') if self.current_row < self.commits.len() - 1 => {
                 // Down (vim-style)
-                if self.current_row < self.commits.len() - 1 {
-                    self.current_row += 1;
-                }
+                self.current_row += 1;
             }
             KeyCode::Enter => {
                 self.start_editing();
@@ -919,13 +911,18 @@ fn apply_interactive_range_changes(
     revwalk.push_head()?;
     revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
     let mut orig_oids: Vec<_> = revwalk.filter_map(|id| id.ok()).collect();
+    let total_commits = orig_oids.len();
     orig_oids.reverse();
 
-    // Create a map for quick lookup of edited commits
+    // Create a map for quick lookup of edited commits.
+    // commit_edit.index is in display order (newest-first, from get_commit_history),
+    // but orig_oids is now in chronological order (oldest-first) after the reverse.
+    // Convert: chronological_idx = total_commits - 1 - display_idx
     let mut edit_map: HashMap<usize, &CommitEdit> = HashMap::new();
     for commit_edit in edited_commits {
         if commit_edit.is_modified {
-            edit_map.insert(commit_edit.index, commit_edit);
+            let chronological_idx = total_commits - 1 - commit_edit.index;
+            edit_map.insert(chronological_idx, commit_edit);
         }
     }
 
@@ -1171,6 +1168,7 @@ mod tests {
             edit_message: false,
             edit_author: false,
             edit_time: false,
+            skip_range_check: false,
             docs: false,
             _temp_dir: None,
         };
@@ -1191,5 +1189,87 @@ mod tests {
             NaiveDateTime::parse_from_str("2023-01-01 10:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
         let timestamps = generate_range_timestamps(start_time, end_time, 3);
         assert_eq!(timestamps.len(), 3);
+    }
+
+    #[test]
+    fn test_apply_range_changes_correct_commit_ordering() {
+        // This test verifies that editing commit at display index 0 (newest)
+        // actually modifies the newest commit, not the oldest.
+        let (_temp_dir, repo_path) = create_test_repo_with_commits();
+        let args = Args {
+            repo_path: Some(repo_path.clone()),
+            email: None,
+            name: None,
+            start: None,
+            end: None,
+            show_history: false,
+            pick_specific_commits: false,
+            range: true,
+            simulate: false,
+            show_diff: false,
+            edit_message: false,
+            edit_author: false,
+            edit_time: false,
+            skip_range_check: false,
+            docs: false,
+            _temp_dir: None,
+        };
+
+        // get_commit_history returns newest-first
+        let commits = get_commit_history(&args, false).unwrap();
+        assert_eq!(commits.len(), 5);
+        assert_eq!(commits[0].message, "Commit 5"); // newest
+        assert_eq!(commits[4].message, "Commit 1"); // oldest
+
+        // Simulate editing only the newest commit (display index 0)
+        let new_timestamp =
+            NaiveDateTime::parse_from_str("2099-06-15 12:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+
+        let mut edited_commits: Vec<CommitEdit> = commits
+            .iter()
+            .enumerate()
+            .map(|(i, c)| CommitEdit {
+                index: i,
+                original: c.clone(),
+                author_name: c.author_name.clone(),
+                author_email: c.author_email.clone(),
+                timestamp: c.timestamp,
+                message: c.message.clone(),
+                is_modified: false,
+                modifications: ModificationFlags::default(),
+            })
+            .collect();
+
+        // Mark only index 0 (newest = "Commit 5") as modified
+        edited_commits[0].timestamp = new_timestamp;
+        edited_commits[0].is_modified = true;
+        edited_commits[0].modifications.timestamp_changed = true;
+
+        // Apply changes
+        apply_interactive_range_changes(&args, &commits, &edited_commits).unwrap();
+
+        // Re-read and verify
+        let updated_commits = get_commit_history(&args, false).unwrap();
+        assert_eq!(updated_commits.len(), 5);
+
+        // The newest commit (index 0, "Commit 5") should have the new timestamp
+        assert_eq!(
+            updated_commits[0].timestamp, new_timestamp,
+            "Newest commit should have the edited timestamp"
+        );
+
+        // The oldest commit (index 4, "Commit 1") should NOT have the new timestamp
+        assert_ne!(
+            updated_commits[4].timestamp, new_timestamp,
+            "Oldest commit should NOT have the edited timestamp"
+        );
+
+        // All other commits should retain their original timestamps
+        for (i, commit) in updated_commits.iter().enumerate().skip(1) {
+            assert_ne!(
+                commit.timestamp, new_timestamp,
+                "Commit at index {i} should not have the edited timestamp"
+            );
+        }
     }
 }

@@ -295,15 +295,11 @@ impl InteractiveTable {
 
     fn handle_navigation_key_input(&mut self, key: KeyCode) -> Result<bool> {
         match key {
-            KeyCode::Up => {
-                if self.current_row > 0 {
-                    self.current_row -= 1;
-                }
+            KeyCode::Up if self.current_row > 0 => {
+                self.current_row -= 1;
             }
-            KeyCode::Down => {
-                if self.current_row < self.commits.len() - 1 {
-                    self.current_row += 1;
-                }
+            KeyCode::Down if self.current_row < self.commits.len() - 1 => {
+                self.current_row += 1;
             }
             KeyCode::Left => {
                 self.move_to_prev_editable_column();
@@ -319,17 +315,13 @@ impl InteractiveTable {
                 // Right (vim-style)
                 self.move_to_next_editable_column();
             }
-            KeyCode::Char('k') => {
+            KeyCode::Char('k') if self.current_row > 0 => {
                 // Up (vim-style)
-                if self.current_row > 0 {
-                    self.current_row -= 1;
-                }
+                self.current_row -= 1;
             }
-            KeyCode::Char('j') => {
+            KeyCode::Char('j') if self.current_row < self.commits.len() - 1 => {
                 // Down (vim-style)
-                if self.current_row < self.commits.len() - 1 {
-                    self.current_row += 1;
-                }
+                self.current_row += 1;
             }
             KeyCode::Enter => {
                 self.start_editing();

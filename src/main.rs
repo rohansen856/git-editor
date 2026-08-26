@@ -16,8 +16,11 @@ use rewrite::rewrite_all::rewrite_all_commits;
 
 fn main() -> Result<()> {
     run().unwrap_or_else(|error| {
-        eprintln!("{} {}", "Error:".red().bold(), error.to_string().red());
-        std::process::exit(1);
+        let code = crate::utils::prompt::exit_code_for_error(error.as_ref());
+        if code != 0 {
+            eprintln!("{} {}", "Error:".red().bold(), error.to_string().red());
+        }
+        std::process::exit(code);
     });
     Ok(())
 }

@@ -1,4 +1,5 @@
 use crate::utils::message_trailers::rewrite_author_trailers;
+use crate::utils::prompt::read_prompted_line;
 use crate::utils::types::Result;
 use crate::utils::types::{CommitInfo, EditOptions};
 use crate::{args::Args, utils::commit_history::get_commit_history};
@@ -33,16 +34,16 @@ pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
     }
 
     println!("{}", "-".repeat(80).cyan());
-    print!("\n{} ", "Select commit number to edit:".bold().green());
+    print!(
+        "\n{} {} ",
+        "Select commit number to edit:".bold().green(),
+        "(Esc to cancel)".bright_black()
+    );
     io::stdout().flush()?;
 
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    let input = read_prompted_line()?;
 
-    let selection = input
-        .trim()
-        .parse::<usize>()
-        .map_err(|_| "Invalid number")?;
+    let selection = input.parse::<usize>().map_err(|_| "Invalid number")?;
 
     if selection < 1 || selection > commits.len() {
         return Err("Selection out of range".into());
@@ -108,14 +109,16 @@ pub fn get_edit_options() -> Result<EditOptions> {
     println!("4. Commit message");
     println!("5. All of the above");
 
-    print!("\n{} ", "Select option(s) (comma-separated):".bold());
+    print!(
+        "\n{} {} ",
+        "Select option(s) (comma-separated):".bold(),
+        "(Esc to cancel)".bright_black()
+    );
     io::stdout().flush()?;
 
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    let input = read_prompted_line()?;
 
     let selections: Vec<usize> = input
-        .trim()
         .split(',')
         .filter_map(|s| s.trim().parse::<usize>().ok())
         .collect();
@@ -125,72 +128,93 @@ pub fn get_edit_options() -> Result<EditOptions> {
     for &selection in &selections {
         match selection {
             1 => {
-                print!("{} ", "New author name:".bold());
+                print!(
+                    "{} {} ",
+                    "New author name:".bold(),
+                    "(Esc to cancel)".bright_black()
+                );
                 io::stdout().flush()?;
-                let mut name = String::new();
-                io::stdin().read_line(&mut name)?;
-                options.author_name = Some(name.trim().to_string());
+                options.author_name = Some(read_prompted_line()?);
             }
             2 => {
-                print!("{} ", "New author email:".bold());
+                print!(
+                    "{} {} ",
+                    "New author email:".bold(),
+                    "(Esc to cancel)".bright_black()
+                );
                 io::stdout().flush()?;
-                let mut email = String::new();
-                io::stdin().read_line(&mut email)?;
-                options.author_email = Some(email.trim().to_string());
+                options.author_email = Some(read_prompted_line()?);
             }
             3 => {
-                print!("{} ", "New timestamp (YYYY-MM-DD HH:MM:SS):".bold());
+                print!(
+                    "{} {} ",
+                    "New timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
+                    "(Esc to cancel)".bright_black()
+                );
                 io::stdout().flush()?;
-                let mut timestamp = String::new();
-                io::stdin().read_line(&mut timestamp)?;
-                let dt = NaiveDateTime::parse_from_str(timestamp.trim(), "%Y-%m-%d %H:%M:%S")
+                let timestamp = read_prompted_line()?;
+                let dt = NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%d %H:%M:%S")
                     .map_err(|_| "Invalid timestamp format")?;
                 options.timestamp = Some(dt);
             }
             4 => {
-                println!("{} ", "New commit message (end with empty line):".bold());
+                println!(
+                    "{} {} ",
+                    "New commit message (end with empty line):".bold(),
+                    "(Esc to cancel)".bright_black()
+                );
                 let mut message = String::new();
                 loop {
-                    let mut line = String::new();
-                    io::stdin().read_line(&mut line)?;
-                    if line.trim().is_empty() {
+                    let line = read_prompted_line()?;
+                    if line.is_empty() {
                         break;
                     }
                     message.push_str(&line);
+                    message.push('\n');
                 }
                 options.message = Some(message.trim().to_string());
             }
             5 => {
-                // Get all inputs
-                print!("{} ", "New author name:".bold());
+                print!(
+                    "{} {} ",
+                    "New author name:".bold(),
+                    "(Esc to cancel)".bright_black()
+                );
                 io::stdout().flush()?;
-                let mut name = String::new();
-                io::stdin().read_line(&mut name)?;
-                options.author_name = Some(name.trim().to_string());
+                options.author_name = Some(read_prompted_line()?);
 
-                print!("{} ", "New author email:".bold());
+                print!(
+                    "{} {} ",
+                    "New author email:".bold(),
+                    "(Esc to cancel)".bright_black()
+                );
                 io::stdout().flush()?;
-                let mut email = String::new();
-                io::stdin().read_line(&mut email)?;
-                options.author_email = Some(email.trim().to_string());
+                options.author_email = Some(read_prompted_line()?);
 
-                print!("{} ", "New timestamp (YYYY-MM-DD HH:MM:SS):".bold());
+                print!(
+                    "{} {} ",
+                    "New timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
+                    "(Esc to cancel)".bright_black()
+                );
                 io::stdout().flush()?;
-                let mut timestamp = String::new();
-                io::stdin().read_line(&mut timestamp)?;
-                let dt = NaiveDateTime::parse_from_str(timestamp.trim(), "%Y-%m-%d %H:%M:%S")
+                let timestamp = read_prompted_line()?;
+                let dt = NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%d %H:%M:%S")
                     .map_err(|_| "Invalid timestamp format")?;
                 options.timestamp = Some(dt);
 
-                println!("{} ", "New commit message (end with empty line):".bold());
+                println!(
+                    "{} {} ",
+                    "New commit message (end with empty line):".bold(),
+                    "(Esc to cancel)".bright_black()
+                );
                 let mut message = String::new();
                 loop {
-                    let mut line = String::new();
-                    io::stdin().read_line(&mut line)?;
-                    if line.trim().is_empty() {
+                    let line = read_prompted_line()?;
+                    if line.is_empty() {
                         break;
                     }
                     message.push_str(&line);
+                    message.push('\n');
                 }
                 options.message = Some(message.trim().to_string());
             }
@@ -252,13 +276,16 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
         );
     }
 
-    print!("\n{} (y/n): ", "Proceed with changes?".bold());
+    print!(
+        "\n{} {} ",
+        "Proceed with changes? (y/n):".bold(),
+        "(Esc to cancel)".bright_black()
+    );
     io::stdout().flush()?;
 
-    let mut confirm = String::new();
-    io::stdin().read_line(&mut confirm)?;
+    let confirm = read_prompted_line()?;
 
-    if confirm.trim().to_lowercase() != "y" {
+    if confirm.to_lowercase() != "y" {
         println!("{}", "Operation cancelled.".yellow());
         return Ok(());
     }

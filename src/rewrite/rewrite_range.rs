@@ -1,4 +1,5 @@
 use crate::utils::message_trailers::rewrite_author_trailers;
+use crate::utils::prompt::read_prompted_line;
 use crate::utils::types::CommitInfo;
 use crate::utils::types::Result;
 use crate::{args::Args, utils::commit_history::get_commit_history};
@@ -625,11 +626,10 @@ pub fn select_commit_range(commits: &[CommitInfo]) -> Result<(usize, usize)> {
             .bold()
             .green()
     );
-    print!("{} ", "Range:".bold());
+    print!("{} {} ", "Range:".bold(), "(Esc to cancel)".bright_black());
     io::stdout().flush()?;
 
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    let input = read_prompted_line()?;
 
     let (start, end) = parse_range_input(&input, commits.len())?;
 
@@ -709,22 +709,26 @@ pub fn get_range_edit_info(args: &Args) -> Result<(String, String, NaiveDateTime
     let author_name = if let Some(name) = &args.name {
         name.clone()
     } else {
-        print!("{} ", "New author name:".bold());
+        print!(
+            "{} {} ",
+            "New author name:".bold(),
+            "(Esc to cancel)".bright_black()
+        );
         io::stdout().flush()?;
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        input.trim().to_string()
+        read_prompted_line()?
     };
 
     // Get author email
     let author_email = if let Some(email) = &args.email {
         email.clone()
     } else {
-        print!("{} ", "New author email:".bold());
+        print!(
+            "{} {} ",
+            "New author email:".bold(),
+            "(Esc to cancel)".bright_black()
+        );
         io::stdout().flush()?;
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        input.trim().to_string()
+        read_prompted_line()?
     };
 
     // Get start timestamp
@@ -732,11 +736,14 @@ pub fn get_range_edit_info(args: &Args) -> Result<(String, String, NaiveDateTime
         NaiveDateTime::parse_from_str(start, "%Y-%m-%d %H:%M:%S")
             .map_err(|_| "Invalid start timestamp format")?
     } else {
-        print!("{} ", "Start timestamp (YYYY-MM-DD HH:MM:SS):".bold());
+        print!(
+            "{} {} ",
+            "Start timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
+            "(Esc to cancel)".bright_black()
+        );
         io::stdout().flush()?;
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        NaiveDateTime::parse_from_str(input.trim(), "%Y-%m-%d %H:%M:%S")
+        let input = read_prompted_line()?;
+        NaiveDateTime::parse_from_str(&input, "%Y-%m-%d %H:%M:%S")
             .map_err(|_| "Invalid start timestamp format")?
     };
 
@@ -745,11 +752,14 @@ pub fn get_range_edit_info(args: &Args) -> Result<(String, String, NaiveDateTime
         NaiveDateTime::parse_from_str(end, "%Y-%m-%d %H:%M:%S")
             .map_err(|_| "Invalid end timestamp format")?
     } else {
-        print!("{} ", "End timestamp (YYYY-MM-DD HH:MM:SS):".bold());
+        print!(
+            "{} {} ",
+            "End timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
+            "(Esc to cancel)".bright_black()
+        );
         io::stdout().flush()?;
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        NaiveDateTime::parse_from_str(input.trim(), "%Y-%m-%d %H:%M:%S")
+        let input = read_prompted_line()?;
+        NaiveDateTime::parse_from_str(&input, "%Y-%m-%d %H:%M:%S")
             .map_err(|_| "Invalid end timestamp format")?
     };
 
@@ -873,13 +883,16 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
         }
     }
 
-    print!("\n{} (y/n): ", "Apply these changes?".bold());
+    print!(
+        "\n{} {} ",
+        "Apply these changes? (y/n):".bold(),
+        "(Esc to cancel)".bright_black()
+    );
     io::stdout().flush()?;
 
-    let mut confirm = String::new();
-    io::stdin().read_line(&mut confirm)?;
+    let confirm = read_prompted_line()?;
 
-    if confirm.trim().to_lowercase() != "y" {
+    if confirm.to_lowercase() != "y" {
         println!("{}", "Operation cancelled.".yellow());
         return Ok(());
     }

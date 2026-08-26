@@ -15,6 +15,7 @@ Git Editor is a Rust CLI that rewrites Git commit metadata (author, email, times
 - **KEEP_ORIGINAL timestamps**: Accepting prompt date defaults can keep original times and only rewrite author info
 - **`--skip-range-check`**: Bypass the default ≥3h gap rule for tightly packed timestamps
 - **Preserve Git Integrity**: Maintain commit order, relationships, and repository structure
+- **Signoff trailers**: Matching `Signed-off-by` / `Co-authored-by` / `Authored-by` lines are updated with the new author
 - **Cross-platform Support**: Works on Linux, macOS, and Windows
 - **Docker Support**: Containerized execution for consistent environments
 
@@ -176,7 +177,7 @@ Git Editor operates by:
 3. **Operation Mode Selection**: Determines the mode from flags (see precedence above)
 4. **Simulation Analysis**: In simulation mode (or as a preview before full rewrite), analyzes potential changes without modifying the repository until confirmed
 5. **Timestamp Generation**: Creates randomly weighted timestamps within the specified date range (minimum 3-hour gaps by default; 5-minute gaps with `--skip-range-check`)
-6. **History Rewriting**: Creates new commits with remapped parents via libgit2 (`git2`)
+6. **History Rewriting**: Creates new commits with remapped parents via libgit2 (`git2`), and rewrites matching `Signed-off-by` / `Co-authored-by` / `Authored-by` trailers when author identity changes
 7. **Reference Updates**: Updates `refs/heads/<branch>` to the rewritten tip
 
 The tool ensures that:

@@ -1,4 +1,5 @@
 use crate::args::Args;
+use crate::utils::message_trailers::rewrite_author_trailers;
 use crate::utils::types::{CommitInfo, Result};
 use chrono::NaiveDateTime;
 use colored::Colorize;
@@ -232,6 +233,19 @@ pub fn create_full_rewrite_simulation(
     for (i, commit) in commits.iter().enumerate() {
         let new_timestamp = timestamps.get(i).copied();
 
+        let rewritten_message = rewrite_author_trailers(
+            &commit.message,
+            &commit.author_name,
+            &commit.author_email,
+            new_author,
+            new_email,
+        );
+        let new_message = if rewritten_message != commit.message {
+            Some(rewritten_message)
+        } else {
+            None
+        };
+
         let change = SimulationChange {
             commit_oid: commit.oid,
             short_hash: commit.short_hash.clone(),
@@ -242,7 +256,7 @@ pub fn create_full_rewrite_simulation(
             new_author: Some(new_author.clone()),
             new_email: Some(new_email.clone()),
             new_timestamp,
-            new_message: None, // Full rewrite doesn't change messages
+            new_message,
         };
 
         changes.push(change);

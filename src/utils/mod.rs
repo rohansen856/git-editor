@@ -3,6 +3,7 @@ pub mod datetime;
 pub mod git_clone;
 pub mod git_config;
 pub mod help;
+pub mod message_trailers;
 pub mod prompt;
 pub mod simulation;
 pub mod types;

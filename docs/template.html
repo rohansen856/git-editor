@@ -689,8 +689,9 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
 1. Walk HEAD history (topo + time) via git2
 2. Create new commits with remapped parents (Oid → Oid map)
 3. Apply new author / timestamp / message metadata
-4. Update refs/heads/&lt;branch&gt; to the rewritten tip
-5. Full rewrite shows a simulation preview and asks for confirmation first</code></pre>
+4. Rewrite matching Signed-off-by / Co-authored-by / Authored-by trailers to the new author
+5. Update refs/heads/&lt;branch&gt; to the rewritten tip
+6. Full rewrite shows a simulation preview and asks for confirmation first</code></pre>
                 </div>
             </div>
 
@@ -1023,6 +1024,7 @@ https://bitbucket.org/user/repo.git
 │       ├── prompt.rs        # User interaction
 │       ├── git_clone.rs     # Repository cloning
 │       ├── git_config.rs    # Git configuration
+│       ├── message_trailers.rs # Signed-off-by / Co-authored-by rewrites
 │       ├── simulation.rs    # Dry-run functionality
 │       └── help.rs          # Custom help text (unused; clap --help is primary)
 ├── docs/

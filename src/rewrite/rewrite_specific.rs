@@ -1,3 +1,4 @@
+use crate::utils::message_trailers::rewrite_author_trailers;
 use crate::utils::types::Result;
 use crate::utils::types::{CommitInfo, EditOptions};
 use crate::{args::Args, utils::commit_history::get_commit_history};
@@ -318,10 +319,17 @@ fn apply_commit_changes(
                 .as_ref()
                 .unwrap_or(&target_commit.author_email);
             let timestamp = options.timestamp.unwrap_or(target_commit.timestamp);
-            let message = options
+            let base_message = options
                 .message
                 .as_deref()
                 .unwrap_or_else(|| orig.message().unwrap_or_default());
+            let message = rewrite_author_trailers(
+                base_message,
+                &target_commit.author_name,
+                &target_commit.author_email,
+                author_name,
+                author_email,
+            );
 
             let author_sig = Signature::new(
                 author_name,
@@ -345,7 +353,7 @@ fn apply_commit_changes(
                 None,
                 &author_sig,
                 &committer_sig,
-                message,
+                &message,
                 &tree,
                 &new_parents?.iter().collect::<Vec<_>>(),
             )?

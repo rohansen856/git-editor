@@ -1,3 +1,4 @@
+use crate::utils::message_trailers::rewrite_author_trailers;
 use crate::utils::types::CommitInfo;
 use crate::utils::types::Result;
 use crate::{args::Args, utils::commit_history::get_commit_history};
@@ -956,17 +957,24 @@ fn apply_interactive_range_changes(
             )?;
 
             // Use the edited message or keep the original if not changed
-            let message = if commit_edit.modifications.message_changed {
-                &commit_edit.message
+            let base_message = if commit_edit.modifications.message_changed {
+                commit_edit.message.as_str()
             } else {
                 orig.message().unwrap_or_default()
             };
+            let message = rewrite_author_trailers(
+                base_message,
+                &commit_edit.original.author_name,
+                &commit_edit.original.author_email,
+                &commit_edit.author_name,
+                &commit_edit.author_email,
+            );
 
             repo.commit(
                 None,
                 &author_sig,
                 &committer_sig,
-                message,
+                &message,
                 &tree,
                 &new_parents?.iter().collect::<Vec<_>>(),
             )?

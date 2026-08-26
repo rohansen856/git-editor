@@ -358,9 +358,9 @@
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
                 <pre><code># Download the latest release for your platform
-wget https://github.com/rohansen856/git-editor/releases/latest/download/git-editor-linux-x64.tar.gz
-tar -xzf git-editor-linux-x64.tar.gz
-sudo mv git-editor /usr/local/bin/
+wget https://github.com/rohansen856/git-editor/releases/latest/download/git-editor-linux-x86_64.tar.gz
+tar -xzf git-editor-linux-x86_64.tar.gz
+sudo mv git-editor-linux-x86_64 /usr/local/bin/git-editor
 
 # Verify installation
 git-editor --help</code></pre>
@@ -369,7 +369,7 @@ git-editor --help</code></pre>
             <h3>🔨 From Source</h3>
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                <pre><code># Prerequisites: Rust 1.70+ and Git
+                <pre><code># Prerequisites: Rust 1.72+ and Git
 rustup update stable
 
 # Clone and build
@@ -403,7 +403,7 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                     <li><strong>Memory:</strong> Minimum 100MB RAM</li>
                     <li><strong>Storage:</strong> 50MB for binary + temporary space for repository cloning</li>
                     <li><strong>Git:</strong> Version 2.0+ (for git2 library compatibility)</li>
-                    <li><strong>Network:</strong> Required for Git URL cloning and documentation</li>
+                    <li><strong>Network:</strong> Required only for Git URL cloning (docs are local HTML)</li>
                 </ul>
             </div>
         </section>
@@ -473,10 +473,10 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                 <p><strong>Precedence Order (highest to lowest):</strong></p>
                 <ol>
                     <li><code>--docs</code> - Always takes precedence</li>
-                    <li><code>--show-history</code> - Read-only operations</li>
-                    <li><code>--pick-specific-commits</code> - Interactive selection</li>
-                    <li><code>--range</code> - Range-based editing</li>
-                    <li><code>--simulate</code> - Dry-run mode (applies to other modes)</li>
+                    <li><code>--simulate</code> - Dry-run preview (full rewrite path)</li>
+                    <li><code>--range</code> (<code>-x</code>) - Range-based editing</li>
+                    <li><code>--pick-specific-commits</code> (<code>-p</code>) - Interactive single-commit selection</li>
+                    <li><code>--show-history</code> (<code>-s</code>) - Read-only history display</li>
                     <li>Full Rewrite - Default mode</li>
                 </ol>
             </div>
@@ -537,6 +537,14 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                         <td>End timestamp (YYYY-MM-DD HH:MM:SS)</td>
                         <td><code>-e "2023-12-31 17:00:00"</code></td>
                         <td>✅ (full rewrite only)</td>
+                    </tr>
+                    <tr>
+                        <td><code>--skip-range-check</code></td>
+                        <td>-</td>
+                        <td>Flag</td>
+                        <td>Skip the minimum date-span check (≥3h between commits). Uses random spacing with a 5-minute minimum gap when the range is tight.</td>
+                        <td><code>--skip-range-check</code></td>
+                        <td>❌</td>
                     </tr>
                 </tbody>
             </table>
@@ -651,13 +659,13 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
 
             <h3>📊 Date Distribution Algorithm</h3>
             <div class="info">
-                <p>Git Editor uses a sophisticated algorithm for timestamp distribution:</p>
+                <p>Git Editor distributes timestamps with random weighted gaps while preserving commit order:</p>
                 <ul>
                     <li><strong>Chronological Preservation:</strong> Maintains original commit order</li>
-                    <li><strong>Business Hours Weighting:</strong> 70% of commits during 9AM-6PM</li>
-                    <li><strong>Weekend Reduction:</strong> 20% commit frequency on weekends</li>
-                    <li><strong>Natural Spacing:</strong> Exponential distribution with realistic gaps</li>
-                    <li><strong>Commit Density:</strong> Higher frequency during active development periods</li>
+                    <li><strong>Minimum Gap:</strong> At least 3 hours between commits by default (validated against <code>--begin</code>/<code>--end</code>)</li>
+                    <li><strong>Random Weights:</strong> Gaps are randomized across the available slack in the date range</li>
+                    <li><strong><code>--skip-range-check</code>:</strong> Bypasses the 3-hour rule; uses a 5-minute minimum gap (or even spacing if the range is too small)</li>
+                    <li><strong>KEEP_ORIGINAL:</strong> Accepting prompt date defaults can keep original timestamps and only rewrite author metadata</li>
                 </ul>
             </div>
 
@@ -667,23 +675,22 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
                     <pre><code># Git Editor performs these validations:
-1. Repository existence and accessibility
-2. .git directory structure integrity
-3. Current branch and HEAD validity
-4. Working directory clean state check
-5. Remote tracking branch analysis</code></pre>
+1. Repository path or Git URL is present
+2. Local path exists and contains a .git directory
+3. Email / name / begin / end formats (full rewrite mode)
+4. Date range large enough for commit count (unless --skip-range-check)
+5. Detached HEAD is rejected at rewrite time</code></pre>
                 </div>
 
                 <h4>History Rewriting Process</h4>
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
                     <pre><code># Internal rewriting workflow:
-1. Create temporary branch for operations
-2. Walk commit history from oldest to newest
-3. Apply filter-branch-like operations with git2
-4. Maintain parent-child relationships
-5. Update branch references atomically
-6. Cleanup temporary objects</code></pre>
+1. Walk HEAD history (topo + time) via git2
+2. Create new commits with remapped parents (Oid → Oid map)
+3. Apply new author / timestamp / message metadata
+4. Update refs/heads/&lt;branch&gt; to the rewritten tip
+5. Full rewrite shows a simulation preview and asks for confirmation first</code></pre>
                 </div>
             </div>
 
@@ -930,26 +937,9 @@ git-editor \
         <section id="advanced-features">
             <h2>🔧 Advanced Features</h2>
 
-            <h3>🧠 Smart Date Distribution</h3>
-            <div class="feature-grid">
-                <div class="feature-card">
-                    <h4>⏰ Time Patterns</h4>
-                    <ul>
-                        <li><strong>Business Hours:</strong> 9AM-6PM preferred</li>
-                        <li><strong>Lunch Break:</strong> Reduced activity 12-1PM</li>
-                        <li><strong>Late Night:</strong> Occasional commits after hours</li>
-                        <li><strong>Morning Start:</strong> Activity ramp-up 8-10AM</li>
-                    </ul>
-                </div>
-                <div class="feature-card">
-                    <h4>📅 Weekly Patterns</h4>
-                    <ul>
-                        <li><strong>Monday:</strong> Fresh start, moderate activity</li>
-                        <li><strong>Tuesday-Thursday:</strong> Peak productivity</li>
-                        <li><strong>Friday:</strong> Reduced late-day activity</li>
-                        <li><strong>Weekends:</strong> 20% of weekday frequency</li>
-                    </ul>
-                </div>
+            <h3>🧠 Timestamp Distribution</h3>
+            <div class="info">
+                <p>Timestamps are generated with random weighted gaps inside <code>--begin</code>/<code>--end</code>, keeping commit order. Default rule: at least 3 hours between commits. Use <code>--skip-range-check</code> for tighter packing (5-minute minimum gap).</p>
             </div>
 
             <h3>🔄 Interactive Features</h3>
@@ -958,10 +948,10 @@ git-editor \
             <div class="command-section">
                 <p>The interactive commit picker provides:</p>
                 <ul>
-                    <li><strong>Visual Commit List:</strong> SHA, date, author, message preview</li>
-                    <li><strong>Multi-Selection:</strong> Space to toggle, Enter to confirm</li>
-                    <li><strong>Search/Filter:</strong> Filter commits by author, date, or message</li>
-                    <li><strong>Batch Operations:</strong> Apply changes to selected commits</li>
+                    <li><strong>Numbered Commit List:</strong> Index, short hash, date, author, message preview</li>
+                    <li><strong>Single Selection:</strong> Enter a commit number to edit</li>
+                    <li><strong>Field Prompts:</strong> Edit name, email, timestamp, and/or message for that commit</li>
+                    <li><strong>Confirmation:</strong> Review changes before rewriting descendants as needed</li>
                 </ul>
             </div>
 
@@ -970,9 +960,9 @@ git-editor \
                 <p>Range editing supports:</p>
                 <ul>
                     <li><strong>Commit Numbering:</strong> Display commits with sequential numbers</li>
-                    <li><strong>Range Syntax:</strong> "5-11", "1,3,5-7", "10-*" (to end)</li>
-                    <li><strong>Field Selection:</strong> Choose which fields to edit</li>
-                    <li><strong>Bulk Apply:</strong> Apply same changes to entire range</li>
+                    <li><strong>Range Syntax:</strong> <code>start-end</code> (e.g. <code>5-11</code>) or <code>*</code> for all commits</li>
+                    <li><strong>Field Selection:</strong> Limit columns with <code>--message</code>, <code>--author</code>, and/or <code>--time</code></li>
+                    <li><strong>Crossterm TUI:</strong> Spreadsheet-style editor (arrow keys, edit cells, confirm to apply)</li>
                 </ul>
             </div>
 
@@ -980,11 +970,11 @@ git-editor \
             <div class="info">
                 <p><strong>Simulation Mode provides:</strong></p>
                 <ul>
-                    <li><strong>Impact Analysis:</strong> Shows number of commits affected</li>
-                    <li><strong>Date Range Validation:</strong> Ensures realistic timestamp distribution</li>
-                    <li><strong>Author Statistics:</strong> Before/after author distribution</li>
-                    <li><strong>Timeline Visualization:</strong> Graphical representation of changes</li>
-                    <li><strong>Risk Assessment:</strong> Identifies potential issues before execution</li>
+                    <li><strong>Change Summary:</strong> Shows how many commits would be affected</li>
+                    <li><strong>Date Range Validation:</strong> Same span checks as a real rewrite</li>
+                    <li><strong>Author Preview:</strong> Planned author/email updates</li>
+                    <li><strong>Detailed Diff:</strong> Per-commit before/after with <code>--show-diff</code></li>
+                    <li><strong>No Mutation:</strong> Repository is left unchanged</li>
                 </ul>
             </div>
 
@@ -1016,13 +1006,14 @@ https://bitbucket.org/user/repo.git
                 <pre><code>git-editor/
 ├── src/
 │   ├── main.rs              # Entry point and mode dispatch
+│   ├── lib.rs               # Library re-exports (args, rewrite, utils)
 │   ├── args.rs              # CLI argument parsing (clap)
 │   ├── docs.rs              # Documentation generation
 │   ├── rewrite/
 │   │   ├── mod.rs           # Rewrite module exports
 │   │   ├── rewrite_all.rs   # Full history rewriting
 │   │   ├── rewrite_specific.rs # Interactive commit selection
-│   │   └── rewrite_range.rs # Range-based editing
+│   │   └── rewrite_range.rs # Range-based editing (crossterm TUI)
 │   └── utils/
 │       ├── mod.rs           # Utility module exports
 │       ├── types.rs         # Common types and aliases
@@ -1032,7 +1023,8 @@ https://bitbucket.org/user/repo.git
 │       ├── prompt.rs        # User interaction
 │       ├── git_clone.rs     # Repository cloning
 │       ├── git_config.rs    # Git configuration
-│       └── simulation.rs    # Dry-run functionality
+│       ├── simulation.rs    # Dry-run functionality
+│       └── help.rs          # Custom help text (unused; clap --help is primary)
 ├── docs/
 │   └── template.html        # Documentation template
 ├── tests/
@@ -1184,13 +1176,13 @@ cargo watch -x "run -- --docs"</code></pre>
             <h3>🧪 Testing</h3>
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                <pre><code># Run all tests (98 total)
+                <pre><code># Run all tests (~105 total: ~83 unit including docs + 22 integration)
 cargo test
 
-# Run unit tests only (78 tests)
+# Run unit tests only
 cargo test --lib
 
-# Run integration tests only (20 tests)
+# Run integration tests only (22 tests)
 cargo test --test integration_tests
 
 # Run specific test with output
@@ -1437,49 +1429,32 @@ df -h  # Check available space</code></pre>
         <section id="api-reference">
             <h2>📚 API Reference</h2>
 
-            <h3>🔧 Core Functions</h3>
+            <h3>🔧 Core Library Surface</h3>
 
-            <h4>📊 History Analysis</h4>
+            <h4>📊 History</h4>
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                <pre><code>// Get comprehensive commit history
-pub fn get_commit_history(args: &Args, print: bool) -> Result&lt;Vec&lt;CommitInfo&gt;&gt;
-
-// Analyze repository structure
-pub fn analyze_repository(repo_path: &str) -> Result&lt;RepositoryStats&gt;
-
-// Validate repository integrity
-pub fn validate_repository(repo_path: &str) -> Result&lt;()&gt;</code></pre>
+                <pre><code>// Walk HEAD and optionally print history
+pub fn get_commit_history(args: &Args, print: bool) -> Result&lt;Vec&lt;CommitInfo&gt;&gt;</code></pre>
             </div>
 
             <h4>⏰ Timestamp Generation</h4>
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                <pre><code>// Generate realistic timestamp distribution
-pub fn generate_timestamps(
-    start: &str,
-    end: &str,
-    count: usize
-) -> Result&lt;Vec&lt;DateTime&lt;Utc&gt;&gt;&gt;
-
-// Create business-hour weighted distribution
-pub fn generate_business_hour_timestamps(
-    start: DateTime&lt;Utc&gt;,
-    end: DateTime&lt;Utc&gt;,
-    commit_count: usize
-) -> Vec&lt;DateTime&lt;Utc&gt;&gt;</code></pre>
+                <pre><code>// Generate random-gap timestamps for full rewrite (mutates args if cloning)
+pub fn generate_timestamps(args: &mut Args) -> Result&lt;Vec&lt;NaiveDateTime&gt;&gt;</code></pre>
             </div>
 
             <h4>🔄 History Rewriting</h4>
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                <pre><code>// Full repository history rewrite
-pub fn rewrite_all_commits(args: &Args) -> Result&lt;()&gt;
+                <pre><code>// Full repository history rewrite (timestamps from generate_timestamps)
+pub fn rewrite_all_commits(args: &Args, timestamps: Vec&lt;NaiveDateTime&gt;) -> Result&lt;()&gt;
 
-// Interactive commit selection and editing
+// Interactive single-commit selection and editing
 pub fn rewrite_specific_commits(args: &Args) -> Result&lt;()&gt;
 
-// Range-based commit editing
+// Range-based commit editing (crossterm TUI)
 pub fn rewrite_range_commits(args: &Args) -> Result&lt;()&gt;</code></pre>
             </div>
 
@@ -1489,9 +1464,9 @@ pub fn rewrite_range_commits(args: &Args) -> Result&lt;()&gt;</code></pre>
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
                 <pre><code>pub struct CommitInfo {
-    pub hash: String,              // Full SHA-1 hash
-    pub short_hash: String,        // Abbreviated hash (7 chars)
-    pub timestamp: DateTime&lt;Utc&gt;,   // Commit timestamp
+    pub oid: git2::Oid,            // Full commit object id
+    pub short_hash: String,        // Abbreviated hash
+    pub timestamp: NaiveDateTime,  // Commit timestamp
     pub author_name: String,       // Author display name
     pub author_email: String,      // Author email address
     pub message: String,           // Commit message
@@ -1503,13 +1478,10 @@ pub fn rewrite_range_commits(args: &Args) -> Result&lt;()&gt;</code></pre>
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
                 <pre><code>pub struct EditOptions {
-    pub edit_author_name: bool,    // Enable author name editing
-    pub edit_author_email: bool,   // Enable author email editing
-    pub edit_timestamp: bool,      // Enable timestamp editing
-    pub edit_message: bool,        // Enable message editing
-    pub new_author_name: Option&lt;String&gt;,
-    pub new_author_email: Option&lt;String&gt;,
-    pub new_message: Option&lt;String&gt;,
+    pub author_name: Option&lt;String&gt;,
+    pub author_email: Option&lt;String&gt;,
+    pub timestamp: Option&lt;NaiveDateTime&gt;,
+    pub message: Option&lt;String&gt;,
 }</code></pre>
             </div>
 
@@ -1538,12 +1510,6 @@ pub fn rewrite_range_commits(args: &Args) -> Result&lt;()&gt;</code></pre>
                         <td>Not set</td>
                         <td><code>NO_BROWSER=1</code></td>
                     </tr>
-                    <tr>
-                        <td><code>RUST_LOG</code></td>
-                        <td>Logging level control</td>
-                        <td>Not set</td>
-                        <td><code>RUST_LOG=debug</code></td>
-                    </tr>
                 </tbody>
             </table>
 
@@ -1560,27 +1526,12 @@ pub fn rewrite_range_commits(args: &Args) -> Result&lt;()&gt;</code></pre>
                     <tr>
                         <td><code>0</code></td>
                         <td>Success</td>
-                        <td>Operation completed successfully</td>
+                        <td>Operation completed (or user cancelled / soft no-op)</td>
                     </tr>
                     <tr>
                         <td><code>1</code></td>
-                        <td>General Error</td>
-                        <td>Unspecified error occurred</td>
-                    </tr>
-                    <tr>
-                        <td><code>2</code></td>
-                        <td>Invalid Arguments</td>
-                        <td>Command-line argument validation failed</td>
-                    </tr>
-                    <tr>
-                        <td><code>3</code></td>
-                        <td>Repository Error</td>
-                        <td>Git repository access or validation failed</td>
-                    </tr>
-                    <tr>
-                        <td><code>4</code></td>
-                        <td>Permission Error</td>
-                        <td>Insufficient permissions for operation</td>
+                        <td>Error</td>
+                        <td>Any failure printed as <code>Error: …</code> on stderr</td>
                     </tr>
                 </tbody>
             </table>

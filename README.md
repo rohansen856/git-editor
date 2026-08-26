@@ -2,17 +2,18 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Git Editor is a powerful Rust-based command-line utility designed to safely rewrite Git commit metadata within a specified date range. Perfect for fixing commit dates, adding consistency to repositories, or reconstructing development timelines.
+Git Editor is a Rust CLI that rewrites Git commit metadata (author, email, timestamps, messages) within a date range or interactively, while preserving commit order and parent relationships.
 
 ## Features
 
 - **Git URL Cloning**: Automatically clone remote repositories from URLs (GitHub, GitLab, etc.)
-- **Multiple Operation Modes**: Full rewrite, specific commits, range editing, history viewing, and simulation
-- **Simulation Mode**: Preview changes without applying them (dry-run functionality)
-- **Flexible Range Editing**: Edit messages, authors, or timestamps selectively
-- **Interactive Commit Selection**: Pick and edit specific commits with detailed previews
+- **Multiple Operation Modes**: Full rewrite, pick commits, range editing, history viewing, simulation, and docs
+- **Simulation Mode**: Preview changes without applying them (`--simulate`, optional `--show-diff`)
+- **Flexible Range Editing**: Crossterm TUI; limit fields with `--message`, `--author`, or `--time`
+- **Interactive Commit Selection**: Pick one commit by number and edit its fields
 - **Smart Git Config Integration**: Auto-detects user name and email from Git configuration
-- **Comprehensive History Analysis**: Show commit history with detailed statistics
+- **KEEP_ORIGINAL timestamps**: Accepting prompt date defaults can keep original times and only rewrite author info
+- **`--skip-range-check`**: Bypass the default ≥3h gap rule for tightly packed timestamps
 - **Preserve Git Integrity**: Maintain commit order, relationships, and repository structure
 - **Cross-platform Support**: Works on Linux, macOS, and Windows
 - **Docker Support**: Containerized execution for consistent environments
@@ -42,32 +43,24 @@ cargo build --release
 
 📚 **Comprehensive documentation is available online:** [rohansen856.github.io/git-editor](https://rohansen856.github.io/git-editor)
 
-The online documentation includes:
-- Complete command reference with examples
-- Technical implementation details
-- Architecture overview and development guidelines
-- Interactive copy-to-clipboard code examples
-- Troubleshooting guide and FAQ
-- Advanced usage patterns and best practices
-
 ### Quick Access to Documentation
-
-You can also access the documentation directly from the command line:
 
 ```bash
 git-editor --docs
 ```
 
-This command will generate and open the comprehensive documentation in your default browser.
+This generates local HTML from `docs/template.html` and opens it in your browser (skipped if `NO_BROWSER` or `GIT_EDITOR_NO_BROWSER` is set).
 
 ## Usage
 
-Git Editor supports five main modes of operation:
+Git Editor supports six main modes of operation (precedence: `--docs` → `--simulate` → `-x` → `-p` → `-s` → full rewrite):
 
 ### 1. Full History Rewrite (Default)
 ```bash
 git-editor --repo-path "/path/to/repo" --email "user@example.com" --name "Author Name" --begin "YYYY-MM-DD HH:MM:SS" --end "YYYY-MM-DD HH:MM:SS"
 ```
+
+Shows a simulation preview and asks for confirmation before rewriting.
 
 ### 2. Show History Only
 ```bash
@@ -83,6 +76,8 @@ git-editor --repo-path "/path/to/repo" --pick-specific-commits
 git-editor --repo-path "/path/to/repo" -p
 ```
 
+Interactive numbered list; select one commit and edit its fields.
+
 ### 4. Range Editing
 ```bash
 git-editor --repo-path "/path/to/repo" --range
@@ -95,6 +90,8 @@ git-editor --repo-path "/path/to/repo" -x --author   # Edit only author informat
 git-editor --repo-path "/path/to/repo" -x --time     # Edit only timestamps
 ```
 
+Range input: `start-end` (e.g. `5-11`) or `*` for all commits.
+
 ### 5. Simulation Mode (Dry-run)
 ```bash
 # Preview changes without applying them
@@ -104,9 +101,13 @@ git-editor --simulate --repo-path "/path/to/repo" --email "user@example.com" --n
 git-editor --simulate --show-diff --repo-path "/path/to/repo" --email "user@example.com" --name "Author Name" --begin "YYYY-MM-DD HH:MM:SS" --end "YYYY-MM-DD HH:MM:SS"
 ```
 
-### 6. Git URL Cloning
+### 6. Documentation
 ```bash
-# Automatically clone and process remote repositories
+git-editor --docs
+```
+
+### Git URL Cloning
+```bash
 git-editor --simulate --repo-path "https://github.com/user/repo"
 git-editor --simulate --repo-path "https://github.com/user/repo.git"
 git-editor --repo-path "git@github.com:user/repo.git" --email "user@example.com" --name "Author Name" --begin "2023-01-01 00:00:00" --end "2023-12-31 23:59:59"
@@ -121,14 +122,16 @@ git-editor --repo-path "git@github.com:user/repo.git" --email "user@example.com"
 | `--name` | `-n` | Name to associate with rewritten commits | Only for full rewrite |
 | `--begin` | `-b` | Start date for commits (format: YYYY-MM-DD HH:MM:SS) | Only for full rewrite |
 | `--end` | `-e` | End date for commits (format: YYYY-MM-DD HH:MM:SS) | Only for full rewrite |
-| `--show-history` | `-s` | Show commit history with statistics | Optional |
-| `--pick-specific-commits` | `-p` | Interactive mode to edit specific commits | Optional |
+| `--show-history` | `-s` | Show commit history with statistics (read-only) | Optional |
+| `--pick-specific-commits` | `-p` | Interactive mode to edit one specific commit | Optional |
 | `--range` | `-x` | Interactive mode to edit a specific range of commits | Optional |
 | `--simulate` | | Preview changes without applying them (dry-run mode) | Optional |
 | `--show-diff` | | Show detailed diff preview (requires --simulate) | Optional |
 | `--message` | | Edit only commit messages in range mode | Optional |
 | `--author` | | Edit only author name and email in range mode | Optional |
 | `--time` | | Edit only timestamps in range mode | Optional |
+| `--skip-range-check` | | Skip the ≥3h minimum gap check; pack with ≥5-minute gaps | Optional |
+| `--docs` | | Open documentation in the browser | Optional |
 
 ### Examples
 
@@ -136,10 +139,13 @@ git-editor --repo-path "git@github.com:user/repo.git" --email "user@example.com"
 # Full rewrite: Rewrite commits to occur between January 1 and January 7, 2023
 git-editor --repo-path "/path/to/repo" --email "john.doe@example.com" --name "John Doe" --begin "2023-01-01 00:00:00" --end "2023-01-07 23:59:59"
 
+# Tight date range without the 3-hour gap rule
+git-editor --repo-path "/path/to/repo" --email "john.doe@example.com" --name "John Doe" --begin "2023-01-01 00:00:00" --end "2023-01-01 12:00:00" --skip-range-check
+
 # Show history: Display commit history with detailed statistics
 git-editor --repo-path "/path/to/repo" -s
 
-# Pick specific commits: Interactively select and edit individual commits
+# Pick specific commits: Interactively select and edit one commit
 git-editor --repo-path "/path/to/repo" -p
 
 # Range editing: Interactively select and edit a range of commits
@@ -157,7 +163,7 @@ git-editor --repo-path "/path/to/repo" -x --time
 # Detailed simulation with diff preview
 git-editor --simulate --show-diff --repo-path "/path/to/repo" --email "john.doe@example.com" --name "John Doe" --begin "2023-01-01 00:00:00" --end "2023-01-07 23:59:59"
 
-# Using the Makefile (after editing the parameters)
+# Using the Makefile
 make run
 ```
 
@@ -167,30 +173,26 @@ Git Editor operates by:
 
 1. **Repository Access**: Validates local paths or automatically clones Git URLs to temporary directories
 2. **Smart Configuration**: Auto-detects user name and email from Git config, with fallback prompts
-3. **Operation Mode Selection**: Determines the appropriate mode based on provided flags
-4. **Simulation Analysis**: In simulation mode, analyzes potential changes without modifying the repository
-5. **Timestamp Generation**: Creates evenly distributed timestamps within the specified date range
-6. **History Rewriting**: Safely rewrites commit metadata while preserving relationships and integrity
-7. **Reference Updates**: Updates all branch and tag references to point to the rewritten history
+3. **Operation Mode Selection**: Determines the mode from flags (see precedence above)
+4. **Simulation Analysis**: In simulation mode (or as a preview before full rewrite), analyzes potential changes without modifying the repository until confirmed
+5. **Timestamp Generation**: Creates randomly weighted timestamps within the specified date range (minimum 3-hour gaps by default; 5-minute gaps with `--skip-range-check`)
+6. **History Rewriting**: Creates new commits with remapped parents via libgit2 (`git2`)
+7. **Reference Updates**: Updates `refs/heads/<branch>` to the rewritten tip
 
 The tool ensures that:
 - Commit order and parent-child relationships are maintained
-- Repository integrity is preserved throughout the process
-- All Git objects remain valid and accessible
-- Temporary directories are automatically cleaned up after URL-based operations
+- Temporary directories from URL clones are cleaned up when the process exits
 
 ## Warning
 
-**This tool rewrites Git history.** Always work on a separate branch or backup your repository before running Git Editor on important code bases.
+**This tool rewrites Git history.** Always work on a separate branch or backup your repository before running Git Editor on important code bases. Force pushes will be required for remotes after rewriting.
 
 ## Development
 
 ### Testing
 
-The project includes comprehensive test coverage with both unit and integration tests:
-
 ```bash
-# Run all tests (82 tests total: 67 unit + 15 integration)
+# Run all tests (~105 total: ~83 unit including docs + 22 integration)
 cargo test
 
 # Run only unit tests
@@ -206,14 +208,6 @@ cargo test validator  # Test input validation
 
 # Run specific integration test with output
 cargo test --test integration_tests test_show_history_mode_integration -- --nocapture
-
-# Test coverage includes:
-# - All operation modes (full rewrite, specific commits, range editing, simulation)
-# - Git URL detection and cloning functionality
-# - Cross-platform Git configuration reading
-# - Input validation and error handling
-# - Simulation mode with diff preview
-# - Integration tests for complete workflows
 ```
 
 ## License

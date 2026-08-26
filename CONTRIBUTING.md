@@ -28,10 +28,14 @@ Thank you for your interest in contributing to Git Editor! This guide will help 
 ### Fork and Clone
 
 1. Fork the repository on GitHub
-2. Clone your fork locally:
+2. Clone **your fork** locally:
    ```bash
-   git clone https://github.com/rohansen856/git-editor.git
+   git clone https://github.com/YOUR_USER/git-editor.git
    cd git-editor
+   ```
+3. Add the upstream remote:
+   ```bash
+   git remote add upstream https://github.com/rohansen856/git-editor.git
    ```
 
 ## Development Setup
@@ -102,26 +106,31 @@ cargo clippy --all-targets --all-features -- -D warnings
 - **Imports**: Group imports logically and remove unused imports
 - **Functions**: Keep functions focused and single-purpose
 - **Testing**: Write tests for all new functionality
-- **Documentation**: Use clear, descriptive variable and function names
+- **Documentation**: Keep `README.md` and `docs/template.html` aligned with real behavior
 
 ## Testing
 
-Git Editor has a comprehensive test suite with 44 tests covering all functionality.
+Git Editor has a test suite of roughly **105** tests (~83 unit including docs module + **22** integration).
 
 ### Test Structure
 
 ```
 tests
-├── Unit Tests (36 tests)
-│   ├── args.rs (4 tests)
-│   ├── utils/datetime.rs (3 tests)
-│   ├── utils/validator.rs (10 tests)
-│   ├── utils/commit_history.rs (6 tests)
-│   ├── utils/types.rs (6 tests)
-│   ├── utils/prompt.rs (2 tests)
-│   └── rewrite/rewrite_specific.rs (5 tests)
-└── Integration Tests (8 tests)
-    └── integration_tests.rs
+├── Unit Tests (inline #[cfg(test)] under src/)
+│   ├── args.rs
+│   ├── docs.rs
+│   ├── utils/datetime.rs
+│   ├── utils/validator.rs
+│   ├── utils/commit_history.rs
+│   ├── utils/types.rs
+│   ├── utils/prompt.rs
+│   ├── utils/simulation.rs
+│   ├── utils/git_clone.rs
+│   ├── utils/git_config.rs
+│   ├── rewrite/rewrite_specific.rs
+│   └── rewrite/rewrite_range.rs
+└── Integration Tests (22 tests)
+    └── tests/integration_tests.rs
 ```
 
 ### Running Tests
@@ -137,29 +146,12 @@ cargo test --test integration_tests # Integration tests only
 # Run tests with output
 cargo test -- --nocapture
 
-# Run tests in verbose mode
-cargo test --verbose
+# Skip opening a browser during docs-related tests
+GIT_EDITOR_NO_BROWSER=1 cargo test
 
 # Run specific test
 cargo test test_name
 ```
-
-### Test Categories
-
-#### Unit Tests
-- **Argument Parsing**: Tests for command-line argument handling
-- **Datetime Functionality**: Tests for timestamp generation and validation
-- **Validation**: Tests for input validation (email, dates, repository paths)
-- **Commit History**: Tests for Git commit retrieval and processing
-- **Types**: Tests for custom data structures and type aliases
-- **Rewrite Functionality**: Tests for commit modification logic
-
-#### Integration Tests
-- **Show History Mode**: End-to-end testing of `-s` flag
-- **Pick Specific Commits Mode**: End-to-end testing of `-p` flag
-- **Full Rewrite Mode**: End-to-end testing of full history rewriting
-- **Error Handling**: Tests for invalid inputs and edge cases
-- **Workflow Testing**: Tests for combined operations
 
 ### Writing Tests
 
@@ -170,40 +162,9 @@ When adding new functionality, follow these guidelines:
 3. **Use descriptive test names** that explain what is being tested
 4. **Test both success and failure cases**
 5. **Use temporary directories** for Git repository tests
-6. **Mock external dependencies** when possible
-
-Example test structure:
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-    
-    #[test]
-    fn test_function_name_success_case() {
-        // Arrange
-        let input = "test input";
-        
-        // Act
-        let result = function_name(input);
-        
-        // Assert
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), expected_value);
-    }
-    
-    #[test]
-    fn test_function_name_error_case() {
-        // Test error conditions
-        let result = function_name("invalid input");
-        assert!(result.is_err());
-    }
-}
-```
+6. Prefer `serial_test` when tests would otherwise race on shared state
 
 ### Test Coverage
-
-We aim for comprehensive test coverage. To generate coverage reports:
 
 ```bash
 # Install tarpaulin
@@ -245,31 +206,21 @@ cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out html
    cargo clippy --all-targets --all-features -- -D warnings
    ```
 
-### Pull Request Template
-
-When submitting a pull request, include:
-
-- **Clear description** of what the PR does
-- **Testing information** about what tests were added/modified
-- **Breaking changes** if any
-- **Related issues** that the PR addresses
-
 ### PR Requirements
 
-- ✅ All tests must pass
-- ✅ Code must be formatted with `rustfmt`
-- ✅ Code must pass `clippy` linting
-- ✅ New functionality must include tests
-- ✅ Documentation must be updated if needed
+- All tests must pass
+- Code must be formatted with `rustfmt`
+- Code must pass `clippy` linting
+- New functionality must include tests
+- Documentation must be updated if behavior changes
 
 ## CI/CD Pipeline
 
-Our CI/CD pipeline includes multiple workflows:
+Workflows live under `.github/workflows/`:
 
 ### 1. Comprehensive Test Suite (`test.yml`)
 - Runs on every push and PR
-- Executes unit tests, integration tests, and full test suite
-- Generates test reports
+- Executes unit and integration tests
 
 ### 2. CI/CD Pipeline (`ci-cd.yaml`)
 - Runs linting, formatting, and tests
@@ -279,61 +230,65 @@ Our CI/CD pipeline includes multiple workflows:
 ### 3. Multi-Platform Testing (`multi-platform-test.yml`)
 - Tests on Ubuntu, Windows, and macOS
 - Tests with stable and beta Rust versions
-- Ensures cross-platform compatibility
 
-### 4. Security Audit (`security.yml`)
-- Runs security audits with `cargo-audit`
-- Checks for vulnerable dependencies
-- Runs weekly security scans
-
-### 5. Coverage Report (`coverage.yml`)
+### 4. Coverage Report (`coverage.yml`)
 - Generates test coverage reports
 - Uploads coverage to Codecov
-- Generates and deploys documentation
+- Builds rustdoc and may deploy to GitHub Pages
+
+### 5. User Docs Pages (`github-pages.yml`)
+- Runs `git-editor --docs` and deploys the HTML user docs site
 
 ### 6. Release Pipeline (`release.yaml`)
-- Runs comprehensive tests before release
-- Publishes to crates.io
-- Creates GitHub releases with binaries
+- Runs on version tags (`v*`)
+- Publishes to crates.io and creates GitHub releases with binaries / packages
 
 ## Project Structure
 
 ```
 git-editor/
 ├── src/
-│   ├── main.rs              # Entry point
-│   ├── lib.rs               # Library root
+│   ├── main.rs              # Entry point and mode dispatch
+│   ├── lib.rs               # Library re-exports (args, rewrite, utils)
 │   ├── args.rs              # Command-line argument parsing
-│   ├── rewrite/             # Git rewriting functionality
+│   ├── docs.rs              # --docs HTML generation
+│   ├── rewrite/
 │   │   ├── mod.rs
 │   │   ├── rewrite_all.rs   # Full history rewriting
-│   │   └── rewrite_specific.rs # Specific commit editing
-│   └── utils/               # Utility modules
+│   │   ├── rewrite_specific.rs # Pick-one commit editing
+│   │   └── rewrite_range.rs # Range editing (crossterm TUI)
+│   └── utils/
 │       ├── mod.rs
-│       ├── commit_history.rs # Git commit operations
-│       ├── datetime.rs      # Date/time handling
-│       ├── prompt.rs        # User input handling
-│       ├── types.rs         # Custom types and structs
-│       └── validator.rs     # Input validation
+│       ├── commit_history.rs
+│       ├── datetime.rs
+│       ├── prompt.rs
+│       ├── types.rs
+│       ├── validator.rs
+│       ├── simulation.rs
+│       ├── git_clone.rs
+│       ├── git_config.rs
+│       └── help.rs          # Unused custom help (clap --help is primary)
+├── docs/
+│   └── template.html        # Embedded by --docs / GitHub Pages
 ├── tests/
-│   └── integration_tests.rs # Integration tests
+│   └── integration_tests.rs
 ├── .github/
-│   └── workflows/           # CI/CD pipelines
-├── Cargo.toml              # Project dependencies
-├── README.md               # Project documentation
-└── CONTRIBUTING.md         # This file
+│   └── workflows/
+├── Cargo.toml
+├── README.md
+└── CONTRIBUTING.md
 ```
 
 ## Common Development Tasks
 
 ### Adding New Functionality
 
-1. **Design the feature** and identify where it fits in the codebase
-2. **Write tests first** (TDD approach recommended)
-3. **Implement the functionality**
-4. **Update documentation** if needed
-5. **Run the full test suite**
-6. **Submit a PR**
+1. Design the feature and identify where it fits
+2. Write tests first when practical
+3. Implement the functionality
+4. Update `README.md` and `docs/template.html` if user-facing
+5. Run the full test suite
+6. Submit a PR
 
 ### Debugging Tests
 
@@ -350,31 +305,18 @@ cargo test -- --test-threads=1
 
 ### Working with Git Repositories in Tests
 
-Many tests create temporary Git repositories. Use the provided helper functions:
+Many tests create temporary Git repositories:
 
 ```rust
 fn create_test_repo() -> (TempDir, String) {
     let temp_dir = TempDir::new().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    
-    // Initialize git repo
+
     let repo = git2::Repository::init(&repo_path).unwrap();
-    
     // Create commits, etc.
-    
+
     (temp_dir, repo_path)
 }
-```
-
-### Performance Testing
-
-```bash
-# Run tests with timing information
-cargo test -- --nocapture --test-threads=1 --exact
-
-# Profile the application
-cargo build --release
-time ./target/release/git-editor --help
 ```
 
 ## Troubleshooting
@@ -393,7 +335,6 @@ export PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig"
 
 #### Git2 Compilation Issues
 ```bash
-# Install system git development headers
 # Ubuntu/Debian
 sudo apt-get install libgit2-dev
 
@@ -412,9 +353,9 @@ brew install libgit2
 - **Discussions**: Use GitHub Discussions for questions
 - **Code Review**: Tag maintainers in your PR for review
 
-## Code of Conduct
+## Conduct
 
-Please note that this project follows a code of conduct. Be respectful and professional in all interactions.
+Be respectful and professional in all interactions.
 
 ## License
 
@@ -422,4 +363,4 @@ By contributing to Git Editor, you agree that your contributions will be license
 
 ---
 
-Thank you for contributing to Git Editor! Your help makes this project better for everyone.
+Thank you for contributing to Git Editor!

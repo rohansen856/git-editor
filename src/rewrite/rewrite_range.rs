@@ -475,7 +475,7 @@ impl InteractiveTable {
                 if self.edit_buffer.trim().is_empty() {
                     return Err("Author email cannot be empty".into());
                 }
-                if !self.edit_buffer.contains('@') {
+                if !crate::utils::validator::is_valid_email(&self.edit_buffer) {
                     return Err("Invalid email format".into());
                 }
                 if commit.author_email != self.edit_buffer {
@@ -910,7 +910,7 @@ fn apply_interactive_range_changes(
     let mut revwalk = repo.revwalk()?;
     revwalk.push_head()?;
     revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
-    let mut orig_oids: Vec<_> = revwalk.filter_map(|id| id.ok()).collect();
+    let mut orig_oids: Vec<_> = revwalk.collect::<std::result::Result<Vec<_>, _>>()?;
     let total_commits = orig_oids.len();
     orig_oids.reverse();
 

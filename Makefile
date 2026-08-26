@@ -1,7 +1,6 @@
 CARGO = cargo
 BIN = git-editor
 TARGET_DIR = target/release
-ENV_FILE = .env
 DOCKER = docker
 
 # Default target
@@ -20,7 +19,7 @@ run:
 		--repo-path $(shell pwd) \
 		--email "user@example.com" \
 		--name "User Name" \
-		--start "2023-01-01 00:00:00" \
+		--begin "2023-01-01 00:00:00" \
 		--end "2023-01-07 23:59:59"
 
 # Run the project with custom settings (specify via environment variables)
@@ -30,15 +29,8 @@ run-custom:
 		--repo-path "$(REPO_PATH)" \
 		--email "$(EMAIL)" \
 		--name "$(NAME)" \
-		--start "$(START)" \
+		--begin "$(START)" \
 		--end "$(END)"
-
-# Check if .env exists, if not, create from example
-$(ENV_FILE):
-	@if [ ! -f $(ENV_FILE) ]; then \
-		cp .env.example $(ENV_FILE); \
-		echo "Created $(ENV_FILE) from example. Please update with your credentials."; \
-	fi
 
 # Clean build artifacts
 .PHONY: clean
@@ -67,15 +59,14 @@ docker-build:
 
 # Docker run
 .PHONY: docker-run
-docker-run: $(ENV_FILE)
+docker-run:
 	$(DOCKER) run --rm -it \
-		--env-file $(ENV_FILE) \
 		-v $(shell pwd):/workspace \
 		$(BIN):latest \
 		--repo-path "/workspace" \
 		--email "user@example.com" \
 		--name "User Name" \
-		--start "2023-01-01 00:00:00" \
+		--begin "2023-01-01 00:00:00" \
 		--end "2023-01-07 23:59:59"
 
 # Install the binary to system path
@@ -87,12 +78,6 @@ install: build
 .PHONY: uninstall
 uninstall:
 	rm -f /usr/local/bin/$(BIN)
-
-# Get contribution data via GitHub API
-.PHONY: contributions
-contributions: $(ENV_FILE)
-	@echo "Fetching GitHub contribution data..."
-	@$(CARGO) run --release -- --fetch-contributions
 
 # Help
 .PHONY: help
@@ -110,5 +95,4 @@ help:
 	@echo "  docker-run      - Run in Docker container"
 	@echo "  install         - Install binary to /usr/local/bin"
 	@echo "  uninstall       - Remove binary from /usr/local/bin"
-	@echo "  contributions   - Fetch GitHub contribution data"
 	@echo "  help            - Show this help message"

@@ -16,7 +16,7 @@ pub fn rewrite_all_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Resul
     let mut revwalk = repo.revwalk()?;
     revwalk.push_head()?;
     revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
-    let mut orig_oids: Vec<_> = revwalk.filter_map(|id| id.ok()).collect();
+    let mut orig_oids: Vec<_> = revwalk.collect::<std::result::Result<Vec<_>, _>>()?;
     orig_oids.reverse();
 
     let mut new_map: HashMap<git2::Oid, git2::Oid> = HashMap::new();

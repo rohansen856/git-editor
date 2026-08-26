@@ -4,9 +4,9 @@ version = "2.0.1"
 edition = "2021"
 description = "A command-line tool to edit git commit timestamps, messages, and author information"
 license = "MIT"
-homepage = "https://github.com/rohansen856/git_editor"
+homepage = "https://github.com/rohansen856/git-editor"
 authors = ["Rohan Sen", "rohansen856@gmail.com"]
-repository = "https://github.com/rohansen856/git_editor"
+repository = "https://github.com/rohansen856/git-editor"
 
 [dependencies]
 git2 = "0.20.1"

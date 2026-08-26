@@ -307,12 +307,12 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: |
           chmod +x ${{ matrix.binary }}
-          tar -czf ${{ matrix.archive }} ${{ matrix.binary }} README.md LICENSE.md
+          tar -czf ${{ matrix.archive }} ${{ matrix.binary }} README.md LICENSE
           
       - name: Create archive (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          7z a ${{ matrix.archive }} ${{ matrix.binary }} README.md LICENSE.md
+          7z a ${{ matrix.archive }} ${{ matrix.binary }} README.md LICENSE
           
       - name: Upload archive
         uses: actions/upload-artifact@v4
@@ -390,11 +390,11 @@ jobs:
             **Quick Install:**
             ```bash
             # Debian/Ubuntu
-            wget https://github.com/rohansen856/git_editor/releases/latest/download/git-editor_amd64.deb
+            wget https://github.com/rohansen856/git-editor/releases/latest/download/git-editor_amd64.deb
             sudo dpkg -i git-editor_amd64.deb
             
             # RedHat/CentOS/Fedora
-            wget https://github.com/rohansen856/git_editor/releases/latest/download/git-editor.x86_64.rpm
+            wget https://github.com/rohansen856/git-editor/releases/latest/download/git-editor.x86_64.rpm
             sudo rpm -i git-editor.x86_64.rpm
             
             # Manual install (all platforms)

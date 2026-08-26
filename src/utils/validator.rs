@@ -3,6 +3,13 @@ use crate::utils::types::Result;
 use regex::Regex;
 use url::Url;
 
+/// Same email rules used by CLI validation and the range TUI.
+pub fn is_valid_email(email: &str) -> bool {
+    Regex::new(r"(?i)^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$")
+        .map(|re| re.is_match(email))
+        .unwrap_or(false)
+}
+
 pub fn validate_inputs(args: &Args) -> Result<()> {
     // Skip all validation for docs mode
     if args.docs {
@@ -41,8 +48,7 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     let start = args.start.as_ref().unwrap();
     let end = args.end.as_ref().unwrap();
 
-    let email_re = Regex::new(r"(?i)^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$")?;
-    if !email_re.is_match(email) {
+    if !is_valid_email(email) {
         return Err(format!("Invalid email format: {email}").into());
     }
 
@@ -277,20 +283,19 @@ mod tests {
 
     #[test]
     fn test_email_regex_patterns() {
-        let email_re = Regex::new(r"(?i)^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$").unwrap();
-
         // Valid emails
-        assert!(email_re.is_match("test@example.com"));
-        assert!(email_re.is_match("user.name@domain.org"));
-        assert!(email_re.is_match("user+tag@example.co.uk"));
-        assert!(email_re.is_match("123@test.io"));
+        assert!(is_valid_email("test@example.com"));
+        assert!(is_valid_email("user.name@domain.org"));
+        assert!(is_valid_email("user+tag@example.co.uk"));
+        assert!(is_valid_email("123@test.io"));
 
-        // Invalid emails
-        assert!(!email_re.is_match("invalid-email"));
-        assert!(!email_re.is_match("@domain.com"));
-        assert!(!email_re.is_match("user@"));
-        assert!(!email_re.is_match("user@domain"));
-        assert!(!email_re.is_match("user@domain."));
+        // Invalid emails (including bare @ which the TUI previously accepted)
+        assert!(!is_valid_email("invalid-email"));
+        assert!(!is_valid_email("@domain.com"));
+        assert!(!is_valid_email("user@"));
+        assert!(!is_valid_email("user@domain"));
+        assert!(!is_valid_email("user@domain."));
+        assert!(!is_valid_email("not-an-email"));
     }
 
     #[test]

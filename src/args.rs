@@ -21,28 +21,28 @@ pub struct Args {
     #[arg(
         short = 'b',
         long = "begin",
-        help = "Start date for the commits in YYYY-MM-DD format"
+        help = "Start date for the commits in YYYY-MM-DD HH:MM:SS format"
     )]
     pub start: Option<String>,
 
     #[arg(
         short = 'e',
         long = "end",
-        help = "End date for the commits in YYYY-MM-DD format"
+        help = "End date for the commits in YYYY-MM-DD HH:MM:SS format"
     )]
     pub end: Option<String>,
 
     #[arg(
         short = 's',
         long = "show-history",
-        help = "Show updated commit history after rewriting"
+        help = "Show commit history with statistics (read-only)"
     )]
     pub show_history: bool,
 
     #[arg(
         short = 'p',
         long = "pick-specific-commits",
-        help = "Pick specific commits to rewrite. Provide a comma-separated list of commit hashes."
+        help = "Interactively pick one commit by number and edit its metadata"
     )]
     pub pick_specific_commits: bool,
 
@@ -250,7 +250,13 @@ impl Args {
 
                     Ok(Some((start_date, end_date)))
                 }
-                Err(_) => Ok(None), // If we can't get history, don't provide defaults
+                Err(e) => {
+                    eprintln!(
+                        "{} Could not read commit history for date defaults: {e}",
+                        "Warning:".yellow()
+                    );
+                    Ok(None)
+                }
             }
         } else {
             Ok(None)

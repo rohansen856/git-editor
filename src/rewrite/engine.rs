@@ -13,7 +13,7 @@
 
 use crate::utils::message_trailers::rewrite_author_trailers;
 use crate::utils::types::Result;
-use git2::{ObjectType, Oid, Repository, Sort};
+use git2::{ErrorCode, ObjectType, Oid, Repository, Sort};
 use std::collections::HashMap;
 
 /// What happens to the committer of a commit whose author fields are edited.
@@ -102,9 +102,23 @@ impl Outcome {
     }
 }
 
-/// Resolve the checked-out branch.
+/// Resolve the checked-out branch, rejecting states a rewrite cannot handle.
 pub fn current_branch(repo: &Repository) -> Result<BranchHead> {
-    let head = repo.head()?;
+    if repo.head_detached().unwrap_or(false) {
+        return Err(
+            "HEAD is detached; check out a branch before rewriting (e.g. `git switch main`)".into(),
+        );
+    }
+    let head = match repo.head() {
+        Ok(head) => head,
+        Err(e) if matches!(e.code(), ErrorCode::UnbornBranch | ErrorCode::NotFound) => {
+            return Err("Repository has no commits yet; nothing to rewrite".into())
+        }
+        Err(e) => return Err(e.into()),
+    };
+    if !head.is_branch() {
+        return Err("HEAD does not point to a local branch; check out a branch first".into());
+    }
     let refname = head
         .name()
         .ok_or("HEAD reference name is not valid UTF-8")?

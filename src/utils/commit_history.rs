@@ -12,6 +12,20 @@ fn naive_utc(seconds: i64) -> chrono::NaiveDateTime {
 pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
     let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
 
+    // An unborn branch (fresh `git init`) simply has no history.
+    match repo.head() {
+        Ok(_) => {}
+        Err(e)
+            if matches!(
+                e.code(),
+                git2::ErrorCode::UnbornBranch | git2::ErrorCode::NotFound
+            ) =>
+        {
+            return Ok(Vec::new())
+        }
+        Err(e) => return Err(e.into()),
+    }
+
     let mut revwalk = repo.revwalk()?;
     revwalk.push_head()?;
     revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
@@ -311,9 +325,9 @@ mod tests {
             _temp_dir: None,
         };
 
-        let result = get_commit_history(&args, false);
-        // Empty repo should return error because there's no HEAD
-        assert!(result.is_err());
+        // An unborn branch has no history; callers report "No commits found".
+        let commits = get_commit_history(&args, false).unwrap();
+        assert!(commits.is_empty());
     }
 
     #[test]

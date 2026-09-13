@@ -292,3 +292,22 @@ fn trailers_follow_identity_change() {
         .raw(fx.head())
         .ends_with(b"\n\nfix\n\nSigned-off-by: New Author <new@example.com>\n"));
 }
+
+#[test]
+fn detached_head_is_rejected() {
+    let fx = Fixture::new();
+    let orig = fx.signed_chain(2);
+    fx.repo.set_head_detached(orig[1]).unwrap();
+    let err = engine::current_branch(&fx.repo).unwrap_err();
+    assert!(err.to_string().contains("detached"));
+    let err = engine::apply(&fx.repo, &plan(vec![(orig[0], rename())]), orig[1]).unwrap_err();
+    assert!(err.to_string().contains("detached"));
+    assert!(fx.repo.find_reference("refs/heads/HEAD").is_err());
+}
+
+#[test]
+fn unborn_branch_is_rejected() {
+    let fx = Fixture::new();
+    let err = engine::current_branch(&fx.repo).unwrap_err();
+    assert!(err.to_string().contains("no commits"));
+}

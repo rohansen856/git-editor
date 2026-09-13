@@ -94,6 +94,10 @@ pub struct Outcome {
     pub reused: usize,
     /// Recreated commits that carried a signature which had to be dropped.
     pub signatures_dropped: usize,
+    /// Ref holding the pre-rewrite tip (`refs/git-editor/backup/<branch>`).
+    pub backup_ref: Option<String>,
+    /// Other branches/tags that still contain rewritten (old) commits.
+    pub stale_refs: Vec<String>,
 }
 
 impl Outcome {
@@ -218,7 +222,16 @@ pub fn apply(repo: &Repository, plan: &Plan, expected_head: Oid) -> Result<Outco
     }
 
     let new_head = *new_ids.get(&branch.head).unwrap_or(&branch.head);
+    let mut backup_ref = None;
+    let mut stale_refs = Vec::new();
     if new_head != branch.head {
+        let backup = format!("{BACKUP_PREFIX}{}", branch.shorthand);
+        repo.reference(
+            &backup,
+            branch.head,
+            true,
+            "git-editor: tip before history rewrite",
+        )?;
         repo.reference_matching(
             &branch.refname,
             new_head,
@@ -226,6 +239,8 @@ pub fn apply(repo: &Repository, plan: &Plan, expected_head: Oid) -> Result<Outco
             branch.head,
             "git-editor: history rewritten",
         )?;
+        backup_ref = Some(backup);
+        stale_refs = refs_containing(repo, &branch.refname, &rewritten, &new_ids)?;
     }
 
     Ok(Outcome {
@@ -235,7 +250,55 @@ pub fn apply(repo: &Repository, plan: &Plan, expected_head: Oid) -> Result<Outco
         rewritten,
         reused,
         signatures_dropped,
+        backup_ref,
+        stale_refs,
     })
+}
+
+/// Namespace of the backup refs written before every rewrite.
+pub const BACKUP_PREFIX: &str = "refs/git-editor/backup/";
+
+/// Local branches and tags (other than `current`) that still reach a rewritten commit.
+fn refs_containing(
+    repo: &Repository,
+    current: &str,
+    rewritten: &[(Oid, Oid)],
+    new_ids: &HashMap<Oid, Oid>,
+) -> Result<Vec<String>> {
+    // Only the earliest rewritten commits matter: anything reaching a later
+    // rewritten commit also reaches one of these.
+    let roots: Vec<Oid> = rewritten
+        .iter()
+        .map(|(old, _)| *old)
+        .filter(|old| {
+            repo.find_commit(*old)
+                .map(|c| c.parent_ids().all(|p| new_ids.get(&p) == Some(&p)))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    let mut stale = Vec::new();
+    for reference in repo.references()? {
+        let reference = reference?;
+        let Some(name) = reference.name() else {
+            continue;
+        };
+        if name == current || !(name.starts_with("refs/heads/") || name.starts_with("refs/tags/")) {
+            continue;
+        }
+        let Ok(target) = reference.peel_to_commit() else {
+            continue;
+        };
+        let target = target.id();
+        let reaches_old = roots.iter().any(|root| {
+            target == *root || repo.graph_descendant_of(target, *root).unwrap_or(false)
+        });
+        if reaches_old {
+            stale.push(name.to_string());
+        }
+    }
+    stale.sort();
+    Ok(stale)
 }
 
 /// One header field of a raw commit: its key and the full bytes of the field

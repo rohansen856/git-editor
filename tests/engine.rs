@@ -311,3 +311,35 @@ fn unborn_branch_is_rejected() {
     let err = engine::current_branch(&fx.repo).unwrap_err();
     assert!(err.to_string().contains("no commits"));
 }
+
+#[test]
+fn backup_ref_and_stale_refs_are_reported() {
+    let fx = Fixture::new();
+    let orig = fx.signed_chain(3);
+    fx.repo
+        .branch("side", &fx.repo.find_commit(orig[1]).unwrap(), false)
+        .unwrap();
+    fx.repo
+        .tag_lightweight(
+            "v1",
+            fx.repo.find_commit(orig[2]).unwrap().as_object(),
+            false,
+        )
+        .unwrap();
+    fx.repo
+        .branch("unrelated", &fx.repo.find_commit(orig[0]).unwrap(), false)
+        .unwrap();
+
+    let outcome = engine::apply(&fx.repo, &plan(vec![(orig[1], rename())]), fx.head()).unwrap();
+
+    assert_eq!(
+        outcome.backup_ref.as_deref(),
+        Some("refs/git-editor/backup/main")
+    );
+    let backup = fx
+        .repo
+        .find_reference("refs/git-editor/backup/main")
+        .unwrap();
+    assert_eq!(backup.target(), Some(orig[2]));
+    assert_eq!(outcome.stale_refs, vec!["refs/heads/side", "refs/tags/v1"]);
+}

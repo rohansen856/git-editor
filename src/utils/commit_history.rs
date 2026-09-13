@@ -3,6 +3,12 @@ use crate::{args::Args, utils::types::CommitInfo};
 use colored::Colorize;
 use git2::{Repository, Sort};
 
+fn naive_utc(seconds: i64) -> chrono::NaiveDateTime {
+    chrono::DateTime::from_timestamp(seconds, 0)
+        .unwrap_or_default()
+        .naive_utc()
+}
+
 pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
     let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
 
@@ -17,23 +23,24 @@ pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
     for oid_result in revwalk {
         let oid = oid_result?;
         let commit = repo.find_commit(oid)?;
-        let timestamp = commit.time();
-        let datetime = chrono::DateTime::from_timestamp(timestamp.seconds(), 0)
-            .unwrap_or_default()
-            .naive_utc();
-
-        let commit_info = CommitInfo {
-            oid,
-            short_hash: oid.to_string()[..8].to_string(),
-            timestamp: datetime,
-            author_name: commit.author().name().unwrap_or("Unknown").to_string(),
-            author_email: commit
-                .author()
-                .email()
-                .unwrap_or("unknown@email.com")
-                .to_string(),
-            message: commit.message().unwrap_or("(no message)").to_string(),
-            parent_count: commit.parent_count(),
+        let commit_info = {
+            let author = commit.author();
+            let committer = commit.committer();
+            CommitInfo {
+                oid,
+                short_hash: oid.to_string()[..8].to_string(),
+                timestamp: naive_utc(author.when().seconds()),
+                author_offset_min: author.when().offset_minutes(),
+                author_name: String::from_utf8_lossy(author.name_bytes()).into_owned(),
+                author_email: String::from_utf8_lossy(author.email_bytes()).into_owned(),
+                committer_name: String::from_utf8_lossy(committer.name_bytes()).into_owned(),
+                committer_email: String::from_utf8_lossy(committer.email_bytes()).into_owned(),
+                committer_timestamp: naive_utc(committer.when().seconds()),
+                committer_offset_min: committer.when().offset_minutes(),
+                message: String::from_utf8_lossy(commit.message_bytes()).into_owned(),
+                message_is_utf8: commit.message().is_some(),
+                parent_count: commit.parent_count(),
+            }
         };
 
         if print {

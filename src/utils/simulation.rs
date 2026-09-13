@@ -443,6 +443,7 @@ mod tests {
             author_email: email.to_string(),
             message: message.to_string(),
             parent_count: 1,
+            ..Default::default()
         }
     }
 

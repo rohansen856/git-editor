@@ -545,6 +545,7 @@ mod tests {
             author_email: "test@example.com".to_string(),
             message: "Test commit".to_string(),
             parent_count: 0,
+            ..Default::default()
         }];
 
         // Test valid selection range

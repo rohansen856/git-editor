@@ -2,7 +2,7 @@ use clap::Parser;
 use colored::Colorize;
 use tempfile::TempDir;
 
-#[derive(Parser)]
+#[derive(Parser, Default)]
 #[command(author, version, about)]
 pub struct Args {
     #[arg(
@@ -297,22 +297,7 @@ mod tests {
     #[test]
     fn test_args_default_values() {
         let args = Args {
-            repo_path: None,
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         assert_eq!(args.repo_path, None);
@@ -329,21 +314,8 @@ mod tests {
     fn test_args_with_show_history() {
         let args = Args {
             repo_path: Some("/test/repo".to_string()),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
             show_history: true,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -355,21 +327,8 @@ mod tests {
     fn test_args_with_pick_specific_commits() {
         let args = Args {
             repo_path: Some("/test/repo".to_string()),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
             pick_specific_commits: true,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -385,17 +344,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -409,21 +358,8 @@ mod tests {
     fn test_args_with_range() {
         let args = Args {
             repo_path: Some("/test/repo".to_string()),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
             range: true,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         assert_eq!(args.repo_path, Some("/test/repo".to_string()));
@@ -436,21 +372,8 @@ mod tests {
     fn test_args_with_simulate() {
         let args = Args {
             repo_path: Some("/test/repo".to_string()),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
             simulate: true,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         assert!(args.simulate);
@@ -461,21 +384,9 @@ mod tests {
     fn test_validate_simulation_args_valid() {
         let args = Args {
             repo_path: Some("/test/repo".to_string()),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
             simulate: true,
             show_diff: true,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = args.validate_simulation_args();
@@ -486,21 +397,8 @@ mod tests {
     fn test_validate_simulation_args_invalid() {
         let args = Args {
             repo_path: Some("/test/repo".to_string()),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
             show_diff: true,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = args.validate_simulation_args();
@@ -514,22 +412,8 @@ mod tests {
     #[test]
     fn test_args_with_docs() {
         let args = Args {
-            repo_path: None,
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
             docs: true,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         assert!(args.docs);

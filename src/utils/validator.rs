@@ -126,21 +126,8 @@ mod tests {
         let (_temp_dir, repo_path) = create_test_repo();
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
             show_history: true,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = validate_inputs(&args);
@@ -152,21 +139,8 @@ mod tests {
         let (_temp_dir, repo_path) = create_test_repo();
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
             pick_specific_commits: true,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = validate_inputs(&args);
@@ -182,17 +156,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = validate_inputs(&args);
@@ -208,17 +172,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         // This test would normally call process::exit, so we can't test it directly
@@ -237,17 +191,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("invalid-date".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$").unwrap();
@@ -263,17 +207,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         // This would normally call process::exit, so we test the path validation logic
@@ -370,21 +304,8 @@ mod tests {
         let (_temp_dir, repo_path) = create_test_repo_with_commits();
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
             range: true,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = validate_inputs(&args);

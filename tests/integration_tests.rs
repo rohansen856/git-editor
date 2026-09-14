@@ -63,21 +63,8 @@ fn test_show_history_mode_integration() {
 
     let args = Args {
         repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
         show_history: true,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test validation passes for show_history mode
@@ -104,21 +91,8 @@ fn test_pick_specific_commits_mode_integration() {
 
     let args = Args {
         repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
-        show_history: false,
         pick_specific_commits: true,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test validation passes for pick_specific_commits mode
@@ -152,17 +126,7 @@ fn test_full_rewrite_mode_integration() {
         name: Some("Test User".to_string()),
         start: Some("2025-01-01 00:00:00".to_string()),
         end: Some("2025-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test validation passes for full rewrite mode
@@ -202,21 +166,9 @@ fn test_mode_flag_precedence() {
     // validation still passes (both modes are valid)
     let args = Args {
         repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
         show_history: true,
         pick_specific_commits: true,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let validation_result = validate_inputs(&args);
@@ -231,21 +183,8 @@ fn test_invalid_repo_path_all_modes() {
     // Test show_history mode with invalid repo
     let args_show = Args {
         repo_path: Some(invalid_repo_path.clone()),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
         show_history: true,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -254,21 +193,8 @@ fn test_invalid_repo_path_all_modes() {
     // Test pick_specific_commits mode with invalid repo
     let args_pick = Args {
         repo_path: Some(invalid_repo_path.clone()),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
-        show_history: false,
         pick_specific_commits: true,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let history_result = get_commit_history(&args_pick, false);
@@ -281,17 +207,7 @@ fn test_invalid_repo_path_all_modes() {
         name: Some("Test User".to_string()),
         start: Some("2023-01-01 00:00:00".to_string()),
         end: Some("2023-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let timestamp_result = generate_timestamps(&mut args_full);
@@ -399,17 +315,8 @@ fn test_skip_range_check_with_5min_minimum_gap() {
         name: Some("Test User".to_string()),
         start: Some("2023-01-01 00:00:00".to_string()),
         end: Some("2023-01-01 02:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
         skip_range_check: true,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let timestamp_result = generate_timestamps(&mut args);
@@ -442,17 +349,7 @@ fn test_full_rewrite_mode_invalid_date_format() {
         name: Some("Test User".to_string()),
         start: Some("invalid-date".to_string()),
         end: Some("2023-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let timestamp_result = generate_timestamps(&mut args);
@@ -467,21 +364,8 @@ fn test_workflow_show_history_then_pick_commits() {
     // First, show history
     let args_show = Args {
         repo_path: Some(repo_path.clone()),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
         show_history: true,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -492,21 +376,8 @@ fn test_workflow_show_history_then_pick_commits() {
     // Then, switch to pick specific commits mode
     let args_pick = Args {
         repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
-        show_history: false,
         pick_specific_commits: true,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let validation_result = validate_inputs(&args_pick);
@@ -529,17 +400,8 @@ fn test_simulation_mode_complete_args() {
         name: Some("Test User".to_string()),
         start: Some("2025-01-01 00:00:00".to_string()),
         end: Some("2025-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test validation passes for simulation mode with complete args
@@ -563,21 +425,8 @@ fn test_simulation_mode_incomplete_args() {
     // Test simulation with missing required arguments - this is the scenario that caused the panic
     let mut args = Args {
         repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Basic validation should pass for simulation mode
@@ -604,17 +453,9 @@ fn test_simulation_mode_with_show_diff() {
         name: Some("Test User".to_string()),
         start: Some("2025-01-01 00:00:00".to_string()),
         end: Some("2025-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
         show_diff: true,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test that simulation with show_diff passes validation
@@ -636,17 +477,8 @@ fn test_show_diff_without_simulate_fails() {
         name: Some("Test User".to_string()),
         start: Some("2025-01-01 00:00:00".to_string()),
         end: Some("2025-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
         show_diff: true,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test that show_diff without simulate fails validation
@@ -666,21 +498,8 @@ fn test_cli_execution_simulate_incomplete_args_no_panic() {
     // by testing the main run() function directly with incomplete simulation args
     let mut args = Args {
         repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Mock the Args::parse() result by testing the execution flow manually
@@ -714,17 +533,8 @@ fn test_cli_execution_simulate_complete_args_success() {
         name: Some("Test User".to_string()),
         start: Some("2025-01-01 00:00:00".to_string()),
         end: Some("2025-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test full execution path

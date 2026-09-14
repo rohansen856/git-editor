@@ -480,21 +480,7 @@ mod tests {
         // Get commit info
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let commits = get_commit_history(&args, false).unwrap();
@@ -565,21 +551,8 @@ mod tests {
         let (_temp_dir, repo_path) = create_test_repo_with_commits();
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
             pick_specific_commits: true,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         // Test that the function handles the case where get_commit_history returns commits
@@ -596,21 +569,7 @@ mod tests {
         // Get commit info
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let commits = get_commit_history(&args, false).unwrap();

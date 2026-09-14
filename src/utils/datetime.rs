@@ -170,17 +170,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("invalid-date".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = generate_timestamps(&mut args);
@@ -196,17 +186,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-10 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = generate_timestamps(&mut args);
@@ -233,17 +213,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-10 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = generate_timestamps(&mut args);

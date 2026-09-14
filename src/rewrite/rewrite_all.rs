@@ -110,19 +110,7 @@ mod tests {
             repo_path: Some(repo_path.clone()),
             email: Some("new@example.com".to_string()),
             name: Some("New Author".to_string()),
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let ts = NaiveDate::from_ymd_opt(2024, 1, 1)

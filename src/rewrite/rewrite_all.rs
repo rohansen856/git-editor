@@ -59,7 +59,12 @@ pub fn rewrite_all_commits(
         timestamps,
         CommitterMode::default(),
     )?;
-    let outcome = engine::apply(&repo, &plan, expected_head)?;
+    apply_plan(&repo, &plan, expected_head)
+}
+
+/// Apply a previously previewed plan and report the result.
+pub fn apply_plan(repo: &Repository, plan: &Plan, expected_head: Oid) -> Result<Outcome> {
+    let outcome = engine::apply(repo, plan, expected_head)?;
     print_outcome(&outcome);
     Ok(outcome)
 }

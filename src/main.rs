@@ -12,7 +12,6 @@ use crate::utils::types::Result;
 use crate::utils::validator::validate_inputs;
 use args::Args;
 use clap::Parser;
-use rewrite::rewrite_all::rewrite_all_commits;
 
 fn main() -> Result<()> {
     run().unwrap_or_else(|error| {
@@ -95,11 +94,11 @@ fn execute_show_history_operation(args: &Args) -> Result<()> {
 }
 
 fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
+    use crate::rewrite::engine::CommitterMode;
+    use crate::rewrite::rewrite_all::{apply_plan, full_rewrite_plan};
     use crate::utils::commit_history::get_commit_history;
     use crate::utils::prompt::prompt_for_input;
-    use crate::utils::simulation::{
-        create_full_rewrite_simulation, create_specific_commit_simulation, print_detailed_diff,
-    };
+    use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
 
     // First, show a summary of what will be changed
     println!("{}", "📊 SUMMARY OF PLANNED CHANGES".bold().cyan());
@@ -118,15 +117,17 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
     if args.should_keep_original_timestamps() {
         println!("{}", "✅ Keeping original timestamps as requested.".green());
 
-        // Create a simulation showing that only author info will change
-        let simulation_result = create_specific_commit_simulation(
-            &commits,
-            0,
-            args.name.clone(),
-            args.email.clone(),
-            None, // No timestamp changes
-            None, // No message changes
+        let original_timestamps: Vec<chrono::NaiveDateTime> =
+            commits.iter().map(|c| c.timestamp).collect();
+        let plan = full_rewrite_plan(
+            &repo,
+            head,
+            args.name.as_ref().unwrap(),
+            args.email.as_ref().unwrap(),
+            Some(&original_timestamps),
+            CommitterMode::default(),
         )?;
+        let simulation_result = simulation_from_plan(&commits, &plan, "Author Information Update");
 
         // Show summary
         simulation_result
@@ -165,14 +166,19 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         );
         println!("{}", "Updating author information...".cyan());
 
-        // Use the original timestamps (get them from the commits)
-        let original_timestamps: Vec<chrono::NaiveDateTime> =
-            commits.iter().map(|c| c.timestamp).collect();
-        rewrite_all_commits(args, Some(&original_timestamps), head)?;
+        apply_plan(&repo, &plan, head)?;
         Ok(())
     } else {
         let timestamps = generate_timestamps(args)?;
-        let simulation_result = create_full_rewrite_simulation(&commits, &timestamps, args)?;
+        let plan = full_rewrite_plan(
+            &repo,
+            head,
+            args.name.as_ref().unwrap(),
+            args.email.as_ref().unwrap(),
+            Some(&timestamps),
+            CommitterMode::default(),
+        )?;
+        let simulation_result = simulation_from_plan(&commits, &plan, "Full History Rewrite");
 
         // Show summary
         simulation_result
@@ -201,14 +207,16 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
 
         println!("{}", "\n🚀 Proceeding with rewrite...".green().bold());
         println!("{}", "Rewriting commits...".cyan());
-        rewrite_all_commits(args, Some(&timestamps), head)?;
+        apply_plan(&repo, &plan, head)?;
         Ok(())
     }
 }
 
 fn execute_simulation_operation(args: &mut Args) -> Result<()> {
+    use crate::rewrite::engine::{current_branch, CommitterMode};
+    use crate::rewrite::rewrite_all::full_rewrite_plan;
     use crate::utils::commit_history::get_commit_history;
-    use crate::utils::simulation::{create_full_rewrite_simulation, print_detailed_diff};
+    use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
 
     println!("{}", "🔍 SIMULATION MODE".bold().cyan());
     println!("{}", "Analyzing repository to preview changes...".cyan());
@@ -235,7 +243,17 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
         {
             // We have all required arguments, do full simulation
             let timestamps = generate_timestamps(args)?;
-            create_full_rewrite_simulation(&commits, &timestamps, args)?
+            let repo = git2::Repository::open(args.repo_path.as_ref().unwrap())?;
+            let head = current_branch(&repo)?.head;
+            let plan = full_rewrite_plan(
+                &repo,
+                head,
+                args.name.as_ref().unwrap(),
+                args.email.as_ref().unwrap(),
+                Some(&timestamps),
+                CommitterMode::default(),
+            )?;
+            simulation_from_plan(&commits, &plan, "Full Repository Rewrite")
         } else {
             // Missing required arguments - show what's needed
             println!(

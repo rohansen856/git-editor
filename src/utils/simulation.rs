@@ -1,4 +1,5 @@
 use crate::args::Args;
+use crate::rewrite::engine::Plan;
 use crate::utils::message_trailers::rewrite_author_trailers;
 use crate::utils::types::{CommitInfo, Result};
 use chrono::NaiveDateTime;
@@ -221,55 +222,67 @@ impl SimulationStats {
     }
 }
 
-pub fn create_full_rewrite_simulation(
+/// Preview exactly what `engine::apply(plan)` would write, commit by commit.
+///
+/// Changes are matched to commits by id, so the preview cannot drift from the
+/// rewrite regardless of list order.
+pub fn simulation_from_plan(
     commits: &[CommitInfo],
-    timestamps: &[NaiveDateTime],
-    args: &Args,
-) -> Result<SimulationResult> {
-    let mut changes = Vec::new();
-    let new_author = args.name.as_ref().unwrap();
-    let new_email = args.email.as_ref().unwrap();
+    plan: &Plan,
+    operation_mode: &str,
+) -> SimulationResult {
+    let changes: Vec<SimulationChange> = commits
+        .iter()
+        .map(|commit| {
+            let edit = plan.edits.get(&commit.oid).cloned().unwrap_or_default();
+            let new_author = edit.name.clone();
+            let new_email = edit.email.clone();
+            let new_timestamp = edit.time.map(|t| {
+                chrono::DateTime::from_timestamp(t.seconds, 0)
+                    .unwrap_or_default()
+                    .naive_utc()
+            });
+            let identity_changed = new_author.is_some() || new_email.is_some();
+            let base = edit
+                .message
+                .clone()
+                .unwrap_or_else(|| commit.message.clone());
+            let message = if identity_changed && commit.message_is_utf8 {
+                rewrite_author_trailers(
+                    &base,
+                    &commit.author_name,
+                    &commit.author_email,
+                    new_author.as_deref().unwrap_or(&commit.author_name),
+                    new_email.as_deref().unwrap_or(&commit.author_email),
+                )
+            } else {
+                base
+            };
+            let new_message = (message != commit.message).then_some(message);
 
-    for (i, commit) in commits.iter().enumerate() {
-        let new_timestamp = timestamps.get(i).copied();
-
-        let rewritten_message = rewrite_author_trailers(
-            &commit.message,
-            &commit.author_name,
-            &commit.author_email,
-            new_author,
-            new_email,
-        );
-        let new_message = if rewritten_message != commit.message {
-            Some(rewritten_message)
-        } else {
-            None
-        };
-
-        let change = SimulationChange {
-            commit_oid: commit.oid,
-            short_hash: commit.short_hash.clone(),
-            original_author: commit.author_name.clone(),
-            original_email: commit.author_email.clone(),
-            original_timestamp: commit.timestamp,
-            original_message: commit.message.clone(),
-            new_author: Some(new_author.clone()),
-            new_email: Some(new_email.clone()),
-            new_timestamp,
-            new_message,
-        };
-
-        changes.push(change);
-    }
+            SimulationChange {
+                commit_oid: commit.oid,
+                short_hash: commit.short_hash.clone(),
+                original_author: commit.author_name.clone(),
+                original_email: commit.author_email.clone(),
+                original_timestamp: commit.timestamp,
+                original_message: commit.message.clone(),
+                new_author: new_author.filter(|n| *n != commit.author_name),
+                new_email: new_email.filter(|e| *e != commit.author_email),
+                new_timestamp: new_timestamp.filter(|t| *t != commit.timestamp),
+                new_message,
+            }
+        })
+        .collect();
 
     let mut stats = SimulationStats::new(commits);
     stats.update_from_changes(&changes);
 
-    Ok(SimulationResult {
+    SimulationResult {
         changes,
         stats,
-        operation_mode: "Full Repository Rewrite".to_string(),
-    })
+        operation_mode: operation_mode.to_string(),
+    }
 }
 
 pub fn create_range_simulation(
@@ -426,6 +439,7 @@ pub fn print_detailed_diff(result: &SimulationResult) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rewrite::engine::{CommitterMode, Edit, GitTime};
     use chrono::NaiveDateTime;
 
     fn create_test_commit(
@@ -527,50 +541,71 @@ mod tests {
     }
 
     #[test]
-    fn test_create_full_rewrite_simulation() {
-        let commits = vec![create_test_commit(
-            "1234567890abcdef1234567890abcdef12345678",
+    fn test_simulation_from_plan_matches_edits_by_commit_id() {
+        // Newest first, as listed by get_commit_history.
+        let newest = create_test_commit(
+            "2222222222222222222222222222222222222222",
+            "Old User",
+            "old@example.com",
+            "2023-01-02 10:00:00",
+            "Second commit",
+        );
+        let oldest = create_test_commit(
+            "1111111111111111111111111111111111111111",
             "Old User",
             "old@example.com",
             "2023-01-01 10:00:00",
             "First commit",
-        )];
-
-        let timestamps =
-            vec![
-                NaiveDateTime::parse_from_str("2023-06-01 09:00:00", "%Y-%m-%d %H:%M:%S").unwrap(),
-            ];
-
-        let args = Args {
-            repo_path: Some("./test".to_string()),
-            email: Some("new@example.com".to_string()),
-            name: Some("New User".to_string()),
-            start: Some("2023-06-01 08:00:00".to_string()),
-            end: Some("2023-06-01 18:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: true,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+        );
+        let early =
+            NaiveDateTime::parse_from_str("2023-06-01 09:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+        let late =
+            NaiveDateTime::parse_from_str("2023-06-02 09:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+        let edit = |t: NaiveDateTime| Edit {
+            name: Some("New User".into()),
+            email: Some("new@example.com".into()),
+            time: Some(GitTime::new(t.and_utc().timestamp(), 0)),
+            message: None,
+        };
+        let plan = Plan {
+            edits: [(oldest.oid, edit(early)), (newest.oid, edit(late))]
+                .into_iter()
+                .collect(),
+            committer: CommitterMode::MatchAuthor,
         };
 
-        let result = create_full_rewrite_simulation(&commits, &timestamps, &args).unwrap();
+        let result = simulation_from_plan(&[newest, oldest], &plan, "Full History Rewrite");
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.stats.total_commits, 1);
-        assert_eq!(result.stats.commits_to_change, 1);
-        assert_eq!(result.operation_mode, "Full Repository Rewrite");
+        assert_eq!(result.stats.commits_to_change, 2);
+        assert_eq!(result.changes[0].new_timestamp, Some(late));
+        assert_eq!(result.changes[1].new_timestamp, Some(early));
+        assert_eq!(result.changes[1].new_author.as_deref(), Some("New User"));
+    }
 
-        let change = &result.changes[0];
-        assert!(change.has_changes());
-        assert_eq!(change.new_author.as_ref().unwrap(), "New User");
-        assert_eq!(change.new_email.as_ref().unwrap(), "new@example.com");
+    #[test]
+    fn test_simulation_from_plan_ignores_unchanged_values() {
+        let commit = create_test_commit(
+            "1111111111111111111111111111111111111111",
+            "Same User",
+            "same@example.com",
+            "2023-01-01 10:00:00",
+            "msg",
+        );
+        let plan = Plan {
+            edits: [(
+                commit.oid,
+                Edit {
+                    name: Some("Same User".into()),
+                    email: Some("same@example.com".into()),
+                    ..Default::default()
+                },
+            )]
+            .into_iter()
+            .collect(),
+            committer: CommitterMode::MatchAuthor,
+        };
+        let result = simulation_from_plan(&[commit], &plan, "x");
+        assert_eq!(result.stats.commits_to_change, 0);
     }
 
     #[test]

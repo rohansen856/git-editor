@@ -283,17 +283,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-01 01:00:00".to_string()), // 1 hour for 5 commits
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = generate_timestamps(&mut args);
@@ -314,17 +304,8 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-01 01:00:00".to_string()), // 1 hour for 5 commits
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
             skip_range_check: true,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = generate_timestamps(&mut args);
@@ -347,17 +328,8 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-01 02:00:00".to_string()), // 2 hours for 3 commits (enough for 5-min gaps)
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
             skip_range_check: true,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = generate_timestamps(&mut args);
@@ -401,17 +373,8 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-01 00:01:00".to_string()), // 1 minute
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
             skip_range_check: true,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = generate_timestamps(&mut args);

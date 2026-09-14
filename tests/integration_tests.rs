@@ -226,17 +226,7 @@ fn test_full_rewrite_mode_insufficient_date_range() {
         name: Some("Test User".to_string()),
         start: Some("2023-01-01 00:00:00".to_string()),
         end: Some("2023-01-01 01:00:00".to_string()), // Only 1 hour for 3 commits
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let validation_result = validate_inputs(&args);
@@ -264,17 +254,8 @@ fn test_skip_range_check_succeeds_with_small_range() {
         name: Some("Test User".to_string()),
         start: Some("2023-01-01 00:00:00".to_string()),
         end: Some("2023-01-01 01:00:00".to_string()), // Only 1 hour for 3 commits
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
         skip_range_check: true,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let timestamp_result = generate_timestamps(&mut args);
@@ -560,17 +541,8 @@ fn test_simulation_execution_function_missing_args() {
         name: None,  // Missing - should trigger graceful handling
         start: None, // Missing - should trigger graceful handling
         end: None,   // Missing - should trigger graceful handling
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // The issue was that the old code called generate_timestamps without checking

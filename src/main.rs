@@ -110,6 +110,9 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         println!("{}", "No commits found in repository.".yellow());
         return Ok(());
     }
+    // The branch tip the preview is based on; the rewrite refuses to run if it moves.
+    let repo = git2::Repository::open(args.repo_path.as_ref().unwrap())?;
+    let head = crate::rewrite::engine::current_branch(&repo)?.head;
 
     // Check if user wants to keep original timestamps
     if args.should_keep_original_timestamps() {
@@ -165,7 +168,8 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         // Use the original timestamps (get them from the commits)
         let original_timestamps: Vec<chrono::NaiveDateTime> =
             commits.iter().map(|c| c.timestamp).collect();
-        rewrite_all_commits(args, original_timestamps)
+        rewrite_all_commits(args, Some(&original_timestamps), head)?;
+        Ok(())
     } else {
         let timestamps = generate_timestamps(args)?;
         let simulation_result = create_full_rewrite_simulation(&commits, &timestamps, args)?;
@@ -197,7 +201,8 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
 
         println!("{}", "\n🚀 Proceeding with rewrite...".green().bold());
         println!("{}", "Rewriting commits...".cyan());
-        rewrite_all_commits(args, timestamps)
+        rewrite_all_commits(args, Some(&timestamps), head)?;
+        Ok(())
     }
 }
 

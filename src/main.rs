@@ -117,14 +117,13 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
     if args.should_keep_original_timestamps() {
         println!("{}", "✅ Keeping original timestamps as requested.".green());
 
-        let original_timestamps: Vec<chrono::NaiveDateTime> =
-            commits.iter().map(|c| c.timestamp).collect();
+        // No timestamps: every commit keeps its own author date and offset.
         let plan = full_rewrite_plan(
             &repo,
             head,
             args.name.as_ref().unwrap(),
             args.email.as_ref().unwrap(),
-            Some(&original_timestamps),
+            None,
             CommitterMode::default(),
         )?;
         let simulation_result = simulation_from_plan(&commits, &plan, "Author Information Update");

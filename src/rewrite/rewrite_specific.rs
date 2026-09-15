@@ -1,12 +1,12 @@
-use crate::utils::message_trailers::rewrite_author_trailers;
+use crate::rewrite::engine::{self, CommitterMode, Edit, GitTime, Plan};
+use crate::rewrite::report::print_outcome;
 use crate::utils::prompt::read_prompted_line;
 use crate::utils::types::Result;
 use crate::utils::types::{CommitInfo, EditOptions};
 use crate::{args::Args, utils::commit_history::get_commit_history};
 use chrono::NaiveDateTime;
 use colored::Colorize;
-use git2::{Repository, Signature, Sort, Time};
-use std::collections::HashMap;
+use git2::Repository;
 use std::io::{self, Write};
 
 pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
@@ -233,10 +233,13 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
         return Ok(());
     }
 
+    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
+    // Fail early on a detached/unborn HEAD and remember the tip the edit is based on.
+    let head = engine::current_branch(&repo)?.head;
+
     let selected_index = select_commit(&commits)?;
     let selected_commit = &commits[selected_index];
 
-    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
     show_commit_details(selected_commit, &repo)?;
 
     let edit_options = get_edit_options()?;
@@ -291,7 +294,7 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     }
 
     // Apply changes
-    apply_commit_changes(&repo, selected_commit, &edit_options)?;
+    apply_commit_changes(&repo, selected_commit, &edit_options, head)?;
 
     println!("\n{}", "✓ Commit successfully edited!".green().bold());
 
@@ -302,117 +305,27 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     Ok(())
 }
 
-// Apply the changes to the selected commit
+/// Rewrite only the selected commit (descendants are re-parented, ancestors reused).
 fn apply_commit_changes(
     repo: &Repository,
     target_commit: &CommitInfo,
     options: &EditOptions,
+    expected_head: git2::Oid,
 ) -> Result<()> {
-    let head_ref = repo.head()?;
-    let branch_name = head_ref
-        .shorthand()
-        .ok_or("Detached HEAD or invalid branch")?;
-    let full_ref = format!("refs/heads/{branch_name}");
-
-    let mut revwalk = repo.revwalk()?;
-    revwalk.push_head()?;
-    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
-    let mut orig_oids: Vec<_> = revwalk.collect::<std::result::Result<Vec<_>, _>>()?;
-    orig_oids.reverse();
-
-    let mut new_map: HashMap<git2::Oid, git2::Oid> = HashMap::new();
-    let mut last_new_oid = None;
-
-    for &oid in orig_oids.iter() {
-        let orig = repo.find_commit(oid)?;
-        let tree = orig.tree()?;
-
-        let new_parents: Result<Vec<_>> = orig
-            .parent_ids()
-            .map(|pid| {
-                let new_pid = *new_map.get(&pid).unwrap_or(&pid);
-                repo.find_commit(new_pid).map_err(|e| e.into())
-            })
-            .collect();
-
-        let new_oid = if oid == target_commit.oid {
-            // This is the commit we want to edit
-            let author_name = options
-                .author_name
-                .as_ref()
-                .unwrap_or(&target_commit.author_name);
-            let author_email = options
-                .author_email
-                .as_ref()
-                .unwrap_or(&target_commit.author_email);
-            let timestamp = options.timestamp.unwrap_or(target_commit.timestamp);
-            let base_message = options
-                .message
-                .as_deref()
-                .unwrap_or_else(|| orig.message().unwrap_or_default());
-            let message = rewrite_author_trailers(
-                base_message,
-                &target_commit.author_name,
-                &target_commit.author_email,
-                author_name,
-                author_email,
-            );
-
-            let author_sig = Signature::new(
-                author_name,
-                author_email,
-                &Time::new(timestamp.and_utc().timestamp(), 0),
-            )?;
-
-            // Keep the original committer unless we're changing the timestamp
-            let committer_sig = if options.timestamp.is_some() {
-                author_sig.clone()
-            } else {
-                let committer = orig.committer();
-                Signature::new(
-                    committer.name().unwrap_or("Unknown"),
-                    committer.email().unwrap_or("unknown@email.com"),
-                    &committer.when(),
-                )?
-            };
-
-            repo.commit(
-                None,
-                &author_sig,
-                &committer_sig,
-                &message,
-                &tree,
-                &new_parents?.iter().collect::<Vec<_>>(),
-            )?
-        } else {
-            // Keep other commits as-is but update parent references
-            let author = orig.author();
-            let committer = orig.committer();
-
-            repo.commit(
-                None,
-                &author,
-                &committer,
-                orig.message().unwrap_or_default(),
-                &tree,
-                &new_parents?.iter().collect::<Vec<_>>(),
-            )?
-        };
-
-        new_map.insert(oid, new_oid);
-        last_new_oid = Some(new_oid);
-    }
-
-    if let Some(new_head) = last_new_oid {
-        repo.reference(&full_ref, new_head, true, "edited specific commit")?;
-        println!(
-            "{} '{}' -> {}",
-            "Updated branch".green(),
-            branch_name.cyan(),
-            new_head.to_string()[..8].to_string().cyan()
-        );
-    }
-
+    let edit = Edit {
+        name: options.author_name.clone(),
+        email: options.author_email.clone(),
+        time: options
+            .timestamp
+            .map(|t| GitTime::new(t.and_utc().timestamp(), 0)),
+        message: options.message.clone(),
+    };
+    let plan = Plan {
+        edits: [(target_commit.oid, edit)].into_iter().collect(),
+        committer: CommitterMode::default(),
+    };
+    let outcome = engine::apply(repo, &plan, expected_head)?;
+    print_outcome(&outcome);
     Ok(())
 }
 

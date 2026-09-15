@@ -1,4 +1,5 @@
-use crate::utils::message_trailers::rewrite_author_trailers;
+use crate::rewrite::engine::{self, CommitterMode, Edit, GitTime, Plan};
+use crate::rewrite::report::print_outcome;
 use crate::utils::prompt::read_prompted_line;
 use crate::utils::types::CommitInfo;
 use crate::utils::types::Result;
@@ -11,8 +12,7 @@ use crossterm::{
     terminal::{self, Clear, ClearType},
     ExecutableCommand,
 };
-use git2::{Repository, Signature, Sort, Time};
-use std::collections::HashMap;
+use git2::Repository;
 use std::io::{self, Write};
 
 #[derive(Debug, Clone)]
@@ -798,6 +798,8 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
         println!("{}", "No commits found!".red());
         return Ok(());
     }
+    // Fail early on a detached/unborn HEAD and remember the tip the edits are based on.
+    let head = engine::current_branch(&Repository::open(args.repo_path.as_ref().unwrap())?)?.head;
 
     let (start_idx, end_idx) = select_commit_range(&commits)?;
 
@@ -898,7 +900,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     }
 
     // Apply changes
-    apply_interactive_range_changes(args, &commits, &table.commits)?;
+    apply_interactive_range_changes(args, &table.commits, head)?;
 
     println!("\n{}", "✓ Commit range successfully edited!".green().bold());
 
@@ -909,122 +911,35 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     Ok(())
 }
 
+/// Rewrite only the commits edited in the table; older commits keep their ids.
 fn apply_interactive_range_changes(
     args: &Args,
-    _original_commits: &[CommitInfo],
     edited_commits: &[CommitEdit],
+    expected_head: git2::Oid,
 ) -> Result<()> {
     let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
-    let head_ref = repo.head()?;
-    let branch_name = head_ref
-        .shorthand()
-        .ok_or("Detached HEAD or invalid branch")?;
-    let full_ref = format!("refs/heads/{branch_name}");
-
-    let mut revwalk = repo.revwalk()?;
-    revwalk.push_head()?;
-    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
-    let mut orig_oids: Vec<_> = revwalk.collect::<std::result::Result<Vec<_>, _>>()?;
-    let total_commits = orig_oids.len();
-    orig_oids.reverse();
-
-    // Create a map for quick lookup of edited commits.
-    // commit_edit.index is in display order (newest-first, from get_commit_history),
-    // but orig_oids is now in chronological order (oldest-first) after the reverse.
-    // Convert: chronological_idx = total_commits - 1 - display_idx
-    let mut edit_map: HashMap<usize, &CommitEdit> = HashMap::new();
-    for commit_edit in edited_commits {
-        if commit_edit.is_modified {
-            let chronological_idx = total_commits - 1 - commit_edit.index;
-            edit_map.insert(chronological_idx, commit_edit);
-        }
-    }
-
-    let mut new_map: HashMap<git2::Oid, git2::Oid> = HashMap::new();
-    let mut last_new_oid = None;
-
-    for (commit_idx, &oid) in orig_oids.iter().enumerate() {
-        let orig = repo.find_commit(oid)?;
-        let tree = orig.tree()?;
-
-        let new_parents: Result<Vec<_>> = orig
-            .parent_ids()
-            .map(|pid| {
-                let new_pid = *new_map.get(&pid).unwrap_or(&pid);
-                repo.find_commit(new_pid).map_err(|e| e.into())
-            })
-            .collect();
-
-        let new_oid = if let Some(commit_edit) = edit_map.get(&commit_idx) {
-            // This commit has been edited - apply changes
-            let author_sig = Signature::new(
-                &commit_edit.author_name,
-                &commit_edit.author_email,
-                &Time::new(commit_edit.timestamp.and_utc().timestamp(), 0),
-            )?;
-
-            let committer_sig = Signature::new(
-                &commit_edit.author_name,
-                &commit_edit.author_email,
-                &Time::new(commit_edit.timestamp.and_utc().timestamp(), 0),
-            )?;
-
-            // Use the edited message or keep the original if not changed
-            let base_message = if commit_edit.modifications.message_changed {
-                commit_edit.message.as_str()
-            } else {
-                orig.message().unwrap_or_default()
+    let edits = edited_commits
+        .iter()
+        .filter(|c| c.is_modified)
+        .map(|c| {
+            let m = &c.modifications;
+            let edit = Edit {
+                name: m.author_name_changed.then(|| c.author_name.clone()),
+                email: m.author_email_changed.then(|| c.author_email.clone()),
+                time: m
+                    .timestamp_changed
+                    .then(|| GitTime::new(c.timestamp.and_utc().timestamp(), 0)),
+                message: m.message_changed.then(|| c.message.clone()),
             };
-            let message = rewrite_author_trailers(
-                base_message,
-                &commit_edit.original.author_name,
-                &commit_edit.original.author_email,
-                &commit_edit.author_name,
-                &commit_edit.author_email,
-            );
-
-            repo.commit(
-                None,
-                &author_sig,
-                &committer_sig,
-                &message,
-                &tree,
-                &new_parents?.iter().collect::<Vec<_>>(),
-            )?
-        } else {
-            // Keep other commits as-is but update parent references
-            let author = orig.author();
-            let committer = orig.committer();
-
-            repo.commit(
-                None,
-                &author,
-                &committer,
-                orig.message().unwrap_or_default(),
-                &tree,
-                &new_parents?.iter().collect::<Vec<_>>(),
-            )?
-        };
-
-        new_map.insert(oid, new_oid);
-        last_new_oid = Some(new_oid);
-    }
-
-    if let Some(new_head) = last_new_oid {
-        repo.reference(
-            &full_ref,
-            new_head,
-            true,
-            "edited commit range interactively",
-        )?;
-        println!(
-            "{} '{}' -> {}",
-            "Updated branch".green(),
-            branch_name.cyan(),
-            new_head.to_string()[..8].to_string().cyan()
-        );
-    }
-
+            (c.original.oid, edit)
+        })
+        .collect();
+    let plan = Plan {
+        edits,
+        committer: CommitterMode::default(),
+    };
+    let outcome = engine::apply(&repo, &plan, expected_head)?;
+    print_outcome(&outcome);
     Ok(())
 }
 
@@ -1244,7 +1159,8 @@ mod tests {
         edited_commits[0].modifications.timestamp_changed = true;
 
         // Apply changes
-        apply_interactive_range_changes(&args, &commits, &edited_commits).unwrap();
+        let original_ids: Vec<_> = commits.iter().map(|c| c.oid).collect();
+        apply_interactive_range_changes(&args, &edited_commits, commits[0].oid).unwrap();
 
         // Re-read and verify
         let updated_commits = get_commit_history(&args, false).unwrap();
@@ -1262,12 +1178,48 @@ mod tests {
             "Oldest commit should NOT have the edited timestamp"
         );
 
-        // All other commits should retain their original timestamps
+        // All older commits are reused untouched: same ids, same timestamps.
         for (i, commit) in updated_commits.iter().enumerate().skip(1) {
-            assert_ne!(
-                commit.timestamp, new_timestamp,
-                "Commit at index {i} should not have the edited timestamp"
-            );
+            assert_eq!(commit.oid, original_ids[i], "commit {i} must keep its id");
+            assert_eq!(commit.timestamp, commits[i].timestamp);
         }
+    }
+
+    #[test]
+    fn test_editing_middle_commit_keeps_older_commit_ids() {
+        let (_temp_dir, repo_path) = create_test_repo_with_commits();
+        let args = Args {
+            repo_path: Some(repo_path.clone()),
+            range: true,
+            ..Default::default()
+        };
+        let commits = get_commit_history(&args, false).unwrap();
+        let mut edits: Vec<CommitEdit> = commits
+            .iter()
+            .enumerate()
+            .map(|(i, c)| CommitEdit {
+                index: i,
+                original: c.clone(),
+                author_name: c.author_name.clone(),
+                author_email: c.author_email.clone(),
+                timestamp: c.timestamp,
+                message: c.message.clone(),
+                is_modified: false,
+                modifications: ModificationFlags::default(),
+            })
+            .collect();
+        // Display index 2 = "Commit 3"; commits 1 and 2 are older.
+        edits[2].timestamp += chrono::Duration::hours(1);
+        edits[2].is_modified = true;
+        edits[2].modifications.timestamp_changed = true;
+
+        apply_interactive_range_changes(&args, &edits, commits[0].oid).unwrap();
+
+        let updated = get_commit_history(&args, false).unwrap();
+        assert_eq!(updated[3].oid, commits[3].oid);
+        assert_eq!(updated[4].oid, commits[4].oid);
+        assert_ne!(updated[2].oid, commits[2].oid);
+        assert_eq!(updated[2].timestamp, edits[2].timestamp);
+        assert_eq!(updated[0].message, "Commit 5");
     }
 }

@@ -288,11 +288,7 @@ impl InteractiveTable {
     }
 
     fn truncate_text(&self, text: &str, max_width: usize) -> String {
-        if text.len() > max_width {
-            format!("{}…", &text[..max_width.saturating_sub(1)])
-        } else {
-            text.to_string()
-        }
+        truncate_chars(text, max_width)
     }
 
     fn handle_navigation_key_input(&mut self, key: KeyCode) -> Result<bool> {
@@ -560,6 +556,16 @@ impl InteractiveTable {
 
     fn get_modified_commits(&self) -> Vec<&CommitEdit> {
         self.commits.iter().filter(|c| c.is_modified).collect()
+    }
+}
+
+/// Shorten `text` to at most `max_width` characters (never splitting a UTF-8 char).
+fn truncate_chars(text: &str, max_width: usize) -> String {
+    if text.chars().count() > max_width {
+        let kept: String = text.chars().take(max_width.saturating_sub(1)).collect();
+        format!("{kept}…")
+    } else {
+        text.to_string()
     }
 }
 
@@ -997,6 +1003,14 @@ mod tests {
         }
 
         (temp_dir, repo_path)
+    }
+
+    #[test]
+    fn test_truncate_chars_handles_multibyte_text() {
+        assert_eq!(truncate_chars("张三李四王五", 5), "张三李四…");
+        assert_eq!(truncate_chars("émoji 🎉 ok", 20), "émoji 🎉 ok");
+        assert_eq!(truncate_chars("abcdef", 4), "abc…");
+        assert_eq!(truncate_chars("", 3), "");
     }
 
     #[test]

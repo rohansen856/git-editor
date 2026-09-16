@@ -51,6 +51,8 @@ struct InteractiveTable {
     current_col: TableColumn,
     editing: bool,
     edit_buffer: String,
+    /// Last validation error, shown below the table (never stored in a field).
+    status: Option<String>,
     editable_fields: (bool, bool, bool, bool), // (author_name, author_email, timestamp, message)
 }
 
@@ -99,6 +101,7 @@ impl InteractiveTable {
             current_col: starting_col,
             editing: false,
             edit_buffer: String::new(),
+            status: None,
             editable_fields,
         }
     }
@@ -272,6 +275,9 @@ impl InteractiveTable {
 
         println!();
 
+        if let Some(status) = &self.status {
+            println!("{} {}", "Error:".red().bold(), status.red());
+        }
         if self.editing {
             println!("{}: {}", "Editing".bold().yellow(), self.edit_buffer);
             println!("{}", "Press Enter to save, Esc to cancel edit".italic());
@@ -426,6 +432,9 @@ impl InteractiveTable {
     }
 
     fn handle_edit_key_input(&mut self, key: KeyCode) -> Result<bool> {
+        if key != KeyCode::Enter {
+            self.status = None;
+        }
         match key {
             KeyCode::Esc => {
                 // Esc - cancel edit
@@ -435,10 +444,13 @@ impl InteractiveTable {
             KeyCode::Enter => {
                 // Enter - save edit
                 if let Err(e) = self.save_current_edit() {
-                    // On error, show message and stay in edit mode
-                    self.edit_buffer = format!("Error: {e} (Press Esc to cancel)");
+                    // Keep the user's input and stay in edit mode; show the error separately.
+                    self.status = Some(format!(
+                        "{e} (fix the value or press Esc to cancel the edit)"
+                    ));
                     return Ok(true);
                 }
+                self.status = None;
                 self.editing = false;
                 self.edit_buffer.clear();
             }
@@ -1003,6 +1015,33 @@ mod tests {
         }
 
         (temp_dir, repo_path)
+    }
+
+    fn table_with_one_commit() -> InteractiveTable {
+        let commit = CommitInfo {
+            author_name: "Old Author".into(),
+            author_email: "old@example.com".into(),
+            message: "msg\n".into(),
+            ..Default::default()
+        };
+        InteractiveTable::new(vec![commit], 0, 0, (true, true, true, true))
+    }
+
+    #[test]
+    fn test_validation_error_is_not_saved_as_value() {
+        let mut table = table_with_one_commit();
+        table.current_col = TableColumn::AuthorName;
+        table.start_editing();
+        for _ in 0.."Old Author".len() {
+            table.handle_edit_key_input(KeyCode::Backspace).unwrap();
+        }
+        table.handle_edit_key_input(KeyCode::Enter).unwrap();
+        assert!(table.status.is_some());
+        assert!(table.editing);
+        assert_eq!(table.edit_buffer, "");
+        table.handle_edit_key_input(KeyCode::Enter).unwrap();
+        assert_eq!(table.commits[0].author_name, "Old Author");
+        assert!(!table.commits[0].is_modified);
     }
 
     #[test]

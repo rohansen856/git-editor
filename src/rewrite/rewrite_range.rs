@@ -53,6 +53,25 @@ enum TableColumn {
     Message = 5,
 }
 
+/// Draws the table on the alternate screen and restores the terminal (raw mode
+/// off, original screen back) when dropped — on success, error or panic.
+struct TerminalGuard;
+
+impl TerminalGuard {
+    fn enter() -> Result<Self> {
+        io::stdout().execute(terminal::EnterAlternateScreen)?;
+        Ok(Self)
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        let _ = terminal::disable_raw_mode();
+        let _ = io::stdout().execute(terminal::LeaveAlternateScreen);
+        let _ = io::stdout().execute(cursor::Show);
+    }
+}
+
 struct InteractiveTable {
     commits: Vec<CommitEdit>,
     current_row: usize,
@@ -544,7 +563,8 @@ impl InteractiveTable {
     }
 
     fn run(&mut self) -> Result<bool> {
-        let result = loop {
+        let _terminal = TerminalGuard::enter()?;
+        loop {
             // Disable raw mode for drawing the table
             let _ = terminal::disable_raw_mode();
             self.draw_table();
@@ -562,16 +582,7 @@ impl InteractiveTable {
                     TableAction::Cancel => break Ok(false),
                 }
             }
-        };
-
-        self.restore_terminal();
-        result
-    }
-
-    fn restore_terminal(&self) {
-        let _ = terminal::disable_raw_mode();
-        let _ = io::stdout().execute(Clear(ClearType::All));
-        let _ = io::stdout().execute(cursor::MoveTo(0, 0));
+        }
     }
 
     fn get_modified_commits(&self) -> Vec<&CommitEdit> {

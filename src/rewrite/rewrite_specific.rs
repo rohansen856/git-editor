@@ -294,7 +294,13 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     }
 
     // Apply changes
-    apply_commit_changes(&repo, selected_commit, &edit_options, head)?;
+    apply_commit_changes(
+        &repo,
+        selected_commit,
+        &edit_options,
+        head,
+        args.committer.into(),
+    )?;
 
     println!("\n{}", "✓ Commit successfully edited!".green().bold());
 
@@ -311,6 +317,7 @@ fn apply_commit_changes(
     target_commit: &CommitInfo,
     options: &EditOptions,
     expected_head: git2::Oid,
+    committer: CommitterMode,
 ) -> Result<()> {
     let edit = Edit {
         name: options.author_name.clone(),
@@ -322,7 +329,7 @@ fn apply_commit_changes(
     };
     let plan = Plan {
         edits: [(target_commit.oid, edit)].into_iter().collect(),
-        committer: CommitterMode::default(),
+        committer,
     };
     let outcome = engine::apply(repo, &plan, expected_head)?;
     print_outcome(&outcome);

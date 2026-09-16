@@ -94,7 +94,6 @@ fn execute_show_history_operation(args: &Args) -> Result<()> {
 }
 
 fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
-    use crate::rewrite::engine::CommitterMode;
     use crate::rewrite::rewrite_all::{apply_plan, full_rewrite_plan};
     use crate::utils::commit_history::get_commit_history;
     use crate::utils::prompt::prompt_for_input;
@@ -124,7 +123,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             args.name.as_ref().unwrap(),
             args.email.as_ref().unwrap(),
             None,
-            CommitterMode::default(),
+            args.committer.into(),
         )?;
         let simulation_result = simulation_from_plan(&commits, &plan, "Author Information Update");
 
@@ -175,7 +174,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             args.name.as_ref().unwrap(),
             args.email.as_ref().unwrap(),
             Some(&timestamps),
-            CommitterMode::default(),
+            args.committer.into(),
         )?;
         let simulation_result = simulation_from_plan(&commits, &plan, "Full History Rewrite");
 
@@ -212,7 +211,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
 }
 
 fn execute_simulation_operation(args: &mut Args) -> Result<()> {
-    use crate::rewrite::engine::{current_branch, CommitterMode};
+    use crate::rewrite::engine::current_branch;
     use crate::rewrite::rewrite_all::full_rewrite_plan;
     use crate::utils::commit_history::get_commit_history;
     use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
@@ -250,7 +249,7 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
                 args.name.as_ref().unwrap(),
                 args.email.as_ref().unwrap(),
                 Some(&timestamps),
-                CommitterMode::default(),
+                args.committer.into(),
             )?;
             simulation_from_plan(&commits, &plan, "Full Repository Rewrite")
         } else {

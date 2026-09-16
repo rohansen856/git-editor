@@ -57,7 +57,7 @@ pub fn rewrite_all_commits(
         args.name.as_ref().unwrap(),
         args.email.as_ref().unwrap(),
         timestamps,
-        CommitterMode::default(),
+        args.committer.into(),
     )?;
     apply_plan(&repo, &plan, expected_head)
 }

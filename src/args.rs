@@ -1,6 +1,23 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use colored::Colorize;
 use tempfile::TempDir;
+
+/// `--committer` policy, mapped onto the engine's [`CommitterMode`].
+#[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CommitterArg {
+    #[default]
+    MatchAuthor,
+    Keep,
+}
+
+impl From<CommitterArg> for crate::rewrite::engine::CommitterMode {
+    fn from(arg: CommitterArg) -> Self {
+        match arg {
+            CommitterArg::MatchAuthor => Self::MatchAuthor,
+            CommitterArg::Keep => Self::Keep,
+        }
+    }
+}
 
 #[derive(Parser, Default)]
 #[command(author, version, about)]
@@ -85,6 +102,14 @@ pub struct Args {
         help = "Skip the minimum date range check (allows tightly packed commit timestamps)"
     )]
     pub skip_range_check: bool,
+
+    #[arg(
+        long = "committer",
+        value_enum,
+        default_value_t = CommitterArg::MatchAuthor,
+        help = "Committer of rewritten commits: match-author (follow edited author fields) or keep (leave unchanged)"
+    )]
+    pub committer: CommitterArg,
 
     #[arg(
         long = "keep-dates",

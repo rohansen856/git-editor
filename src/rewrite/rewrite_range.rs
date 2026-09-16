@@ -1,4 +1,4 @@
-use crate::rewrite::engine::{self, CommitterMode, Edit, GitTime, Plan};
+use crate::rewrite::engine::{self, Edit, GitTime, Plan};
 use crate::rewrite::report::print_outcome;
 use crate::utils::prompt::read_prompted_line;
 use crate::utils::types::CommitInfo;
@@ -936,7 +936,7 @@ fn apply_interactive_range_changes(
         .collect();
     let plan = Plan {
         edits,
-        committer: CommitterMode::default(),
+        committer: args.committer.into(),
     };
     let outcome = engine::apply(&repo, &plan, expected_head)?;
     print_outcome(&outcome);

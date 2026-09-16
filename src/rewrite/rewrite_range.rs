@@ -8,7 +8,7 @@ use chrono::NaiveDateTime;
 use colored::Colorize;
 use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal::{self, Clear, ClearType},
     ExecutableCommand,
 };
@@ -33,6 +33,14 @@ struct ModificationFlags {
     author_email_changed: bool,
     timestamp_changed: bool,
     message_changed: bool,
+}
+
+/// What the table loop should do after a key press.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TableAction {
+    Continue,
+    SaveAndExit,
+    Cancel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -135,7 +143,7 @@ impl InteractiveTable {
         println!("{}", editable_info.cyan());
         println!(
             "{}",
-            "Use Arrow Keys to navigate, Enter to edit, Esc to save & exit, Ctrl+C to cancel"
+            "Arrow keys/hjkl: move  Enter: edit  Esc: save & exit  q or Ctrl+C: cancel without saving"
                 .yellow()
         );
         println!();
@@ -280,11 +288,15 @@ impl InteractiveTable {
         }
         if self.editing {
             println!("{}: {}", "Editing".bold().yellow(), self.edit_buffer);
-            println!("{}", "Press Enter to save, Esc to cancel edit".italic());
+            println!(
+                "{}",
+                "Press Enter to save, Esc to cancel this edit, Ctrl+C to abandon all edits"
+                    .italic()
+            );
         } else {
             println!(
                 "{}",
-                "Navigation: ←→↑↓  Edit: Enter  Save & Exit: Esc  Cancel: Ctrl+C".italic()
+                "Navigation: ←→↑↓  Edit: Enter  Save & Exit: Esc  Cancel: q / Ctrl+C".italic()
             );
             println!(
                 "{}",
@@ -297,7 +309,7 @@ impl InteractiveTable {
         truncate_chars(text, max_width)
     }
 
-    fn handle_navigation_key_input(&mut self, key: KeyCode) -> Result<bool> {
+    fn handle_navigation_key_input(&mut self, key: KeyCode) -> TableAction {
         match key {
             KeyCode::Up if self.current_row > 0 => {
                 self.current_row -= 1;
@@ -327,16 +339,12 @@ impl InteractiveTable {
                 // Down (vim-style)
                 self.current_row += 1;
             }
-            KeyCode::Enter => {
-                self.start_editing();
-                return Ok(true);
-            }
-            KeyCode::Esc => {
-                return Ok(false); // Exit and save
-            }
+            KeyCode::Enter => self.start_editing(),
+            KeyCode::Esc => return TableAction::SaveAndExit,
+            KeyCode::Char('q') => return TableAction::Cancel,
             _ => {}
         }
-        Ok(true)
+        TableAction::Continue
     }
 
     fn is_column_editable(&self, col: &TableColumn) -> bool {
@@ -431,7 +439,7 @@ impl InteractiveTable {
         };
     }
 
-    fn handle_edit_key_input(&mut self, key: KeyCode) -> Result<bool> {
+    fn handle_edit_key_input(&mut self, key: KeyCode) -> TableAction {
         if key != KeyCode::Enter {
             self.status = None;
         }
@@ -448,7 +456,7 @@ impl InteractiveTable {
                     self.status = Some(format!(
                         "{e} (fix the value or press Esc to cancel the edit)"
                     ));
-                    return Ok(true);
+                    return TableAction::Continue;
                 }
                 self.status = None;
                 self.editing = false;
@@ -463,7 +471,19 @@ impl InteractiveTable {
             }
             _ => {}
         }
-        Ok(true)
+        TableAction::Continue
+    }
+
+    /// Route one key press; Ctrl+C always abandons the session.
+    fn handle_key(&mut self, key: KeyEvent) -> TableAction {
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            return TableAction::Cancel;
+        }
+        if self.editing {
+            self.handle_edit_key_input(key.code)
+        } else {
+            self.handle_navigation_key_input(key.code)
+        }
     }
 
     fn save_current_edit(&mut self) -> Result<()> {
@@ -532,26 +552,14 @@ impl InteractiveTable {
             // Enable raw mode only for reading input
             terminal::enable_raw_mode()?;
 
-            if let Event::Key(KeyEvent {
-                code,
-                kind: KeyEventKind::Press,
-                ..
-            }) = event::read()?
-            {
-                let should_continue = if self.editing {
-                    match self.handle_edit_key_input(code) {
-                        Ok(cont) => cont,
-                        Err(_) => break Ok(false),
-                    }
-                } else {
-                    match self.handle_navigation_key_input(code) {
-                        Ok(cont) => cont,
-                        Err(_) => break Ok(false),
-                    }
-                };
-
-                if !should_continue {
-                    break Ok(true); // User wants to save
+            if let Event::Key(key) = event::read()? {
+                if key.kind != KeyEventKind::Press {
+                    continue;
+                }
+                match self.handle_key(key) {
+                    TableAction::Continue => {}
+                    TableAction::SaveAndExit => break Ok(true),
+                    TableAction::Cancel => break Ok(false),
                 }
             }
         };
@@ -1033,15 +1041,31 @@ mod tests {
         table.current_col = TableColumn::AuthorName;
         table.start_editing();
         for _ in 0.."Old Author".len() {
-            table.handle_edit_key_input(KeyCode::Backspace).unwrap();
+            table.handle_edit_key_input(KeyCode::Backspace);
         }
-        table.handle_edit_key_input(KeyCode::Enter).unwrap();
+        table.handle_edit_key_input(KeyCode::Enter);
         assert!(table.status.is_some());
         assert!(table.editing);
         assert_eq!(table.edit_buffer, "");
-        table.handle_edit_key_input(KeyCode::Enter).unwrap();
+        table.handle_edit_key_input(KeyCode::Enter);
         assert_eq!(table.commits[0].author_name, "Old Author");
         assert!(!table.commits[0].is_modified);
+    }
+
+    #[test]
+    fn test_ctrl_c_and_q_cancel_esc_saves() {
+        let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+        let mut table = table_with_one_commit();
+        assert_eq!(table.handle_key(ctrl_c), TableAction::Cancel);
+        table.start_editing();
+        assert_eq!(table.handle_key(ctrl_c), TableAction::Cancel);
+        assert!(!table.edit_buffer.ends_with('c'));
+
+        let mut table = table_with_one_commit();
+        let q = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE);
+        assert_eq!(table.handle_key(q), TableAction::Cancel);
+        let esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+        assert_eq!(table.handle_key(esc), TableAction::SaveAndExit);
     }
 
     #[test]

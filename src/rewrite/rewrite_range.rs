@@ -178,8 +178,14 @@ impl InteractiveTable {
             "MESSAGE".bold().white()
         );
 
-        // Draw rows
-        for (row_idx, commit) in self.commits.iter().enumerate() {
+        // Draw only the rows that fit on screen, keeping the cursor row visible.
+        let screen_rows = terminal::size().map(|(_, h)| h as usize).unwrap_or(24);
+        let (first, count) = viewport(
+            self.current_row,
+            self.commits.len(),
+            screen_rows.saturating_sub(TABLE_CHROME_LINES),
+        );
+        for (row_idx, commit) in self.commits.iter().enumerate().skip(first).take(count) {
             let is_current_row = row_idx == self.current_row;
 
             // Prepare content
@@ -300,6 +306,18 @@ impl InteractiveTable {
             }
         }
 
+        if count < self.commits.len() {
+            println!(
+                "{}",
+                format!(
+                    "Rows {}-{} of {} (scroll with ↑↓)",
+                    first + 1,
+                    first + count,
+                    self.commits.len()
+                )
+                .dimmed()
+            );
+        }
         println!();
 
         if let Some(status) = &self.status {
@@ -588,6 +606,16 @@ impl InteractiveTable {
     fn get_modified_commits(&self) -> Vec<&CommitEdit> {
         self.commits.iter().filter(|c| c.is_modified).collect()
     }
+}
+
+/// Lines used by the table header, footer and help text.
+const TABLE_CHROME_LINES: usize = 12;
+
+/// First visible row and number of rows for a window of `height` rows that keeps `current` visible.
+fn viewport(current: usize, total: usize, height: usize) -> (usize, usize) {
+    let height = height.max(3).min(total);
+    let first = current.saturating_sub(height / 2).min(total - height);
+    (first, height)
 }
 
 /// Shorten `text` to at most `max_width` characters (never splitting a UTF-8 char).
@@ -1077,6 +1105,19 @@ mod tests {
         assert_eq!(table.handle_key(q), TableAction::Cancel);
         let esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         assert_eq!(table.handle_key(esc), TableAction::SaveAndExit);
+    }
+
+    #[test]
+    fn test_viewport_keeps_current_row_visible() {
+        assert_eq!(viewport(0, 5, 20), (0, 5));
+        assert_eq!(viewport(0, 100, 10), (0, 10));
+        assert_eq!(viewport(50, 100, 10), (45, 10));
+        assert_eq!(viewport(99, 100, 10), (90, 10));
+        assert_eq!(viewport(1, 2, 0), (0, 2));
+        for current in 0..100 {
+            let (first, count) = viewport(current, 100, 7);
+            assert!(first <= current && current < first + count);
+        }
     }
 
     #[test]

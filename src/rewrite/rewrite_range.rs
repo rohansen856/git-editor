@@ -528,9 +528,7 @@ impl InteractiveTable {
 
         match self.current_col {
             TableColumn::AuthorName => {
-                if self.edit_buffer.trim().is_empty() {
-                    return Err("Author name cannot be empty".into());
-                }
+                crate::utils::validator::validate_identity_part(&self.edit_buffer, "Author name")?;
                 if commit.author_name != self.edit_buffer {
                     commit.author_name = self.edit_buffer.clone();
                     commit.modifications.author_name_changed =

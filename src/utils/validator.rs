@@ -1,4 +1,5 @@
 use crate::args::Args;
+pub use crate::rewrite::engine::validate_identity_part;
 use crate::utils::types::Result;
 use regex::Regex;
 use url::Url;
@@ -53,6 +54,7 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     if name.trim().is_empty() {
         return Err("Name cannot be empty".into());
     }
+    validate_identity_part(name, "Name")?;
 
     if args.keep_dates {
         if args.start.is_some() || args.end.is_some() {
@@ -404,5 +406,19 @@ mod tests {
         };
         let err = validate_inputs(&args).unwrap_err().to_string();
         assert!(err.contains("--keep-dates"), "{err}");
+    }
+
+    #[test]
+    fn test_name_with_newline_is_rejected() {
+        let (_temp_dir, repo_path) = create_test_repo();
+        let args = Args {
+            repo_path: Some(repo_path),
+            email: Some("new@example.com".to_string()),
+            name: Some("New\nInjected: header".to_string()),
+            keep_dates: true,
+            ..Default::default()
+        };
+        let err = validate_inputs(&args).unwrap_err().to_string();
+        assert!(err.contains("invalid character"), "{err}");
     }
 }

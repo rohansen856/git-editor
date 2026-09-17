@@ -3,6 +3,7 @@ use crate::rewrite::report::print_outcome;
 use crate::utils::prompt::read_prompted_line;
 use crate::utils::types::Result;
 use crate::utils::types::{CommitInfo, EditOptions};
+use crate::utils::validator::{is_valid_email, validate_identity_part};
 use crate::{args::Args, utils::commit_history::get_commit_history};
 use chrono::NaiveDateTime;
 use colored::Colorize;
@@ -100,6 +101,52 @@ pub fn show_commit_details(commit: &CommitInfo, repo: &Repository) -> Result<()>
     Ok(())
 }
 
+/// Parse a comma-separated menu selection; `5` means "all of the above".
+fn parse_edit_selection(input: &str) -> Result<Vec<usize>> {
+    let mut selected = Vec::new();
+    for token in input.split(',').map(str::trim).filter(|t| !t.is_empty()) {
+        match token.parse::<usize>() {
+            Ok(5) => selected.extend(1..=4),
+            Ok(n @ 1..=4) => selected.push(n),
+            _ => return Err(format!("Invalid option '{token}' (choose 1-5)").into()),
+        }
+    }
+    selected.sort_unstable();
+    selected.dedup();
+    if selected.is_empty() {
+        return Err("No option selected; nothing to edit".into());
+    }
+    Ok(selected)
+}
+
+fn prompt_line(label: &str) -> Result<String> {
+    print!("{} {} ", label.bold(), "(Esc to cancel)".bright_black());
+    io::stdout().flush()?;
+    read_prompted_line()
+}
+
+fn prompt_message() -> Result<String> {
+    println!(
+        "{} {} ",
+        "New commit message (end with empty line):".bold(),
+        "(Esc to cancel)".bright_black()
+    );
+    let mut message = String::new();
+    loop {
+        let line = read_prompted_line()?;
+        if line.is_empty() {
+            break;
+        }
+        message.push_str(&line);
+        message.push('\n');
+    }
+    let message = message.trim().to_string();
+    if message.is_empty() {
+        return Err("Commit message cannot be empty".into());
+    }
+    Ok(message)
+}
+
 // Get user input for what to change
 pub fn get_edit_options() -> Result<EditOptions> {
     println!("\n{}", "What would you like to edit?".bold().green());
@@ -109,116 +156,31 @@ pub fn get_edit_options() -> Result<EditOptions> {
     println!("4. Commit message");
     println!("5. All of the above");
 
-    print!(
-        "\n{} {} ",
-        "Select option(s) (comma-separated):".bold(),
-        "(Esc to cancel)".bright_black()
-    );
-    io::stdout().flush()?;
-
-    let input = read_prompted_line()?;
-
-    let selections: Vec<usize> = input
-        .split(',')
-        .filter_map(|s| s.trim().parse::<usize>().ok())
-        .collect();
-
+    let selections = parse_edit_selection(&prompt_line("Select option(s) (comma-separated):")?)?;
     let mut options = EditOptions::default();
 
-    for &selection in &selections {
+    for selection in selections {
         match selection {
             1 => {
-                print!(
-                    "{} {} ",
-                    "New author name:".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                options.author_name = Some(read_prompted_line()?);
+                let name = prompt_line("New author name:")?;
+                validate_identity_part(&name, "Author name")?;
+                options.author_name = Some(name);
             }
             2 => {
-                print!(
-                    "{} {} ",
-                    "New author email:".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                options.author_email = Some(read_prompted_line()?);
+                let email = prompt_line("New author email:")?;
+                if !is_valid_email(&email) {
+                    return Err(format!("Invalid email format: {email}").into());
+                }
+                options.author_email = Some(email);
             }
             3 => {
-                print!(
-                    "{} {} ",
-                    "New timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                let timestamp = read_prompted_line()?;
+                let timestamp = prompt_line("New timestamp (YYYY-MM-DD HH:MM:SS):")?;
                 let dt = NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%d %H:%M:%S")
-                    .map_err(|_| "Invalid timestamp format")?;
+                    .map_err(|_| "Invalid timestamp format (use YYYY-MM-DD HH:MM:SS)")?;
                 options.timestamp = Some(dt);
             }
-            4 => {
-                println!(
-                    "{} {} ",
-                    "New commit message (end with empty line):".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                let mut message = String::new();
-                loop {
-                    let line = read_prompted_line()?;
-                    if line.is_empty() {
-                        break;
-                    }
-                    message.push_str(&line);
-                    message.push('\n');
-                }
-                options.message = Some(message.trim().to_string());
-            }
-            5 => {
-                print!(
-                    "{} {} ",
-                    "New author name:".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                options.author_name = Some(read_prompted_line()?);
-
-                print!(
-                    "{} {} ",
-                    "New author email:".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                options.author_email = Some(read_prompted_line()?);
-
-                print!(
-                    "{} {} ",
-                    "New timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                let timestamp = read_prompted_line()?;
-                let dt = NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%d %H:%M:%S")
-                    .map_err(|_| "Invalid timestamp format")?;
-                options.timestamp = Some(dt);
-
-                println!(
-                    "{} {} ",
-                    "New commit message (end with empty line):".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                let mut message = String::new();
-                loop {
-                    let line = read_prompted_line()?;
-                    if line.is_empty() {
-                        break;
-                    }
-                    message.push_str(&line);
-                    message.push('\n');
-                }
-                options.message = Some(message.trim().to_string());
-            }
-            _ => println!("Invalid option: {selection}"),
+            4 => options.message = Some(prompt_message()?),
+            _ => unreachable!("parse_edit_selection only returns 1-4"),
         }
     }
 
@@ -409,6 +371,16 @@ mod tests {
         // Test that show_commit_details doesn't crash
         let result = show_commit_details(commit, &repo);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_edit_selection() {
+        assert_eq!(parse_edit_selection("1").unwrap(), vec![1]);
+        assert_eq!(parse_edit_selection(" 3, 1 ,3").unwrap(), vec![1, 3]);
+        assert_eq!(parse_edit_selection("5").unwrap(), vec![1, 2, 3, 4]);
+        assert!(parse_edit_selection("9").is_err());
+        assert!(parse_edit_selection("1,x").is_err());
+        assert!(parse_edit_selection("").is_err());
     }
 
     #[test]

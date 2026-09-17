@@ -535,7 +535,6 @@ impl InteractiveTable {
                     commit.author_name = self.edit_buffer.clone();
                     commit.modifications.author_name_changed =
                         commit.original.author_name != commit.author_name;
-                    commit.is_modified = true;
                 }
             }
             TableColumn::AuthorEmail => {
@@ -549,7 +548,6 @@ impl InteractiveTable {
                     commit.author_email = self.edit_buffer.clone();
                     commit.modifications.author_email_changed =
                         commit.original.author_email != commit.author_email;
-                    commit.is_modified = true;
                 }
             }
             TableColumn::Timestamp => {
@@ -561,7 +559,6 @@ impl InteractiveTable {
                     commit.timestamp = new_timestamp;
                     commit.modifications.timestamp_changed =
                         commit.original.timestamp != commit.timestamp;
-                    commit.is_modified = true;
                 }
             }
             TableColumn::Message => {
@@ -572,11 +569,16 @@ impl InteractiveTable {
                     commit.message = self.edit_buffer.clone();
                     commit.modifications.message_changed =
                         commit.original.message != commit.message;
-                    commit.is_modified = true;
                 }
             }
             _ => {}
         }
+        // A value edited back to the original no longer counts as a change.
+        let m = &commit.modifications;
+        commit.is_modified = m.author_name_changed
+            || m.author_email_changed
+            || m.timestamp_changed
+            || m.message_changed;
         Ok(())
     }
 
@@ -1105,6 +1107,21 @@ mod tests {
         assert_eq!(table.handle_key(q), TableAction::Cancel);
         let esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         assert_eq!(table.handle_key(esc), TableAction::SaveAndExit);
+    }
+
+    #[test]
+    fn test_reverted_edit_is_not_a_change() {
+        let mut table = table_with_one_commit();
+        table.current_col = TableColumn::AuthorName;
+        table.start_editing();
+        table.edit_buffer = "Someone Else".into();
+        table.handle_edit_key_input(KeyCode::Enter);
+        assert!(table.commits[0].is_modified);
+        table.start_editing();
+        table.edit_buffer = "Old Author".into();
+        table.handle_edit_key_input(KeyCode::Enter);
+        assert!(!table.commits[0].is_modified);
+        assert!(table.get_modified_commits().is_empty());
     }
 
     #[test]

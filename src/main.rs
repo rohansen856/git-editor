@@ -94,7 +94,7 @@ fn execute_show_history_operation(args: &Args) -> Result<()> {
 }
 
 fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
-    use crate::rewrite::rewrite_all::{apply_plan, full_rewrite_plan};
+    use crate::rewrite::rewrite_all::{apply_plan, begin_offset, full_rewrite_plan};
     use crate::utils::commit_history::get_commit_history;
     use crate::utils::prompt::prompt_for_input;
     use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
@@ -123,6 +123,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             args.name.as_ref().unwrap(),
             args.email.as_ref().unwrap(),
             None,
+            0,
             args.committer.into(),
         )?;
         let simulation_result = simulation_from_plan(&commits, &plan, "Author Information Update");
@@ -174,6 +175,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             args.name.as_ref().unwrap(),
             args.email.as_ref().unwrap(),
             Some(&timestamps),
+            begin_offset(args),
             args.committer.into(),
         )?;
         let simulation_result = simulation_from_plan(&commits, &plan, "Full History Rewrite");
@@ -212,7 +214,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
 
 fn execute_simulation_operation(args: &mut Args) -> Result<()> {
     use crate::rewrite::engine::current_branch;
-    use crate::rewrite::rewrite_all::full_rewrite_plan;
+    use crate::rewrite::rewrite_all::{begin_offset, full_rewrite_plan};
     use crate::utils::commit_history::get_commit_history;
     use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
 
@@ -249,6 +251,7 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
                 args.name.as_ref().unwrap(),
                 args.email.as_ref().unwrap(),
                 Some(&timestamps),
+                begin_offset(args),
                 args.committer.into(),
             )?;
             simulation_from_plan(&commits, &plan, "Full Repository Rewrite")

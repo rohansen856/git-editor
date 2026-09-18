@@ -1,20 +1,23 @@
 use crate::args::Args;
 use crate::rewrite::engine::{self, CommitterMode, Edit, GitTime, Outcome, Plan};
 use crate::rewrite::report::print_outcome;
+use crate::utils::dates::parse_git_time;
 use crate::utils::types::Result;
 use chrono::NaiveDateTime;
 use git2::{Oid, Repository};
 
 /// Plan that gives every commit reachable from `tip` the new identity.
 ///
-/// `timestamps` (oldest commit first) replaces each author date; `None`
-/// keeps every commit's own date and time-zone offset.
+/// `timestamps` (UTC instants, oldest commit first) replaces each author date
+/// and is written with `offset_minutes`; `None` keeps every commit's own date
+/// and time-zone offset.
 pub fn full_rewrite_plan(
     repo: &Repository,
     tip: Oid,
     name: &str,
     email: &str,
     timestamps: Option<&[NaiveDateTime]>,
+    offset_minutes: i32,
     committer: CommitterMode,
 ) -> Result<Plan> {
     let history = engine::history(repo, tip)?;
@@ -35,13 +38,22 @@ pub fn full_rewrite_plan(
             let edit = Edit {
                 name: Some(name.to_string()),
                 email: Some(email.to_string()),
-                time: timestamps.map(|ts| GitTime::new(ts[i].and_utc().timestamp(), 0)),
+                time: timestamps
+                    .map(|ts| GitTime::new(ts[i].and_utc().timestamp(), offset_minutes)),
                 message: None,
             };
             (*oid, edit)
         })
         .collect();
     Ok(Plan { edits, committer })
+}
+
+/// Offset (minutes) given with `--begin`, used for generated timestamps; `0` = UTC.
+pub fn begin_offset(args: &Args) -> i32 {
+    args.start
+        .as_deref()
+        .and_then(|s| parse_git_time(s).ok())
+        .map_or(0, |t| t.offset_minutes)
 }
 
 /// Rewrite every commit on the current branch, which must still be at `expected_head`.
@@ -57,6 +69,7 @@ pub fn rewrite_all_commits(
         args.name.as_ref().unwrap(),
         args.email.as_ref().unwrap(),
         timestamps,
+        begin_offset(args),
         args.committer.into(),
     )?;
     apply_plan(&repo, &plan, expected_head)

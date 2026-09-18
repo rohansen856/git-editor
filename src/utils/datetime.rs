@@ -39,74 +39,110 @@ pub fn generate_timestamps(args: &mut Args) -> Result<Vec<NaiveDateTime>> {
         return Err("No commits found in repository".into());
     }
 
-    let min_span = Duration::hours(3 * (total_commits as i64 - 1));
-    let total_span = end_dt - start_dt;
+    spread_timestamps(start_dt, end_dt, total_commits, args.skip_range_check)
+}
 
-    if total_span < min_span && !args.skip_range_check {
+/// Minimum gap between generated commits by default.
+const DEFAULT_GAP_SECS: i64 = 3 * 3600;
+/// Minimum gap with `--skip-range-check` when it fits.
+const PACKED_GAP_SECS: i64 = 5 * 60;
+
+/// `count` strictly increasing timestamps from `start` to exactly `end`.
+///
+/// Gaps are at least 3 hours (or, with `skip_range_check`, at least 5 minutes
+/// when that fits and otherwise as even as possible, but never below one second),
+/// with the remaining slack spread randomly. Everything is whole seconds, so the
+/// last timestamp is `end` exactly.
+pub fn spread_timestamps(
+    start: NaiveDateTime,
+    end: NaiveDateTime,
+    count: usize,
+    skip_range_check: bool,
+) -> Result<Vec<NaiveDateTime>> {
+    if count == 0 {
+        return Ok(Vec::new());
+    }
+    if count == 1 {
+        return Ok(vec![start]);
+    }
+    let gaps = (count - 1) as i64;
+    let span = (end - start).num_seconds();
+
+    let min_gap = if span >= DEFAULT_GAP_SECS * gaps {
+        DEFAULT_GAP_SECS
+    } else if !skip_range_check {
         return Err(format!(
-            "Date range too small for {} commits. Need at least {} hours between start and end dates.\n\
+            "Date range too small for {count} commits. Need at least {} hours between start and end dates.\n\
             Tip: Pass --skip-range-check to skip this validation and distribute commits evenly across the given range.",
-            total_commits,
-            min_span.num_hours()
-        ).into());
-    }
+            DEFAULT_GAP_SECS * gaps / 3600
+        )
+        .into());
+    } else if span >= PACKED_GAP_SECS * gaps {
+        PACKED_GAP_SECS
+    } else if span >= gaps {
+        // Too tight for random gaps: spread evenly, every gap at least one second.
+        let gap_lengths = even_split(span, gaps as usize);
+        return Ok(accumulate(start, &gap_lengths));
+    } else {
+        return Err(format!(
+            "Date range too small for {count} commits: need at least {gaps} seconds so every commit gets a distinct timestamp"
+        )
+        .into());
+    };
 
-    if total_span < min_span {
-        // --skip-range-check: randomly distribute timestamps with 5-min minimum gap
-        let mut timestamps = Vec::with_capacity(total_commits);
-        if total_commits == 1 {
-            timestamps.push(start_dt);
-        } else {
-            let min_gap = Duration::minutes(5);
-            let min_total = min_gap * (total_commits as i32 - 1);
-            if total_span < min_total {
-                // Not enough room even for 5-min gaps - fall back to even spacing
-                let step = total_span / (total_commits as i32 - 1);
-                for i in 0..total_commits {
-                    timestamps.push(start_dt + step * i as i32);
-                }
-            } else {
-                // Random distribution with 5-min minimum gap
-                let slack = total_span - min_total;
-                let mut rng = rand::rng();
-                let mut weights: Vec<f64> =
-                    (0..(total_commits - 1)).map(|_| rng.random()).collect();
-                let sum: f64 = weights.iter().sum();
-                for w in &mut weights {
-                    *w = (*w / sum) * slack.num_seconds() as f64;
-                }
-                let mut current = start_dt;
-                timestamps.push(current);
-                for w in &weights {
-                    let secs = w.round() as i64 + min_gap.num_seconds();
-                    current += Duration::seconds(secs);
-                    timestamps.push(current);
-                }
-            }
-        }
-        return Ok(timestamps);
-    }
-
-    let slack = total_span - min_span;
+    let slack = span - min_gap * gaps;
     let mut rng = rand::rng();
-    let mut weights: Vec<f64> = (0..(total_commits - 1)).map(|_| rng.random()).collect();
+    let weights: Vec<f64> = (0..gaps)
+        .map(|_| rng.random::<f64>() + f64::EPSILON)
+        .collect();
+    let gap_lengths: Vec<i64> = random_split(slack, &weights)
+        .into_iter()
+        .map(|extra| extra + min_gap)
+        .collect();
+    Ok(accumulate(start, &gap_lengths))
+}
+
+/// Split `total` into `parts` integers that differ by at most one.
+fn even_split(total: i64, parts: usize) -> Vec<i64> {
+    let base = total / parts as i64;
+    let remainder = (total % parts as i64) as usize;
+    (0..parts)
+        .map(|i| base + i64::from(i < remainder))
+        .collect()
+}
+
+/// Split `total` proportionally to `weights` into integers that sum to `total` exactly.
+fn random_split(total: i64, weights: &[f64]) -> Vec<i64> {
     let sum: f64 = weights.iter().sum();
-
-    for w in &mut weights {
-        *w = (*w / sum) * slack.num_seconds() as f64;
+    let shares: Vec<f64> = weights.iter().map(|w| w / sum * total as f64).collect();
+    let mut parts: Vec<i64> = shares.iter().map(|s| s.floor() as i64).collect();
+    let mut missing = total - parts.iter().sum::<i64>();
+    // Hand out the rounding remainder to the largest fractional parts.
+    let mut order: Vec<usize> = (0..parts.len()).collect();
+    order.sort_by(|&a, &b| {
+        let fa = shares[a] - shares[a].floor();
+        let fb = shares[b] - shares[b].floor();
+        fb.partial_cmp(&fa).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    for i in order {
+        if missing <= 0 {
+            break;
+        }
+        parts[i] += 1;
+        missing -= 1;
     }
+    parts
+}
 
-    let mut timestamps = Vec::with_capacity(total_commits);
-    let mut current = start_dt;
-    timestamps.push(current);
-
-    for w in &weights {
-        let secs = w.round() as i64 + 3 * 3600;
-        current += Duration::seconds(secs);
-        timestamps.push(current);
+fn accumulate(start: NaiveDateTime, gaps: &[i64]) -> Vec<NaiveDateTime> {
+    let mut current = start;
+    let mut out = Vec::with_capacity(gaps.len() + 1);
+    out.push(current);
+    for gap in gaps {
+        current += Duration::seconds(*gap);
+        out.push(current);
     }
-
-    Ok(timestamps)
+    out
 }
 
 fn count_commits(repo_path: &str) -> Result<usize> {
@@ -382,5 +418,46 @@ mod tests {
 
         let timestamps = result.unwrap();
         assert_eq!(timestamps.len(), 1);
+    }
+
+    fn dt(s: &str) -> NaiveDateTime {
+        NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").unwrap()
+    }
+
+    fn assert_strictly_increasing_within(
+        ts: &[NaiveDateTime],
+        start: NaiveDateTime,
+        end: NaiveDateTime,
+    ) {
+        assert_eq!(ts.first(), Some(&start));
+        assert_eq!(ts.last(), Some(&end));
+        assert!(ts.windows(2).all(|w| w[0] < w[1]), "{ts:?}");
+    }
+
+    #[test]
+    fn test_spread_hits_both_bounds_with_3h_gaps() {
+        let (start, end) = (dt("2024-01-01 00:00:00"), dt("2024-01-03 00:00:00"));
+        for _ in 0..50 {
+            let ts = spread_timestamps(start, end, 7, false).unwrap();
+            assert_strictly_increasing_within(&ts, start, end);
+            assert!(ts
+                .windows(2)
+                .all(|w| (w[1] - w[0]).num_seconds() >= 3 * 3600));
+        }
+    }
+
+    #[test]
+    fn test_spread_tiny_range_never_duplicates() {
+        let (start, end) = (dt("2024-01-01 00:00:00"), dt("2024-01-01 00:00:04"));
+        let ts = spread_timestamps(start, end, 5, true).unwrap();
+        assert_strictly_increasing_within(&ts, start, end);
+        assert!(spread_timestamps(start, end, 6, true).is_err());
+    }
+
+    #[test]
+    fn test_random_split_sums_exactly() {
+        let parts = random_split(1001, &[0.3, 0.3, 0.4]);
+        assert_eq!(parts.iter().sum::<i64>(), 1001);
+        assert_eq!(even_split(10, 3), vec![4, 3, 3]);
     }
 }

@@ -1,13 +1,13 @@
 use crate::args::Args;
+use crate::utils::dates::parse_utc;
 use crate::utils::types::Result;
 use chrono::{Duration, NaiveDateTime};
 use rand::Rng;
 use uuid::Uuid;
 
 pub fn generate_timestamps(args: &mut Args) -> Result<Vec<NaiveDateTime>> {
-    let start_dt =
-        NaiveDateTime::parse_from_str(args.start.as_ref().unwrap(), "%Y-%m-%d %H:%M:%S")?;
-    let end_dt = NaiveDateTime::parse_from_str(args.end.as_ref().unwrap(), "%Y-%m-%d %H:%M:%S")?;
+    let start_dt = parse_utc(args.start.as_deref().ok_or("Missing --begin")?)?;
+    let end_dt = parse_utc(args.end.as_deref().ok_or("Missing --end")?)?;
 
     if start_dt >= end_dt {
         return Err("Start datetime must be before end datetime".into());

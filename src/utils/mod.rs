@@ -1,4 +1,5 @@
 pub mod commit_history;
+pub mod dates;
 pub mod datetime;
 pub mod git_clone;
 pub mod git_config;

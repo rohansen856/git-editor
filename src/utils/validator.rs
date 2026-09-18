@@ -1,5 +1,6 @@
 use crate::args::Args;
 pub use crate::rewrite::engine::validate_identity_part;
+use crate::utils::dates::parse_git_time;
 use crate::utils::types::Result;
 use regex::Regex;
 
@@ -68,19 +69,10 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
         }
     }
 
-    let date_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
-    if !date_re.is_match(start) {
-        return Err(
-            format!("Invalid start date format (expected YYYY-MM-DD HH:MM:SS): {start}").into(),
-        );
-    }
-    if !date_re.is_match(end) {
-        return Err(
-            format!("Invalid end date format (expected YYYY-MM-DD HH:MM:SS): {end}").into(),
-        );
-    }
+    let start_time = parse_git_time(start).map_err(|e| format!("Invalid start date: {e}"))?;
+    let end_time = parse_git_time(end).map_err(|e| format!("Invalid end date: {e}"))?;
 
-    if start >= end {
+    if start_time.seconds >= end_time.seconds {
         return Err("Start date must be before end date".into());
     }
 

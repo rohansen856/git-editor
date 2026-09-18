@@ -134,6 +134,17 @@ pub fn prompt_with_default(prompt: &str, default_value: &str) -> Result<String> 
     }
 }
 
+/// Like [`read_prompted_line`] but keeps leading/trailing whitespace.
+pub fn read_prompted_line_raw() -> Result<String> {
+    match read_line_allow_esc()? {
+        Some(input) => Ok(input),
+        None => {
+            cancelled_msg();
+            Err(CANCELLED.into())
+        }
+    }
+}
+
 /// Prompt shown already printed by caller; reads a line or cancels.
 pub fn read_prompted_line() -> Result<String> {
     match read_line_allow_esc()? {

@@ -1,6 +1,6 @@
 use crate::rewrite::engine::{self, CommitterMode, Edit, GitTime, Plan};
 use crate::rewrite::report::print_outcome;
-use crate::utils::prompt::read_prompted_line;
+use crate::utils::prompt::{read_prompted_line, read_prompted_line_raw};
 use crate::utils::types::Result;
 use crate::utils::types::{CommitInfo, EditOptions};
 use crate::utils::validator::{is_valid_email, validate_identity_part};
@@ -125,26 +125,32 @@ fn prompt_line(label: &str) -> Result<String> {
     read_prompted_line()
 }
 
+/// Read a multi-line message; a line containing only `.` ends it.
 fn prompt_message() -> Result<String> {
     println!(
         "{} {} ",
-        "New commit message (end with empty line):".bold(),
+        "New commit message (finish with a line containing only '.'):".bold(),
         "(Esc to cancel)".bright_black()
     );
-    let mut message = String::new();
+    let mut lines = Vec::new();
     loop {
-        let line = read_prompted_line()?;
-        if line.is_empty() {
+        let line = read_prompted_line_raw()?;
+        if line.trim() == "." {
             break;
         }
-        message.push_str(&line);
-        message.push('\n');
+        lines.push(line);
     }
-    let message = message.trim().to_string();
-    if message.is_empty() {
-        return Err("Commit message cannot be empty".into());
+    build_message(&lines)
+}
+
+/// Join entered lines into a message, dropping leading/trailing blank lines.
+fn build_message(lines: &[String]) -> Result<String> {
+    let start = lines.iter().position(|l| !l.trim().is_empty());
+    let end = lines.iter().rposition(|l| !l.trim().is_empty());
+    match (start, end) {
+        (Some(start), Some(end)) => Ok(lines[start..=end].join("\n") + "\n"),
+        _ => Err("Commit message cannot be empty".into()),
     }
-    Ok(message)
 }
 
 // Get user input for what to change
@@ -371,6 +377,19 @@ mod tests {
         // Test that show_commit_details doesn't crash
         let result = show_commit_details(commit, &repo);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_build_message_keeps_body_structure() {
+        let lines: Vec<String> = ["", "subject", "", "  indented body", ""]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(
+            build_message(&lines).unwrap(),
+            "subject\n\n  indented body\n"
+        );
+        assert!(build_message(&["  ".to_string()]).is_err());
     }
 
     #[test]

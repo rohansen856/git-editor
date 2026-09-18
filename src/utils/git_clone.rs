@@ -6,6 +6,10 @@ use url::Url;
 
 /// Checks if a string is a valid Git URL
 pub fn is_git_url(input: &str) -> bool {
+    // An existing local path is never a URL, even if it contains '@' and ':'.
+    if std::path::Path::new(input).exists() {
+        return false;
+    }
     if let Ok(url) = Url::parse(input) {
         matches!(url.scheme(), "http" | "https" | "git" | "ssh")
     } else {
@@ -98,6 +102,14 @@ mod tests {
         assert!(!is_git_url("/absolute/path"));
         assert!(!is_git_url("not-a-url"));
         assert!(!is_git_url("file:///local/path"));
+    }
+
+    #[test]
+    fn test_existing_path_with_at_and_colon_is_local() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let odd = dir.path().join("we@ird:dir");
+        std::fs::create_dir(&odd).unwrap();
+        assert!(!is_git_url(odd.to_str().unwrap()));
     }
 
     #[test]

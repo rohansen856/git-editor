@@ -2,7 +2,6 @@ use crate::args::Args;
 pub use crate::rewrite::engine::validate_identity_part;
 use crate::utils::types::Result;
 use regex::Regex;
-use url::Url;
 
 /// Same email rules used by CLI validation and the range TUI.
 pub fn is_valid_email(email: &str) -> bool {
@@ -23,19 +22,14 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     if repo_path.is_empty() {
         return Err("Repository path cannot be empty".into());
     }
-    if Url::parse(repo_path).is_err() && !std::path::Path::new(repo_path).exists() {
-        return Err(format!("Invalid repository path or URL: {repo_path}").into());
+    // URLs were already cloned by `Args::ensure_all_args_present`, so anything
+    // left here must be a local repository.
+    let path = std::path::Path::new(repo_path);
+    if !path.exists() {
+        return Err(format!("Repository path does not exist: {repo_path}").into());
     }
-    if std::path::Path::new(repo_path).exists() {
-        if !std::path::Path::new(repo_path).is_dir() {
-            return Err(format!("Repository path is not a directory: {repo_path}").into());
-        }
-        if !std::path::Path::new(repo_path).join(".git").exists() {
-            return Err(format!(
-                "Repository path does not contain a valid Git repository: {repo_path}"
-            )
-            .into());
-        }
+    if let Err(e) = git2::Repository::open(path) {
+        return Err(format!("Not a Git repository: {repo_path} ({})", e.message()).into());
     }
 
     // Skip validation for email, name, start, end if using show_history, pick_specific_commits, range, simulate, or docs

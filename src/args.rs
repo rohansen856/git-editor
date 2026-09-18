@@ -152,6 +152,16 @@ impl Args {
             self._temp_dir = Some(temp_dir);
         }
 
+        // Resolve a path inside a repository (or a bare repository) to the repository itself.
+        if let Some(path) = self.repo_path.clone() {
+            if std::path::Path::new(&path).exists() {
+                if let Ok(repo) = git2::Repository::discover(&path) {
+                    let root = repo.workdir().unwrap_or_else(|| repo.path());
+                    self.repo_path = Some(root.to_string_lossy().to_string());
+                }
+            }
+        }
+
         // Skip prompting for email, name, start, and end if using show_history, pick_specific_commits, simulation, or docs modes
         if self.show_history || self.pick_specific_commits || self.simulate || self.docs {
             return Ok(());
@@ -444,5 +454,49 @@ mod tests {
         // This should not fail even though repo_path is None, because docs mode skips validation
         let result = args.ensure_all_args_present();
         assert!(result.is_ok());
+    }
+
+    fn init_repo_with_commit(path: &std::path::Path) {
+        let repo = git2::Repository::init(path).unwrap();
+        let sig = git2::Signature::now("T", "t@example.com").unwrap();
+        let tree = repo
+            .find_tree(repo.index().unwrap().write_tree().unwrap())
+            .unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
+            .unwrap();
+    }
+
+    #[test]
+    fn test_subdirectory_resolves_to_repository_root() {
+        let dir = tempfile::TempDir::new().unwrap();
+        init_repo_with_commit(dir.path());
+        let sub = dir.path().join("nested/deeper");
+        std::fs::create_dir_all(&sub).unwrap();
+        let mut args = Args {
+            repo_path: Some(sub.to_string_lossy().to_string()),
+            show_history: true,
+            ..Default::default()
+        };
+        args.ensure_all_args_present().unwrap();
+        let resolved = std::fs::canonicalize(args.repo_path.unwrap()).unwrap();
+        assert_eq!(resolved, std::fs::canonicalize(dir.path()).unwrap());
+    }
+
+    #[test]
+    fn test_bare_repository_is_accepted() {
+        let dir = tempfile::TempDir::new().unwrap();
+        init_repo_with_commit(&dir.path().join("src"));
+        let bare = dir.path().join("bare.git");
+        git2::build::RepoBuilder::new()
+            .bare(true)
+            .clone(dir.path().join("src").to_str().unwrap(), &bare)
+            .unwrap();
+        let mut args = Args {
+            repo_path: Some(bare.to_string_lossy().to_string()),
+            show_history: true,
+            ..Default::default()
+        };
+        args.ensure_all_args_present().unwrap();
+        assert!(crate::utils::validator::validate_inputs(&args).is_ok());
     }
 }

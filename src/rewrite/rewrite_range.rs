@@ -1,5 +1,6 @@
 use crate::rewrite::engine::{self, Edit, GitTime, Plan};
 use crate::rewrite::report::print_outcome;
+use crate::utils::dates::{format_git_time, parse_git_time, parse_utc};
 use crate::utils::prompt::read_prompted_line;
 use crate::utils::types::CommitInfo;
 use crate::utils::types::Result;
@@ -21,7 +22,9 @@ struct CommitEdit {
     original: CommitInfo,
     author_name: String,
     author_email: String,
+    /// Author date as UTC; `offset_minutes` is the zone it is written in.
     timestamp: NaiveDateTime,
+    offset_minutes: i32,
     message: String,
     is_modified: bool,
     modifications: ModificationFlags,
@@ -99,6 +102,7 @@ impl InteractiveTable {
                 author_name: commit.author_name.clone(),
                 author_email: commit.author_email.clone(),
                 timestamp: commit.timestamp,
+                offset_minutes: commit.author_offset_min,
                 message: commit.message.clone(), // Keep full message, truncate only for display
                 is_modified: false,
                 modifications: ModificationFlags::default(),
@@ -174,7 +178,7 @@ impl InteractiveTable {
             "HASH".bold().white(),
             "AUTHOR NAME".bold().white(),
             "AUTHOR EMAIL".bold().white(),
-            "TIMESTAMP".bold().white(),
+            "TIMESTAMP (UTC)".bold().white(),
             "MESSAGE".bold().white()
         );
 
@@ -459,10 +463,13 @@ impl InteractiveTable {
         self.edit_buffer = match self.current_col {
             TableColumn::AuthorName => self.commits[self.current_row].author_name.clone(),
             TableColumn::AuthorEmail => self.commits[self.current_row].author_email.clone(),
-            TableColumn::Timestamp => self.commits[self.current_row]
-                .timestamp
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string(),
+            TableColumn::Timestamp => {
+                let commit = &self.commits[self.current_row];
+                format_git_time(GitTime::new(
+                    commit.timestamp.and_utc().timestamp(),
+                    commit.offset_minutes,
+                ))
+            }
             TableColumn::Message => {
                 // Use the full original message when editing, not the truncated display version
                 if self.commits[self.current_row].modifications.message_changed {
@@ -549,15 +556,12 @@ impl InteractiveTable {
                 }
             }
             TableColumn::Timestamp => {
-                let new_timestamp =
-                    NaiveDateTime::parse_from_str(&self.edit_buffer, "%Y-%m-%d %H:%M:%S")
-                        .map_err(|_| "Invalid timestamp format (use YYYY-MM-DD HH:MM:SS)")?;
-
-                if commit.timestamp != new_timestamp {
-                    commit.timestamp = new_timestamp;
-                    commit.modifications.timestamp_changed =
-                        commit.original.timestamp != commit.timestamp;
-                }
+                let time = parse_git_time(&self.edit_buffer)?;
+                commit.timestamp = parse_utc(&self.edit_buffer)?;
+                commit.offset_minutes = time.offset_minutes;
+                commit.modifications.timestamp_changed = commit.original.timestamp
+                    != commit.timestamp
+                    || commit.original.author_offset_min != commit.offset_minutes;
             }
             TableColumn::Message => {
                 if self.edit_buffer.trim().is_empty() {
@@ -993,7 +997,7 @@ fn apply_interactive_range_changes(
                 email: m.author_email_changed.then(|| c.author_email.clone()),
                 time: m
                     .timestamp_changed
-                    .then(|| GitTime::new(c.timestamp.and_utc().timestamp(), 0)),
+                    .then(|| GitTime::new(c.timestamp.and_utc().timestamp(), c.offset_minutes)),
                 message: m.message_changed.then(|| c.message.clone()),
             };
             (c.original.oid, edit)
@@ -1291,6 +1295,7 @@ mod tests {
                 author_name: c.author_name.clone(),
                 author_email: c.author_email.clone(),
                 timestamp: c.timestamp,
+                offset_minutes: c.author_offset_min,
                 message: c.message.clone(),
                 is_modified: false,
                 modifications: ModificationFlags::default(),
@@ -1347,6 +1352,7 @@ mod tests {
                 author_name: c.author_name.clone(),
                 author_email: c.author_email.clone(),
                 timestamp: c.timestamp,
+                offset_minutes: c.author_offset_min,
                 message: c.message.clone(),
                 is_modified: false,
                 modifications: ModificationFlags::default(),

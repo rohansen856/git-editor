@@ -50,7 +50,7 @@ impl Default for CommitInfo {
 pub struct EditOptions {
     pub author_name: Option<String>,
     pub author_email: Option<String>,
-    pub timestamp: Option<NaiveDateTime>,
+    pub timestamp: Option<crate::rewrite::engine::GitTime>,
     pub message: Option<String>,
 }
 
@@ -97,9 +97,7 @@ mod tests {
 
     #[test]
     fn test_edit_options_with_values() {
-        let timestamp = chrono::DateTime::from_timestamp(1234567890, 0)
-            .unwrap()
-            .naive_utc();
+        let timestamp = crate::rewrite::engine::GitTime::new(1234567890, 0);
 
         let options = EditOptions {
             author_name: Some("New Author".to_string()),

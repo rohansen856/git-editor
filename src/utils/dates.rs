@@ -35,6 +35,16 @@ pub fn parse_utc(input: &str) -> Result<NaiveDateTime> {
         .naive_utc())
 }
 
+/// Render a git timestamp as `YYYY-MM-DD HH:MM:SS +HHMM` in its own offset.
+pub fn format_git_time(time: GitTime) -> String {
+    FixedOffset::east_opt(time.offset_minutes * 60)
+        .and_then(|tz| DateTime::from_timestamp(time.seconds, 0).map(|t| t.with_timezone(&tz)))
+        .map_or_else(
+            || time.seconds.to_string(),
+            |t| t.format("%Y-%m-%d %H:%M:%S %z").to_string(),
+        )
+}
+
 fn parse_with_offset(input: &str) -> Option<DateTime<FixedOffset>> {
     let normalized = input
         .strip_suffix('Z')
@@ -85,6 +95,13 @@ mod tests {
         for bad in ["2023-13-45 25:61:61", "yesterday", "2024-01-01", ""] {
             assert!(parse_git_time(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn format_round_trips() {
+        let t = parse_git_time("2024-01-01 10:00:00 +05:30").unwrap();
+        assert_eq!(format_git_time(t), "2024-01-01 10:00:00 +0530");
+        assert_eq!(parse_git_time(&format_git_time(t)).unwrap(), t);
     }
 
     #[test]

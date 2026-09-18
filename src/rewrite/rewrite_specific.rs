@@ -1,11 +1,11 @@
-use crate::rewrite::engine::{self, CommitterMode, Edit, GitTime, Plan};
+use crate::rewrite::engine::{self, CommitterMode, Edit, Plan};
 use crate::rewrite::report::print_outcome;
+use crate::utils::dates::{format_git_time, parse_git_time};
 use crate::utils::prompt::{read_prompted_line, read_prompted_line_raw};
 use crate::utils::types::Result;
 use crate::utils::types::{CommitInfo, EditOptions};
 use crate::utils::validator::{is_valid_email, validate_identity_part};
 use crate::{args::Args, utils::commit_history::get_commit_history};
-use chrono::NaiveDateTime;
 use colored::Colorize;
 use git2::Repository;
 use std::io::{self, Write};
@@ -180,10 +180,9 @@ pub fn get_edit_options() -> Result<EditOptions> {
                 options.author_email = Some(email);
             }
             3 => {
-                let timestamp = prompt_line("New timestamp (YYYY-MM-DD HH:MM:SS):")?;
-                let dt = NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%d %H:%M:%S")
-                    .map_err(|_| "Invalid timestamp format (use YYYY-MM-DD HH:MM:SS)")?;
-                options.timestamp = Some(dt);
+                let timestamp =
+                    prompt_line("New timestamp (YYYY-MM-DD HH:MM:SS [+HH:MM], default UTC):")?;
+                options.timestamp = Some(parse_git_time(&timestamp)?);
             }
             4 => options.message = Some(prompt_message()?),
             _ => unreachable!("parse_edit_selection only returns 1-4"),
@@ -236,7 +235,7 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
                 .format("%Y-%m-%d %H:%M:%S")
                 .to_string()
                 .red(),
-            timestamp.format("%Y-%m-%d %H:%M:%S").to_string().green()
+            format_git_time(*timestamp).green()
         );
     }
     if let Some(ref message) = edit_options.message {
@@ -290,9 +289,7 @@ fn apply_commit_changes(
     let edit = Edit {
         name: options.author_name.clone(),
         email: options.author_email.clone(),
-        time: options
-            .timestamp
-            .map(|t| GitTime::new(t.and_utc().timestamp(), 0)),
+        time: options.timestamp,
         message: options.message.clone(),
     };
     let plan = Plan {
@@ -307,6 +304,8 @@ fn apply_commit_changes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rewrite::engine::GitTime;
+    use chrono::NaiveDateTime;
     use std::fs;
     use tempfile::TempDir;
 
@@ -414,8 +413,7 @@ mod tests {
 
     #[test]
     fn test_edit_options_with_values() {
-        let timestamp =
-            NaiveDateTime::parse_from_str("2023-01-01 12:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+        let timestamp = GitTime::new(1_672_574_400, 0);
 
         let options = EditOptions {
             author_name: Some("New Author".to_string()),
@@ -490,9 +488,7 @@ mod tests {
         let options = EditOptions {
             author_name: Some("New Author".to_string()),
             author_email: Some("new@example.com".to_string()),
-            timestamp: Some(
-                NaiveDateTime::parse_from_str("2023-01-01 12:00:00", "%Y-%m-%d %H:%M:%S").unwrap(),
-            ),
+            timestamp: Some(GitTime::new(1_672_574_400, 0)),
             message: Some("New commit message".to_string()),
         };
 

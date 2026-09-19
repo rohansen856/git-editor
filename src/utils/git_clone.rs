@@ -27,10 +27,27 @@ pub fn normalize_git_url(url: &str) -> String {
     }
 }
 
+/// Hide credentials embedded in a URL (`https://user:token@host` → `https://user:***@host`).
+pub fn redact_url(input: &str) -> String {
+    let Ok(mut url) = Url::parse(input) else {
+        return input.to_string();
+    };
+    if url.password().is_some() {
+        let _ = url.set_password(Some("***"));
+    } else if !url.username().is_empty() && matches!(url.scheme(), "http" | "https") {
+        // A bare username on HTTP(S) is usually a token.
+        let _ = url.set_username("***");
+    } else {
+        return input.to_string();
+    }
+    url.to_string()
+}
+
 /// Clones a Git repository to a temporary directory and returns the path
 pub fn clone_repository(git_url: &str) -> Result<TempDir> {
+    let shown = redact_url(git_url);
     println!("{}", "🔄 Cloning repository...".cyan());
-    println!("{} {}", "Repository:".bold(), git_url.yellow());
+    println!("{} {}", "Repository:".bold(), shown.yellow());
 
     // Create a temporary directory
     let temp_dir =
@@ -39,8 +56,10 @@ pub fn clone_repository(git_url: &str) -> Result<TempDir> {
     let repo_path = temp_dir.path();
 
     // Clone the repository
-    let _repo = Repository::clone(git_url, repo_path)
-        .map_err(|e| format!("Failed to clone repository '{git_url}': {e}"))?;
+    let _repo = Repository::clone(git_url, repo_path).map_err(|e| {
+        let detail = e.to_string().replace(git_url, &shown);
+        format!("Failed to clone repository '{shown}': {detail}")
+    })?;
 
     println!(
         "{} {}",
@@ -110,6 +129,35 @@ mod tests {
         let odd = dir.path().join("we@ird:dir");
         std::fs::create_dir(&odd).unwrap();
         assert!(!is_git_url(odd.to_str().unwrap()));
+    }
+
+    #[test]
+    fn test_redact_url_hides_credentials() {
+        assert_eq!(
+            redact_url("https://user:ghp_secret@github.com/o/r.git"),
+            "https://user:***@github.com/o/r.git"
+        );
+        assert_eq!(
+            redact_url("https://ghp_secret@github.com/o/r.git"),
+            "https://***@github.com/o/r.git"
+        );
+        assert_eq!(
+            redact_url("https://github.com/o/r.git"),
+            "https://github.com/o/r.git"
+        );
+        assert_eq!(
+            redact_url("git@github.com:o/r.git"),
+            "git@github.com:o/r.git"
+        );
+        assert_eq!(redact_url("ssh://git@host/r.git"), "ssh://git@host/r.git");
+    }
+
+    #[test]
+    fn test_clone_error_does_not_leak_token() {
+        let err = clone_repository("https://u:ghp_TOPSECRET@127.0.0.1:9/o/r.git")
+            .unwrap_err()
+            .to_string();
+        assert!(!err.contains("TOPSECRET"), "{err}");
     }
 
     #[test]

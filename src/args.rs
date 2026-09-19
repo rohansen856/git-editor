@@ -174,7 +174,7 @@ impl Args {
 
         if self.email.is_none() {
             // Try to get email from git config first
-            if let Some(git_email) = get_git_user_email() {
+            if let Some(git_email) = get_git_user_email(self.repo_path.as_deref()) {
                 self.email = Some(prompt_with_default("Email", &git_email)?);
             } else {
                 self.email = Some(prompt_for_missing_arg("email")?);
@@ -183,7 +183,7 @@ impl Args {
 
         if self.name.is_none() {
             // Try to get name from git config first
-            if let Some(git_name) = get_git_user_name() {
+            if let Some(git_name) = get_git_user_name(self.repo_path.as_deref()) {
                 self.name = Some(prompt_with_default("Name", &git_name)?);
             } else {
                 self.name = Some(prompt_for_missing_arg("name")?);

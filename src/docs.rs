@@ -3,7 +3,7 @@ use colored::*;
 use std::fs;
 
 pub fn execute_docs_operation() -> Result<()> {
-    println!("{}", "📚 Opening Git Editor Documentation...".cyan().bold());
+    crate::say!("{}", "📚 Opening Git Editor Documentation...".cyan().bold());
 
     let docs_html = generate_comprehensive_docs()?;
 
@@ -16,27 +16,27 @@ pub fn execute_docs_operation() -> Result<()> {
     // Open the file in the default browser
     match open_in_browser(&docs_file) {
         Ok(_) => {
-            println!(
+            crate::say!(
                 "{}",
                 "✅ Documentation opened in your default browser!"
                     .green()
                     .bold()
             );
-            println!(
+            crate::say!(
                 "{}",
                 format!("📍 File location: {}", docs_file.display()).dimmed()
             );
         }
         Err(_) => {
-            println!(
+            crate::say!(
                 "{}",
                 "⚠️  Could not open browser automatically.".yellow().bold()
             );
-            println!(
+            crate::say!(
                 "{}",
                 format!("📁 Documentation saved at: {}", docs_file.display()).cyan()
             );
-            println!(
+            crate::say!(
                 "{}",
                 "💡 You can manually open this file in your browser.".dimmed()
             );

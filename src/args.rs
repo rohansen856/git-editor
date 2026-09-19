@@ -177,7 +177,7 @@ impl Args {
                     .into());
                 }
             }
-            println!(
+            crate::say!(
                 "{} {}",
                 "Repository:".bold(),
                 get_repo_name_from_url(&repo_path).yellow()

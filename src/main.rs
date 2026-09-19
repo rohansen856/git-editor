@@ -2,6 +2,7 @@ use colored::*;
 
 pub mod args;
 pub mod docs;
+pub mod output;
 pub mod rewrite;
 pub mod utils;
 
@@ -41,7 +42,7 @@ fn run() -> Result<()> {
     }?;
 
     if !args.simulate && !args.docs {
-        println!("{}", "Operation completed successfully!".green().bold());
+        crate::say!("{}", "Operation completed successfully!".green().bold());
     }
     Ok(())
 }
@@ -77,17 +78,17 @@ fn execute_docs_operation() -> Result<()> {
 }
 
 fn execute_range_operation(args: &Args) -> Result<()> {
-    println!("{}", "Editing commit range...".cyan());
+    crate::say!("{}", "Editing commit range...".cyan());
     rewrite_range_commits(args)
 }
 
 fn execute_pick_specific_operation(args: &Args) -> Result<()> {
-    println!("{}", "Picking specific commits...".cyan());
+    crate::say!("{}", "Picking specific commits...".cyan());
     rewrite_specific_commits(args)
 }
 
 fn execute_show_history_operation(args: &Args) -> Result<()> {
-    println!("{}", "Showing commit history...".cyan());
+    crate::say!("{}", "Showing commit history...".cyan());
     use crate::utils::commit_history::get_commit_history;
     get_commit_history(args, true)?;
     Ok(())
@@ -100,12 +101,12 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
     use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
 
     // First, show a summary of what will be changed
-    println!("{}", "📊 SUMMARY OF PLANNED CHANGES".bold().cyan());
-    println!("{}", "Analyzing repository...".cyan());
+    crate::say!("{}", "📊 SUMMARY OF PLANNED CHANGES".bold().cyan());
+    crate::say!("{}", "Analyzing repository...".cyan());
 
     let commits = get_commit_history(args, false)?;
     if commits.is_empty() {
-        println!("{}", "No commits found in repository.".yellow());
+        crate::say!("{}", "No commits found in repository.".yellow());
         return Ok(());
     }
     // The branch tip the preview is based on; the rewrite refuses to run if it moves.
@@ -114,7 +115,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
 
     // Check if user wants to keep original timestamps
     if args.should_keep_original_timestamps() {
-        println!("{}", "✅ Keeping original timestamps as requested.".green());
+        crate::say!("{}", "✅ Keeping original timestamps as requested.".green());
 
         // No timestamps: every commit keeps its own author date and offset.
         let plan = full_rewrite_plan(
@@ -135,17 +136,17 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         print_detailed_diff(&simulation_result);
 
         // Ask for confirmation
-        println!(
+        crate::say!(
             "\n{}",
             "⚠️  This operation will rewrite Git history!"
                 .yellow()
                 .bold()
         );
-        println!(
+        crate::say!(
             "{}",
             "Only author information will be changed, timestamps will remain the same.".cyan()
         );
-        println!(
+        crate::say!(
             "{}",
             "Make sure you have backed up your repository.".yellow()
         );
@@ -154,13 +155,13 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             return Err(cancelled());
         }
 
-        println!(
+        crate::say!(
             "{}",
             "\n🚀 Proceeding with author information update..."
                 .green()
                 .bold()
         );
-        println!("{}", "Updating author information...".cyan());
+        crate::say!("{}", "Updating author information...".cyan());
 
         apply_plan(&repo, &plan, head)?;
         Ok(())
@@ -184,13 +185,13 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         print_detailed_diff(&simulation_result);
 
         // Ask for confirmation
-        println!(
+        crate::say!(
             "\n{}",
             "⚠️  This operation will rewrite Git history permanently!"
                 .yellow()
                 .bold()
         );
-        println!(
+        crate::say!(
             "{}",
             "Make sure you have backed up your repository.".yellow()
         );
@@ -199,8 +200,8 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             return Err(cancelled());
         }
 
-        println!("{}", "\n🚀 Proceeding with rewrite...".green().bold());
-        println!("{}", "Rewriting commits...".cyan());
+        crate::say!("{}", "\n🚀 Proceeding with rewrite...".green().bold());
+        crate::say!("{}", "Rewriting commits...".cyan());
         apply_plan(&repo, &plan, head)?;
         Ok(())
     }
@@ -212,13 +213,13 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
     use crate::utils::commit_history::get_commit_history;
     use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
 
-    println!("{}", "🔍 SIMULATION MODE".bold().cyan());
-    println!("{}", "Analyzing repository to preview changes...".cyan());
+    crate::say!("{}", "🔍 SIMULATION MODE".bold().cyan());
+    crate::say!("{}", "Analyzing repository to preview changes...".cyan());
 
     let commits = get_commit_history(args, false)?;
 
     if commits.is_empty() {
-        println!("{}", "No commits found in repository.".yellow());
+        crate::say!("{}", "No commits found in repository.".yellow());
         return Ok(());
     }
 
@@ -251,7 +252,7 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
             simulation_from_plan(&commits, &plan, "Full Repository Rewrite")
         } else {
             // Missing required arguments - show what's needed
-            println!(
+            crate::say!(
                 "{}",
                 "\n⚠️  Incomplete arguments for full simulation."
                     .yellow()
@@ -285,22 +286,22 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
             .collect::<Vec<_>>();
 
             if !missing.is_empty() {
-                println!(
+                crate::say!(
                     "{} {}",
                     "Missing required arguments:".red(),
                     missing.join(", ").yellow()
                 );
-                println!("{}", "\nExample usage:".bold());
-                println!(
+                crate::say!("{}", "\nExample usage:".bold());
+                crate::say!(
                     "{}",
                     "git-editor --simulate --name \"Your Name\" --email \"your@email.com\" \\"
                         .cyan()
                 );
-                println!(
+                crate::say!(
                     "{}",
                     "    --begin \"2023-01-01 09:00:00\" --end \"2023-12-31 17:00:00\"".cyan()
                 );
-                println!();
+                crate::say!();
             }
 
             // Still show basic repository info

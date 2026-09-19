@@ -1,8 +1,8 @@
 use crate::rewrite::engine::{self, Edit, GitTime, Plan};
 use crate::rewrite::report::print_outcome;
 use crate::utils::dates::{format_git_time, parse_git_time, parse_utc};
-use crate::utils::prompt::confirm;
 use crate::utils::prompt::read_prompted_line;
+use crate::utils::prompt::{cancelled, confirm};
 use crate::utils::types::CommitInfo;
 use crate::utils::types::Result;
 use crate::{args::Args, utils::commit_history::get_commit_history};
@@ -884,8 +884,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     let should_save = table.run()?;
 
     if !should_save {
-        println!("{}", "Operation cancelled.".yellow());
-        return Ok(());
+        return Err(cancelled());
     }
 
     let modified_commits = table.get_modified_commits();
@@ -956,8 +955,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     }
 
     if !confirm(&format!("\n{}", "Apply these changes?".bold()), args.yes)? {
-        println!("{}", "Operation cancelled.".yellow());
-        return Ok(());
+        return Err(cancelled());
     }
 
     // Apply changes

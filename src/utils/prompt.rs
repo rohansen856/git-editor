@@ -4,20 +4,29 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::io::{self, IsTerminal, Write};
 
-/// Sent from prompt helpers when the user presses Esc; main exits 0 without red Error.
+/// Error message used for a user cancellation (Esc, Ctrl+C, declining a confirmation).
 pub const CANCELLED: &str = "CANCELLED";
+
+/// Exit status for a cancelled operation (same convention as SIGINT).
+pub const EXIT_CANCELLED: i32 = 130;
 
 pub fn is_cancelled(err: &dyn std::error::Error) -> bool {
     err.to_string() == CANCELLED
 }
 
-/// Process exit code for a top-level error (0 = Esc cancel, 1 = failure).
+/// Process exit code for a top-level error (130 = cancelled, 1 = failure).
 pub fn exit_code_for_error(err: &dyn std::error::Error) -> i32 {
     if is_cancelled(err) {
-        0
+        EXIT_CANCELLED
     } else {
         1
     }
+}
+
+/// Report a cancellation and return the error that makes the process exit 130.
+pub fn cancelled() -> Box<dyn std::error::Error> {
+    cancelled_msg();
+    CANCELLED.into()
 }
 
 fn print_esc_hint() {
@@ -231,7 +240,7 @@ mod tests {
     #[test]
     fn test_exit_code_for_cancelled_vs_error() {
         let cancelled: Box<dyn std::error::Error> = CANCELLED.into();
-        assert_eq!(exit_code_for_error(cancelled.as_ref()), 0);
+        assert_eq!(exit_code_for_error(cancelled.as_ref()), 130);
 
         let failed: Box<dyn std::error::Error> = "Invalid number".into();
         assert_eq!(exit_code_for_error(failed.as_ref()), 1);
@@ -242,6 +251,6 @@ mod tests {
         // main.rs and prompt helpers must agree on this sentinel
         assert_eq!(CANCELLED, "CANCELLED");
         let err: Box<dyn std::error::Error> = CANCELLED.into();
-        assert_eq!(exit_code_for_error(err.as_ref()), 0);
+        assert_eq!(exit_code_for_error(err.as_ref()), 130);
     }
 }

@@ -16,7 +16,7 @@ use clap::Parser;
 fn main() -> Result<()> {
     run().unwrap_or_else(|error| {
         let code = crate::utils::prompt::exit_code_for_error(error.as_ref());
-        if code != 0 {
+        if !crate::utils::prompt::is_cancelled(error.as_ref()) {
             eprintln!("{} {}", "Error:".red().bold(), error.to_string().red());
         }
         std::process::exit(code);
@@ -96,7 +96,7 @@ fn execute_show_history_operation(args: &Args) -> Result<()> {
 fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
     use crate::rewrite::rewrite_all::{apply_plan, begin_offset, full_rewrite_plan};
     use crate::utils::commit_history::get_commit_history;
-    use crate::utils::prompt::confirm;
+    use crate::utils::prompt::{cancelled, confirm};
     use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
 
     // First, show a summary of what will be changed
@@ -151,8 +151,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         );
 
         if !confirm("\nDo you want to proceed?", args.yes)? {
-            println!("{}", "❌ Operation cancelled by user.".red());
-            return Ok(());
+            return Err(cancelled());
         }
 
         println!(
@@ -197,8 +196,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         );
 
         if !confirm("\nDo you want to proceed?", args.yes)? {
-            println!("{}", "❌ Operation cancelled by user.".red());
-            return Ok(());
+            return Err(cancelled());
         }
 
         println!("{}", "\n🚀 Proceeding with rewrite...".green().bold());

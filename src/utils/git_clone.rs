@@ -44,20 +44,24 @@ pub fn redact_url(input: &str) -> String {
     url.to_string()
 }
 
-/// Clones a Git repository to a temporary directory and returns the path
+/// Clones a Git repository to a temporary directory (deleted on drop) and returns it.
 pub fn clone_repository(git_url: &str) -> Result<TempDir> {
+    let temp_dir =
+        TempDir::new().map_err(|e| format!("Failed to create temporary directory: {e}"))?;
+    clone_repository_to(git_url, temp_dir.path())?;
+    Ok(temp_dir)
+}
+
+/// Clones a Git repository into `dest`, which must not exist or be empty.
+pub fn clone_repository_to(git_url: &str, dest: &std::path::Path) -> Result<()> {
     let shown = redact_url(git_url);
+    if dest.exists() && dest.read_dir()?.next().is_some() {
+        return Err(format!("Clone directory is not empty: {}", dest.display()).into());
+    }
     println!("{}", "🔄 Cloning repository...".cyan());
     println!("{} {}", "Repository:".bold(), shown.yellow());
 
-    // Create a temporary directory
-    let temp_dir =
-        TempDir::new().map_err(|e| format!("Failed to create temporary directory: {e}"))?;
-
-    let repo_path = temp_dir.path();
-
-    // Clone the repository
-    let _repo = clone_with_credentials(git_url, repo_path).map_err(|e| {
+    clone_with_credentials(git_url, dest).map_err(|e| {
         let detail = e.to_string().replace(git_url, &shown);
         format!("Failed to clone repository '{shown}': {detail}")
     })?;
@@ -65,10 +69,9 @@ pub fn clone_repository(git_url: &str) -> Result<TempDir> {
     println!(
         "{} {}",
         "✓ Successfully cloned to:".green(),
-        repo_path.display().to_string().cyan()
+        dest.display().to_string().cyan()
     );
-
-    Ok(temp_dir)
+    Ok(())
 }
 
 /// Clone using the same credential sources as `git`: ssh-agent for SSH URLs

@@ -118,6 +118,13 @@ pub struct Args {
     pub keep_dates: bool,
 
     #[arg(
+        long = "clone-dir",
+        value_name = "DIR",
+        help = "When --repo-path is a URL, clone into DIR and keep it (required for modes that rewrite history)"
+    )]
+    pub clone_dir: Option<String>,
+
+    #[arg(
         long = "docs",
         help = "Open comprehensive documentation in the browser"
     )]
@@ -129,7 +136,9 @@ pub struct Args {
 
 impl Args {
     pub fn ensure_all_args_present(&mut self) -> crate::utils::types::Result<()> {
-        use crate::utils::git_clone::{clone_repository, get_repo_name_from_url, is_git_url};
+        use crate::utils::git_clone::{
+            clone_repository, clone_repository_to, get_repo_name_from_url, is_git_url,
+        };
         use crate::utils::git_config::{get_git_user_email, get_git_user_name};
         use crate::utils::prompt::{prompt_for_missing_arg, prompt_with_default};
 
@@ -137,19 +146,35 @@ impl Args {
             self.repo_path = Some(String::from("./"));
         }
 
-        // Handle Git URL cloning
-        let repo_path = self.repo_path.as_ref().unwrap();
-        if is_git_url(repo_path) {
-            println!("{}", "🔍 Git URL detected - cloning repository...".cyan());
-            let repo_name = get_repo_name_from_url(repo_path);
-            println!("{} {}", "Repository:".bold(), repo_name.yellow());
-
-            let temp_dir = clone_repository(repo_path)?;
-            // Store the temporary directory path
-            self.repo_path = Some(temp_dir.path().to_string_lossy().to_string());
-
-            // Keep the temporary directory alive for the duration of the program
-            self._temp_dir = Some(temp_dir);
+        // Handle Git URL cloning (not needed for --docs).
+        let repo_path = self.repo_path.clone().unwrap_or_default();
+        if !self.docs && is_git_url(&repo_path) {
+            let read_only = self.show_history || self.simulate;
+            match self.clone_dir.clone() {
+                Some(dir) => {
+                    clone_repository_to(&repo_path, std::path::Path::new(&dir))?;
+                    self.repo_path = Some(dir);
+                }
+                None if read_only => {
+                    let temp_dir = clone_repository(&repo_path)?;
+                    self.repo_path = Some(temp_dir.path().to_string_lossy().to_string());
+                    // Keep the temporary directory alive for the duration of the program
+                    self._temp_dir = Some(temp_dir);
+                }
+                None => {
+                    return Err(format!(
+                        "Refusing to rewrite '{}': the clone would be deleted on exit and the rewrite lost.\n\
+                         Pass --clone-dir <DIR> to keep the rewritten clone (then push from it), or clone it yourself and pass the local path.",
+                        crate::utils::git_clone::redact_url(&repo_path)
+                    )
+                    .into());
+                }
+            }
+            println!(
+                "{} {}",
+                "Repository:".bold(),
+                get_repo_name_from_url(&repo_path).yellow()
+            );
         }
 
         // Resolve a path inside a repository (or a bare repository) to the repository itself.

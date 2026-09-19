@@ -1,8 +1,10 @@
 //! Default identity lookup for prompts.
 //!
-//! Uses libgit2's configuration stack, so the usual precedence applies:
-//! repository `.git/config` > `$XDG_CONFIG_HOME/git/config` / `~/.gitconfig`
-//! > system config (includes and `GIT_CONFIG_*` overrides are honoured).
+//! Uses libgit2's configuration stack with the usual precedence: the
+//! repository's `.git/config`, then `~/.gitconfig` / `$XDG_CONFIG_HOME/git/config`,
+//! then the system config, including `[include]` files. Environment overrides
+//! that only the `git` CLI understands (`GIT_CONFIG_GLOBAL`, `GIT_CONFIG_COUNT`,
+//! …) are not applied.
 
 use git2::{Config, Repository};
 

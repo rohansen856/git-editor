@@ -2,7 +2,7 @@ use crate::utils::types::Result;
 use colored::*;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 
 /// Sent from prompt helpers when the user presses Esc; main exits 0 without red Error.
 pub const CANCELLED: &str = "CANCELLED";
@@ -25,7 +25,23 @@ fn print_esc_hint() {
 }
 
 /// Read one line with live echo. Esc (or Ctrl+C) returns `Ok(None)`.
+///
+/// When stdin is not a terminal (pipes, CI, agents) a plain line is read
+/// instead; end of input is an error rather than a hang.
 pub fn read_line_allow_esc() -> Result<Option<String>> {
+    if !io::stdin().is_terminal() {
+        let mut line = String::new();
+        if io::stdin().read_line(&mut line)? == 0 {
+            println!();
+            return Err(
+                "No input available (stdin is not a terminal and is closed); pass the values as flags and --yes to confirm"
+                    .into(),
+            );
+        }
+        println!("{}", line.trim_end());
+        return Ok(Some(line.trim_end_matches(['\r', '\n']).to_string()));
+    }
+
     enable_raw_mode().map_err(|e| format!("Failed to enable raw mode: {e}"))?;
 
     let result = (|| -> Result<Option<String>> {
@@ -134,6 +150,21 @@ pub fn prompt_with_default(prompt: &str, default_value: &str) -> Result<String> 
     }
 }
 
+/// Ask a yes/no question; `y`/`yes` (any case) confirms. With `assume_yes`
+/// the question is answered automatically (for `--yes`).
+pub fn confirm(question: &str, assume_yes: bool) -> Result<bool> {
+    if assume_yes {
+        println!("{question} {}", "yes (--yes)".green());
+        return Ok(true);
+    }
+    let answer = prompt_for_input(&format!("{question} (yes/no)"))?;
+    Ok(is_yes(&answer))
+}
+
+fn is_yes(answer: &str) -> bool {
+    matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes")
+}
+
 /// Like [`read_prompted_line`] but keeps leading/trailing whitespace.
 pub fn read_prompted_line_raw() -> Result<String> {
     match read_line_allow_esc()? {
@@ -172,6 +203,21 @@ mod tests {
         let _prompt_missing_fn: fn(&str) -> Result<String> = prompt_for_missing_arg;
         let _prompt_with_default_fn: fn(&str, &str) -> Result<String> = prompt_with_default;
         let _read_fn: fn() -> Result<String> = read_prompted_line;
+    }
+
+    #[test]
+    fn test_is_yes_accepts_y_and_yes_only() {
+        for yes in ["y", "Y", "yes", "YES", " yes "] {
+            assert!(is_yes(yes), "{yes}");
+        }
+        for no in ["", "n", "no", "yep", "yess"] {
+            assert!(!is_yes(no), "{no}");
+        }
+    }
+
+    #[test]
+    fn test_confirm_with_assume_yes_does_not_prompt() {
+        assert!(confirm("Proceed?", true).unwrap());
     }
 
     #[test]

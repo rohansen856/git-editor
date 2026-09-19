@@ -118,6 +118,13 @@ pub struct Args {
     pub keep_dates: bool,
 
     #[arg(
+        short = 'y',
+        long = "yes",
+        help = "Answer yes to the final confirmation (for scripts and agents)"
+    )]
+    pub yes: bool,
+
+    #[arg(
         long = "clone-dir",
         value_name = "DIR",
         help = "When --repo-path is a URL, clone into DIR and keep it (required for modes that rewrite history)"

@@ -1,6 +1,7 @@
 use crate::rewrite::engine::{self, CommitterMode, Edit, Plan};
 use crate::rewrite::report::print_outcome;
 use crate::utils::dates::{format_git_time, parse_git_time};
+use crate::utils::prompt::confirm;
 use crate::utils::prompt::{read_prompted_line, read_prompted_line_raw};
 use crate::utils::types::Result;
 use crate::utils::types::{CommitInfo, EditOptions};
@@ -246,16 +247,7 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
         );
     }
 
-    print!(
-        "\n{} {} ",
-        "Proceed with changes? (y/n):".bold(),
-        "(Esc to cancel)".bright_black()
-    );
-    io::stdout().flush()?;
-
-    let confirm = read_prompted_line()?;
-
-    if confirm.to_lowercase() != "y" {
+    if !confirm(&format!("\n{}", "Proceed with changes?".bold()), args.yes)? {
         println!("{}", "Operation cancelled.".yellow());
         return Ok(());
     }

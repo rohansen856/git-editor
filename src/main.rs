@@ -96,7 +96,7 @@ fn execute_show_history_operation(args: &Args) -> Result<()> {
 fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
     use crate::rewrite::rewrite_all::{apply_plan, begin_offset, full_rewrite_plan};
     use crate::utils::commit_history::get_commit_history;
-    use crate::utils::prompt::prompt_for_input;
+    use crate::utils::prompt::confirm;
     use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
 
     // First, show a summary of what will be changed
@@ -150,9 +150,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             "Make sure you have backed up your repository.".yellow()
         );
 
-        let confirmation = prompt_for_input("\nDo you want to proceed? (yes/no)")?;
-
-        if confirmation.to_lowercase() != "yes" && confirmation.to_lowercase() != "y" {
+        if !confirm("\nDo you want to proceed?", args.yes)? {
             println!("{}", "❌ Operation cancelled by user.".red());
             return Ok(());
         }
@@ -198,9 +196,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             "Make sure you have backed up your repository.".yellow()
         );
 
-        let confirmation = prompt_for_input("\nDo you want to proceed? (yes/no)")?;
-
-        if confirmation.to_lowercase() != "yes" && confirmation.to_lowercase() != "y" {
+        if !confirm("\nDo you want to proceed?", args.yes)? {
             println!("{}", "❌ Operation cancelled by user.".red());
             return Ok(());
         }

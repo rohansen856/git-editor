@@ -1,6 +1,7 @@
 use crate::rewrite::engine::{self, Edit, GitTime, Plan};
 use crate::rewrite::report::print_outcome;
 use crate::utils::dates::{format_git_time, parse_git_time, parse_utc};
+use crate::utils::prompt::confirm;
 use crate::utils::prompt::read_prompted_line;
 use crate::utils::types::CommitInfo;
 use crate::utils::types::Result;
@@ -954,16 +955,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
         }
     }
 
-    print!(
-        "\n{} {} ",
-        "Apply these changes? (y/n):".bold(),
-        "(Esc to cancel)".bright_black()
-    );
-    io::stdout().flush()?;
-
-    let confirm = read_prompted_line()?;
-
-    if confirm.to_lowercase() != "y" {
+    if !confirm(&format!("\n{}", "Apply these changes?".bold()), args.yes)? {
         println!("{}", "Operation cancelled.".yellow());
         return Ok(());
     }

@@ -1,6 +1,7 @@
 use crate::utils::types::Result;
 use colored::Colorize;
-use git2::Repository;
+use git2::build::RepoBuilder;
+use git2::{Cred, CredentialType, FetchOptions, RemoteCallbacks, Repository};
 use tempfile::TempDir;
 use url::Url;
 
@@ -56,7 +57,7 @@ pub fn clone_repository(git_url: &str) -> Result<TempDir> {
     let repo_path = temp_dir.path();
 
     // Clone the repository
-    let _repo = Repository::clone(git_url, repo_path).map_err(|e| {
+    let _repo = clone_with_credentials(git_url, repo_path).map_err(|e| {
         let detail = e.to_string().replace(git_url, &shown);
         format!("Failed to clone repository '{shown}': {detail}")
     })?;
@@ -68,6 +69,46 @@ pub fn clone_repository(git_url: &str) -> Result<TempDir> {
     );
 
     Ok(temp_dir)
+}
+
+/// Clone using the same credential sources as `git`: ssh-agent for SSH URLs
+/// and configured credential helpers for HTTP(S). Each source is tried once.
+fn clone_with_credentials(
+    url: &str,
+    path: &std::path::Path,
+) -> std::result::Result<Repository, git2::Error> {
+    let config = git2::Config::open_default().ok();
+    let mut tried_agent = false;
+    let mut tried_helper = false;
+    let mut tried_default = false;
+
+    let mut callbacks = RemoteCallbacks::new();
+    callbacks.credentials(move |url, username, allowed| {
+        if allowed.contains(CredentialType::USERNAME) {
+            return Cred::username(username.unwrap_or("git"));
+        }
+        if allowed.contains(CredentialType::SSH_KEY) && !tried_agent {
+            tried_agent = true;
+            return Cred::ssh_key_from_agent(username.unwrap_or("git"));
+        }
+        if allowed.contains(CredentialType::USER_PASS_PLAINTEXT) && !tried_helper {
+            tried_helper = true;
+            if let Some(config) = &config {
+                return Cred::credential_helper(config, url, username);
+            }
+        }
+        if allowed.contains(CredentialType::DEFAULT) && !tried_default {
+            tried_default = true;
+            return Cred::default();
+        }
+        Err(git2::Error::from_str(
+            "authentication failed: no usable credentials from ssh-agent or git credential helpers",
+        ))
+    });
+
+    let mut fetch = FetchOptions::new();
+    fetch.remote_callbacks(callbacks);
+    RepoBuilder::new().fetch_options(fetch).clone(url, path)
 }
 
 /// Gets repository name from Git URL for display purposes

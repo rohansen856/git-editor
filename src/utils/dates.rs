@@ -45,6 +45,13 @@ pub fn format_git_time(time: GitTime) -> String {
         )
 }
 
+/// RFC 3339 rendering in the timestamp's own offset, e.g. `2024-01-01T10:00:00+05:30`.
+pub fn to_rfc3339(time: GitTime) -> String {
+    FixedOffset::east_opt(time.offset_minutes * 60)
+        .and_then(|tz| DateTime::from_timestamp(time.seconds, 0).map(|t| t.with_timezone(&tz)))
+        .map_or_else(|| time.seconds.to_string(), |t| t.to_rfc3339())
+}
+
 fn parse_with_offset(input: &str) -> Option<DateTime<FixedOffset>> {
     let normalized = input
         .strip_suffix('Z')
@@ -102,6 +109,13 @@ mod tests {
         let t = parse_git_time("2024-01-01 10:00:00 +05:30").unwrap();
         assert_eq!(format_git_time(t), "2024-01-01 10:00:00 +0530");
         assert_eq!(parse_git_time(&format_git_time(t)).unwrap(), t);
+    }
+
+    #[test]
+    fn rfc3339_keeps_offset() {
+        let t = parse_git_time("2024-01-01 10:00:00 +05:30").unwrap();
+        assert_eq!(to_rfc3339(t), "2024-01-01T10:00:00+05:30");
+        assert_eq!(parse_git_time(&to_rfc3339(t)).unwrap(), t);
     }
 
     #[test]

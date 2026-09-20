@@ -58,15 +58,15 @@ pub fn clone_repository_to(git_url: &str, dest: &std::path::Path) -> Result<()> 
     if dest.exists() && dest.read_dir()?.next().is_some() {
         return Err(format!("Clone directory is not empty: {}", dest.display()).into());
     }
-    println!("{}", "🔄 Cloning repository...".cyan());
-    println!("{} {}", "Repository:".bold(), shown.yellow());
+    crate::say!("{}", "🔄 Cloning repository...".cyan());
+    crate::say!("{} {}", "Repository:".bold(), shown.yellow());
 
     clone_with_credentials(git_url, dest).map_err(|e| {
         let detail = e.to_string().replace(git_url, &shown);
         format!("Failed to clone repository '{shown}': {detail}")
     })?;
 
-    println!(
+    crate::say!(
         "{} {}",
         "✓ Successfully cloned to:".green(),
         dest.display().to_string().cyan()

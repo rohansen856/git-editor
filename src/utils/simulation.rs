@@ -144,16 +144,16 @@ impl SimulationStats {
     }
 
     pub fn print_summary(&self, operation_mode: &str) {
-        println!("\n{}", "📊 SIMULATION SUMMARY".bold().cyan());
-        println!("{}", "=".repeat(50).cyan());
+        crate::say!("\n{}", "📊 SIMULATION SUMMARY".bold().cyan());
+        crate::say!("{}", "=".repeat(50).cyan());
 
-        println!("{}: {}", "Operation Mode".bold(), operation_mode.yellow());
-        println!(
+        crate::say!("{}: {}", "Operation Mode".bold(), operation_mode.yellow());
+        crate::say!(
             "{}: {}",
             "Total Commits".bold(),
             self.total_commits.to_string().cyan()
         );
-        println!(
+        crate::say!(
             "{}: {}",
             "Commits to Change".bold(),
             if self.commits_to_change > 0 {
@@ -164,27 +164,27 @@ impl SimulationStats {
         );
 
         if self.commits_to_change > 0 {
-            println!("\n{}", "Changes Breakdown:".bold());
+            crate::say!("\n{}", "Changes Breakdown:".bold());
             if self.authors_changed > 0 {
-                println!(
+                crate::say!(
                     "  • {} commits will have author names changed",
                     self.authors_changed.to_string().yellow()
                 );
             }
             if self.emails_changed > 0 {
-                println!(
+                crate::say!(
                     "  • {} commits will have author emails changed",
                     self.emails_changed.to_string().yellow()
                 );
             }
             if self.timestamps_changed > 0 {
-                println!(
+                crate::say!(
                     "  • {} commits will have timestamps changed",
                     self.timestamps_changed.to_string().yellow()
                 );
             }
             if self.messages_changed > 0 {
-                println!(
+                crate::say!(
                     "  • {} commits will have messages changed",
                     self.messages_changed.to_string().yellow()
                 );
@@ -192,8 +192,8 @@ impl SimulationStats {
         }
 
         if let (Some(start), Some(end)) = (self.date_range_start, self.date_range_end) {
-            println!("\n{}", "Date Range:".bold());
-            println!(
+            crate::say!("\n{}", "Date Range:".bold());
+            crate::say!(
                 "  {} → {}",
                 start.format("%Y-%m-%d %H:%M:%S").to_string().blue(),
                 end.format("%Y-%m-%d %H:%M:%S").to_string().blue()
@@ -201,20 +201,20 @@ impl SimulationStats {
         }
 
         if self.commits_to_change == 0 {
-            println!(
+            crate::say!(
                 "\n{}",
                 "✅ No changes would be made with current parameters."
                     .green()
                     .bold()
             );
         } else {
-            println!(
+            crate::say!(
                 "\n{}",
                 "⚠️  This is a simulation - no actual changes have been made."
                     .yellow()
                     .bold()
             );
-            println!(
+            crate::say!(
                 "{}",
                 "   Run without --simulate to apply these changes.".bright_black()
             );
@@ -394,18 +394,18 @@ pub fn create_specific_commit_simulation(
 }
 
 pub fn print_detailed_diff(result: &SimulationResult) {
-    println!("\n{}", "📋 DETAILED CHANGE PREVIEW".bold().cyan());
-    println!("{}", "=".repeat(70).cyan());
+    crate::say!("\n{}", "📋 DETAILED CHANGE PREVIEW".bold().cyan());
+    crate::say!("{}", "=".repeat(70).cyan());
 
     let changes_to_show: Vec<_> = result.changes.iter().filter(|c| c.has_changes()).collect();
 
     if changes_to_show.is_empty() {
-        println!("{}", "No changes to display.".green());
+        crate::say!("{}", "No changes to display.".green());
         return;
     }
 
     for (i, change) in changes_to_show.iter().enumerate() {
-        println!(
+        crate::say!(
             "\n{} {} {} ({})",
             format!("{}.", i + 1).bold(),
             "Commit".bold(),
@@ -417,15 +417,15 @@ pub fn print_detailed_diff(result: &SimulationResult) {
 
         let change_summary = change.get_change_summary();
         for summary_line in change_summary {
-            println!("   {summary_line}");
+            crate::say!("   {summary_line}");
         }
 
         if i < changes_to_show.len() - 1 {
-            println!("{}", "─".repeat(50).bright_black());
+            crate::say!("{}", "─".repeat(50).bright_black());
         }
     }
 
-    println!(
+    crate::say!(
         "\n{}",
         format!(
             "Showing {} changes out of {} total commits",

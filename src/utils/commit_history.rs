@@ -80,31 +80,31 @@ pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
                 commit_infos.iter().map(|c| c.author_name.clone()).collect();
 
             // Print summary
-            println!("\n{}", "Updated Commit History Summary:".bold().green());
-            println!("{}", "-".repeat(60).cyan());
-            println!(
+            crate::say!("\n{}", "Updated Commit History Summary:".bold().green());
+            crate::say!("{}", "-".repeat(60).cyan());
+            crate::say!(
                 "{}: {}",
                 "Total Commits".bold(),
                 total_commits.to_string().yellow()
             );
-            println!(
+            crate::say!(
                 "{}: {} days",
                 "Date Span".bold(),
                 date_span.to_string().yellow()
             );
-            println!(
+            crate::say!(
                 "{}: {} to {}",
                 "Date Range".bold(),
                 earliest_date.format("%Y-%m-%d %H:%M:%S").to_string().blue(),
                 latest_date.format("%Y-%m-%d %H:%M:%S").to_string().blue()
             );
-            println!(
+            crate::say!(
                 "{}: {}",
                 "Unique Authors".bold(),
                 unique_authors.len().to_string().yellow()
             );
             if unique_authors.len() <= 5 {
-                println!(
+                crate::say!(
                     "{}: {}",
                     "Authors".bold(),
                     unique_authors
@@ -115,14 +115,14 @@ pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
                         .magenta()
                 );
             }
-            println!("{}", "=".repeat(60).cyan());
+            crate::say!("{}", "=".repeat(60).cyan());
 
             // Print detailed commit history
-            println!("\n{}", "Detailed Commit History:".bold().green());
-            println!("{}", "-".repeat(60).cyan());
+            crate::say!("\n{}", "Detailed Commit History:".bold().green());
+            crate::say!("{}", "-".repeat(60).cyan());
 
             for commit_info in &commit_infos {
-                println!(
+                crate::say!(
                     "{} {} {} {}",
                     commit_info.short_hash.yellow().bold(),
                     commit_info
@@ -135,7 +135,7 @@ pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
                 );
             }
 
-            println!("{}", "=".repeat(60).cyan());
+            crate::say!("{}", "=".repeat(60).cyan());
         }
     }
 

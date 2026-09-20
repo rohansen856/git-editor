@@ -30,7 +30,7 @@ pub fn cancelled() -> Box<dyn std::error::Error> {
 }
 
 fn print_esc_hint() {
-    print!(" {}", "(Esc to cancel)".bright_black());
+    crate::say_inline!(" {}", "(Esc to cancel)".bright_black());
 }
 
 /// Read one line with live echo. Esc (or Ctrl+C) returns `Ok(None)`.
@@ -41,13 +41,13 @@ pub fn read_line_allow_esc() -> Result<Option<String>> {
     if !io::stdin().is_terminal() {
         let mut line = String::new();
         if io::stdin().read_line(&mut line)? == 0 {
-            println!();
+            crate::say!();
             return Err(
                 "No input available (stdin is not a terminal and is closed); pass the values as flags and --yes to confirm"
                     .into(),
             );
         }
-        println!("{}", line.trim_end());
+        crate::say!("{}", line.trim_end());
         return Ok(Some(line.trim_end_matches(['\r', '\n']).to_string()));
     }
 
@@ -66,29 +66,29 @@ pub fn read_line_allow_esc() -> Result<Option<String>> {
 
             match key.code {
                 KeyCode::Esc => {
-                    print!("\r\n");
+                    crate::say_inline!("\r\n");
                     let _ = io::stdout().flush();
                     return Ok(None);
                 }
                 KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    print!("\r\n");
+                    crate::say_inline!("\r\n");
                     let _ = io::stdout().flush();
                     return Ok(None);
                 }
                 KeyCode::Enter => {
-                    print!("\r\n");
+                    crate::say_inline!("\r\n");
                     let _ = io::stdout().flush();
                     return Ok(Some(buffer));
                 }
                 KeyCode::Backspace => {
                     if buffer.pop().is_some() {
-                        print!("\x08 \x08");
+                        crate::say_inline!("\x08 \x08");
                         let _ = io::stdout().flush();
                     }
                 }
                 KeyCode::Char(c) => {
                     buffer.push(c);
-                    print!("{c}");
+                    crate::say_inline!("{c}");
                     let _ = io::stdout().flush();
                 }
                 _ => {}
@@ -101,13 +101,13 @@ pub fn read_line_allow_esc() -> Result<Option<String>> {
 }
 
 fn cancelled_msg() {
-    println!("{}", "Operation cancelled.".yellow());
+    crate::say!("{}", "Operation cancelled.".yellow());
 }
 
 pub fn prompt_for_input(prompt: &str) -> Result<String> {
-    print!("{prompt}");
+    crate::say_inline!("{prompt}");
     print_esc_hint();
-    print!(": ");
+    crate::say_inline!(": ");
     io::stdout()
         .flush()
         .map_err(|e| format!("Failed to flush stdout: {e}"))?;
@@ -132,13 +132,13 @@ pub fn prompt_for_missing_arg(arg_name: &str) -> Result<String> {
 
 /// Prompts with a suggested default (dimmed). Enter keeps default; Esc cancels.
 pub fn prompt_with_default(prompt: &str, default_value: &str) -> Result<String> {
-    print!(
+    crate::say_inline!(
         "{}: {} ",
         prompt.yellow().bold(),
         format!("({default_value})").bright_black()
     );
     print_esc_hint();
-    print!(" ");
+    crate::say_inline!(" ");
     io::stdout()
         .flush()
         .map_err(|e| format!("Failed to flush stdout: {e}"))?;
@@ -163,7 +163,7 @@ pub fn prompt_with_default(prompt: &str, default_value: &str) -> Result<String> 
 /// the question is answered automatically (for `--yes`).
 pub fn confirm(question: &str, assume_yes: bool) -> Result<bool> {
     if assume_yes {
-        println!("{question} {}", "yes (--yes)".green());
+        crate::say!("{question} {}", "yes (--yes)".green());
         return Ok(true);
     }
     let answer = prompt_for_input(&format!("{question} (yes/no)"))?;

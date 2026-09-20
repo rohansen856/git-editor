@@ -21,6 +21,11 @@ impl From<CommitterArg> for crate::rewrite::engine::CommitterMode {
 
 #[derive(Parser, Default)]
 #[command(author, version, about)]
+#[command(group(
+    clap::ArgGroup::new("mode")
+        .args(["show_history", "pick_specific_commits", "range", "docs"])
+        .multiple(false)
+))]
 pub struct Args {
     #[arg(
         short = 'r',
@@ -72,29 +77,36 @@ pub struct Args {
 
     #[arg(
         long = "simulate",
+        conflicts_with_all = ["show_history", "docs"],
         help = "Show what changes would be made without applying them (dry-run mode)"
     )]
     pub simulate: bool,
 
     #[arg(
         long = "show-diff",
-        help = "Show detailed diff preview in simulation mode (requires --simulate)"
+        help = "Show the per-commit change list in previews (simulation and before confirming a rewrite)"
     )]
     pub show_diff: bool,
 
     #[arg(
         long = "message",
+        requires = "range",
         help = "Edit only commit messages in range mode (-x)"
     )]
     pub edit_message: bool,
 
     #[arg(
         long = "author",
+        requires = "range",
         help = "Edit only author name and email in range mode (-x)"
     )]
     pub edit_author: bool,
 
-    #[arg(long = "time", help = "Edit only timestamps in range mode (-x)")]
+    #[arg(
+        long = "time",
+        requires = "range",
+        help = "Edit only timestamps in range mode (-x)"
+    )]
     pub edit_time: bool,
 
     #[arg(
@@ -353,13 +365,6 @@ impl Args {
         }
     }
 
-    pub fn validate_simulation_args(&self) -> crate::utils::types::Result<()> {
-        if self.show_diff && !self.simulate {
-            return Err("--show-diff requires --simulate to be enabled".into());
-        }
-        Ok(())
-    }
-
     pub fn get_editable_fields(&self) -> (bool, bool, bool, bool) {
         // (author_name, author_email, timestamp, message)
         if self.range {
@@ -468,35 +473,6 @@ mod tests {
 
         assert!(args.simulate);
         assert!(!args.show_diff);
-    }
-
-    #[test]
-    fn test_validate_simulation_args_valid() {
-        let args = Args {
-            repo_path: Some("/test/repo".to_string()),
-            simulate: true,
-            show_diff: true,
-            ..Default::default()
-        };
-
-        let result = args.validate_simulation_args();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_validate_simulation_args_invalid() {
-        let args = Args {
-            repo_path: Some("/test/repo".to_string()),
-            show_diff: true,
-            ..Default::default()
-        };
-
-        let result = args.validate_simulation_args();
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("--show-diff requires --simulate"));
     }
 
     #[test]

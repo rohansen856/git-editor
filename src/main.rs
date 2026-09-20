@@ -52,7 +52,6 @@ fn run() -> Result<()> {
     }
 
     args.ensure_all_args_present()?;
-    args.validate_simulation_args()?;
     validate_inputs(&args)?;
 
     match determine_operation_mode(&args) {
@@ -169,7 +168,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         let simulation_result = simulation_from_plan(&commits, &plan, "Author Information Update");
 
         // Show summary
-        report_simulation(&simulation_result, true, false);
+        report_simulation(&simulation_result, args.show_diff, false);
 
         // Ask for confirmation
         crate::say!(
@@ -215,7 +214,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         let simulation_result = simulation_from_plan(&commits, &plan, "Full History Rewrite");
 
         // Show summary
-        report_simulation(&simulation_result, true, false);
+        report_simulation(&simulation_result, args.show_diff, false);
 
         // Ask for confirmation
         crate::say!(

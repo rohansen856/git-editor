@@ -392,10 +392,6 @@ fn test_simulation_mode_complete_args() {
     // Test that timestamp generation works in simulation
     let timestamp_result = generate_timestamps(&mut args);
     assert!(timestamp_result.is_ok());
-
-    // Test that simulation args validation passes
-    let simulation_validation = args.validate_simulation_args();
-    assert!(simulation_validation.is_ok());
 }
 
 #[test]
@@ -413,10 +409,6 @@ fn test_simulation_mode_incomplete_args() {
     // Basic validation should pass for simulation mode
     let validation_result = validate_inputs(&args);
     assert!(validation_result.is_ok());
-
-    // Simulation args validation should pass
-    let simulation_validation = args.validate_simulation_args();
-    assert!(simulation_validation.is_ok());
 
     // ensure_all_args_present should pass for simulation mode even with incomplete args
     let ensure_result = args.ensure_all_args_present();
@@ -442,32 +434,33 @@ fn test_simulation_mode_with_show_diff() {
     // Test that simulation with show_diff passes validation
     let validation_result = validate_inputs(&args);
     assert!(validation_result.is_ok());
-
-    let simulation_validation = args.validate_simulation_args();
-    assert!(simulation_validation.is_ok());
 }
 
 #[test]
-#[serial]
-fn test_show_diff_without_simulate_fails() {
-    let (_temp_dir, repo_path) = create_test_repo_with_commits();
-
-    let args = Args {
-        repo_path: Some(repo_path),
-        email: Some("test@example.com".to_string()),
-        name: Some("Test User".to_string()),
-        start: Some("2025-01-01 00:00:00".to_string()),
-        end: Some("2025-01-10 00:00:00".to_string()),
-        show_diff: true,
-        ..Default::default()
-    };
-
-    // Test that show_diff without simulate fails validation
-    let simulation_validation = args.validate_simulation_args();
-    assert!(simulation_validation.is_err());
-
-    let error_msg = simulation_validation.unwrap_err().to_string();
-    assert!(error_msg.contains("--show-diff requires --simulate"));
+fn test_conflicting_modes_are_rejected_by_the_parser() {
+    use clap::Parser;
+    for argv in [
+        vec!["git-editor", "-s", "-x"],
+        vec!["git-editor", "-p", "-x"],
+        vec!["git-editor", "--docs", "-s"],
+        vec!["git-editor", "--simulate", "-s"],
+        vec!["git-editor", "--message"],
+        vec!["git-editor", "--select", "1-2"],
+        vec!["git-editor", "--commit", "1"],
+    ] {
+        assert!(
+            Args::try_parse_from(&argv).is_err(),
+            "{argv:?} should be rejected"
+        );
+    }
+    for argv in [
+        vec!["git-editor", "-x", "--message"],
+        vec!["git-editor", "--simulate", "-x"],
+        vec!["git-editor", "--show-diff", "-x", "--select", "1"],
+        vec!["git-editor", "-p", "--commit", "1", "--set-message", "m"],
+    ] {
+        assert!(Args::try_parse_from(&argv).is_ok(), "{argv:?} should parse");
+    }
 }
 
 #[test]
@@ -487,7 +480,6 @@ fn test_cli_execution_simulate_incomplete_args_no_panic() {
     // This tests the exact path that was causing the panic: simulate mode with missing args
 
     // First ensure basic validation passes
-    assert!(args.validate_simulation_args().is_ok());
     assert!(validate_inputs(&args).is_ok());
 
     // Now test the critical path: ensure_all_args_present should pass for simulation mode
@@ -520,7 +512,6 @@ fn test_cli_execution_simulate_complete_args_success() {
 
     // Test full execution path
     assert!(args.ensure_all_args_present().is_ok());
-    assert!(args.validate_simulation_args().is_ok());
     assert!(validate_inputs(&args).is_ok());
 
     // Test timestamp generation works
@@ -691,37 +682,15 @@ fn test_docs_flag_in_help() {
 
 #[test]
 #[serial]
-fn test_docs_mode_precedence_over_other_modes() {
-    // Test that when docs is specified with other modes, docs takes precedence
+fn test_docs_mode_conflicts_with_other_modes() {
+    // Combining --docs with another mode is a usage error (exit code 2), not silently resolved.
     let output = std::process::Command::new("cargo")
-        .args([
-            "run",
-            "--",
-            "--docs",
-            "--show-history", // These other modes should be ignored
-            "--simulate",
-            "--pick-specific-commits",
-        ])
-        .env("DISPLAY", ":0")
+        .args(["run", "--", "--docs", "--show-history"])
         .env("GIT_EDITOR_NO_BROWSER", "1") // Disable browser opening during tests
         .output()
         .expect("Failed to execute command");
 
-    assert!(output.status.success());
-
-    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(output.status.code(), Some(2));
     let stderr = String::from_utf8(output.stderr).unwrap();
-
-    // Should execute docs mode, not other modes
-    assert!(
-        stdout.contains("📚 Opening Git Editor Documentation")
-            || stderr.contains("📚 Opening Git Editor Documentation"),
-        "Expected docs message. Stdout: {stdout}, Stderr: {stderr}"
-    );
-
-    // Should not contain messages from other modes
-    assert!(
-        !stdout.contains("Showing commit history") && !stderr.contains("Showing commit history"),
-        "Should not show history mode message. Stdout: {stdout}, Stderr: {stderr}"
-    );
+    assert!(stderr.contains("cannot be used with"), "stderr: {stderr}");
 }

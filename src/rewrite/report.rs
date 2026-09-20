@@ -9,40 +9,40 @@ fn short(oid: git2::Oid) -> String {
 
 pub fn print_outcome(outcome: &Outcome) {
     if !outcome.changed() {
-        println!(
+        crate::say!(
             "{}",
             "No commits needed rewriting; branch unchanged.".yellow()
         );
         return;
     }
-    println!(
+    crate::say!(
         "{} '{}': {} -> {}",
         "Rewritten branch".green(),
         outcome.branch.cyan(),
         short(outcome.old_head).red(),
         short(outcome.new_head).green()
     );
-    println!(
+    crate::say!(
         "  {} commit(s) recreated, {} reused unchanged",
         outcome.rewritten.len(),
         outcome.reused
     );
     if outcome.signatures_dropped > 0 {
-        println!(
+        crate::say!(
             "  {} {} recreated commit(s) were signed; their signatures were removed (re-sign if needed)",
             "Note:".yellow(),
             outcome.signatures_dropped
         );
     }
     if let Some(backup) = &outcome.backup_ref {
-        println!(
+        crate::say!(
             "  Previous tip saved as {} (undo: git reset --keep {})",
             backup.cyan(),
             backup
         );
     }
     if !outcome.stale_refs.is_empty() {
-        println!(
+        crate::say!(
             "  {} these refs still point to the old history: {}",
             "Warning:".yellow().bold(),
             outcome.stale_refs.join(", ")

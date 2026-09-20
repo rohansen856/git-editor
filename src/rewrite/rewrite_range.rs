@@ -143,7 +143,7 @@ impl InteractiveTable {
         let _ = io::stdout().execute(Clear(ClearType::All));
         let _ = io::stdout().execute(cursor::MoveTo(0, 0));
 
-        println!(
+        crate::say!(
             "{}",
             "Interactive Commit Editor - Range Mode".bold().green()
         );
@@ -164,16 +164,16 @@ impl InteractiveTable {
             }
             format!("Editable: {}", editable.join(", "))
         };
-        println!("{}", editable_info.cyan());
-        println!(
+        crate::say!("{}", editable_info.cyan());
+        crate::say!(
             "{}",
             "Arrow keys/hjkl: move  Enter: edit  Esc: save & exit  q or Ctrl+C: cancel without saving"
                 .yellow()
         );
-        println!();
+        crate::say!();
 
         // Print header
-        println!(
+        crate::say!(
             "{:<4} {:<8} {:<15} {:<20} {:<19} {}",
             "#".bold().white(),
             "HASH".bold().white(),
@@ -250,7 +250,7 @@ impl InteractiveTable {
             // Apply formatting and colors
             if is_current_row {
                 if self.editing {
-                    println!(
+                    crate::say!(
                         "{:<4} {:<8} {:<15} {:<20} {:<19} {}",
                         index_final.black().on_yellow(),
                         hash_final.black().on_yellow(),
@@ -294,12 +294,12 @@ impl InteractiveTable {
                         message_final.green().on_bright_black()
                     };
 
-                    println!(
+                    crate::say!(
                         "{index_styled:<4} {hash_styled:<8} {author_name_styled:<15} {author_email_styled:<20} {timestamp_styled:<19} {message_styled}"
                     );
                 }
             } else {
-                println!(
+                crate::say!(
                     "{:<4} {:<8} {:<15} {:<20} {:<19} {}",
                     index_final.white(),
                     hash_final.yellow(),
@@ -312,7 +312,7 @@ impl InteractiveTable {
         }
 
         if count < self.commits.len() {
-            println!(
+            crate::say!(
                 "{}",
                 format!(
                     "Rows {}-{} of {} (scroll with ↑↓)",
@@ -323,24 +323,24 @@ impl InteractiveTable {
                 .dimmed()
             );
         }
-        println!();
+        crate::say!();
 
         if let Some(status) = &self.status {
-            println!("{} {}", "Error:".red().bold(), status.red());
+            crate::say!("{} {}", "Error:".red().bold(), status.red());
         }
         if self.editing {
-            println!("{}: {}", "Editing".bold().yellow(), self.edit_buffer);
-            println!(
+            crate::say!("{}: {}", "Editing".bold().yellow(), self.edit_buffer);
+            crate::say!(
                 "{}",
                 "Press Enter to save, Esc to cancel this edit, Ctrl+C to abandon all edits"
                     .italic()
             );
         } else {
-            println!(
+            crate::say!(
                 "{}",
                 "Navigation: ←→↑↓  Edit: Enter  Save & Exit: Esc  Cancel: q / Ctrl+C".italic()
             );
-            println!(
+            crate::say!(
                 "{}",
                 "Tip: Use '*' when selecting range to edit ALL commits at once".dimmed()
             );
@@ -671,11 +671,11 @@ pub fn parse_range_input(input: &str, total_commits: usize) -> Result<(usize, us
 }
 
 pub fn select_commit_range(commits: &[CommitInfo]) -> Result<(usize, usize)> {
-    println!("\n{}", "Commit History:".bold().green());
-    println!("{}", "-".repeat(80).cyan());
+    crate::say!("\n{}", "Commit History:".bold().green());
+    crate::say!("{}", "-".repeat(80).cyan());
 
     for (i, commit) in commits.iter().enumerate() {
-        println!(
+        crate::say!(
             "{:3}. {} {} {} {}",
             i + 1,
             commit.short_hash.yellow().bold(),
@@ -689,14 +689,14 @@ pub fn select_commit_range(commits: &[CommitInfo]) -> Result<(usize, usize)> {
         );
     }
 
-    println!("{}", "-".repeat(80).cyan());
-    println!(
+    crate::say!("{}", "-".repeat(80).cyan());
+    crate::say!(
         "\n{}",
         "Enter range in format 'start-end' (e.g., '5-11') or '*' for all commits:"
             .bold()
             .green()
     );
-    print!("{} {} ", "Range:".bold(), "(Esc to cancel)".bright_black());
+    crate::say_inline!("{} {} ", "Range:".bold(), "(Esc to cancel)".bright_black());
     io::stdout().flush()?;
 
     let input = read_prompted_line()?;
@@ -719,25 +719,25 @@ pub fn show_range_details(commits: &[CommitInfo], start_idx: usize, end_idx: usi
     let is_all_commits = total_selected == commits.len();
 
     if is_all_commits {
-        println!("\n{}", "Selected All Commits for Editing:".bold().green());
+        crate::say!("\n{}", "Selected All Commits for Editing:".bold().green());
     } else {
-        println!("\n{}", "Selected Commit Range:".bold().green());
+        crate::say!("\n{}", "Selected Commit Range:".bold().green());
     }
-    println!("{}", "=".repeat(80).cyan());
+    crate::say!("{}", "=".repeat(80).cyan());
 
     for (idx, commit) in commits[start_idx..=end_idx].iter().enumerate() {
-        println!(
+        crate::say!(
             "\n{}: {} ({})",
             format!("Commit {}", start_idx + idx + 1).bold(),
             commit.short_hash.yellow(),
             &commit.oid.to_string()[..8]
         );
-        println!(
+        crate::say!(
             "{}: {}",
             "Author".bold(),
             format!("{} <{}>", commit.author_name, commit.author_email).magenta()
         );
-        println!(
+        crate::say!(
             "{}: {}",
             "Date".bold(),
             commit
@@ -746,23 +746,23 @@ pub fn show_range_details(commits: &[CommitInfo], start_idx: usize, end_idx: usi
                 .to_string()
                 .blue()
         );
-        println!(
+        crate::say!(
             "{}: {}",
             "Message".bold(),
             commit.message.lines().next().unwrap_or("").white()
         );
     }
 
-    println!("\n{}", "=".repeat(80).cyan());
+    crate::say!("\n{}", "=".repeat(80).cyan());
     if is_all_commits {
-        println!(
+        crate::say!(
             "{} {} commits selected for editing {}",
             "Total:".bold(),
             total_selected.to_string().green(),
             "(ALL COMMITS)".bold().yellow()
         );
     } else {
-        println!(
+        crate::say!(
             "{} {} commits selected for editing",
             "Total:".bold(),
             total_selected.to_string().green()
@@ -773,13 +773,13 @@ pub fn show_range_details(commits: &[CommitInfo], start_idx: usize, end_idx: usi
 }
 
 pub fn get_range_edit_info(args: &Args) -> Result<(String, String, NaiveDateTime, NaiveDateTime)> {
-    println!("\n{}", "Range Edit Configuration:".bold().green());
+    crate::say!("\n{}", "Range Edit Configuration:".bold().green());
 
     // Get author name
     let author_name = if let Some(name) = &args.name {
         name.clone()
     } else {
-        print!(
+        crate::say_inline!(
             "{} {} ",
             "New author name:".bold(),
             "(Esc to cancel)".bright_black()
@@ -792,7 +792,7 @@ pub fn get_range_edit_info(args: &Args) -> Result<(String, String, NaiveDateTime
     let author_email = if let Some(email) = &args.email {
         email.clone()
     } else {
-        print!(
+        crate::say_inline!(
             "{} {} ",
             "New author email:".bold(),
             "(Esc to cancel)".bright_black()
@@ -806,7 +806,7 @@ pub fn get_range_edit_info(args: &Args) -> Result<(String, String, NaiveDateTime
         NaiveDateTime::parse_from_str(start, "%Y-%m-%d %H:%M:%S")
             .map_err(|_| "Invalid start timestamp format")?
     } else {
-        print!(
+        crate::say_inline!(
             "{} {} ",
             "Start timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
             "(Esc to cancel)".bright_black()
@@ -822,7 +822,7 @@ pub fn get_range_edit_info(args: &Args) -> Result<(String, String, NaiveDateTime
         NaiveDateTime::parse_from_str(end, "%Y-%m-%d %H:%M:%S")
             .map_err(|_| "Invalid end timestamp format")?
     } else {
-        print!(
+        crate::say_inline!(
             "{} {} ",
             "End timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
             "(Esc to cancel)".bright_black()
@@ -865,7 +865,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     let commits = get_commit_history(args, false)?;
 
     if commits.is_empty() {
-        println!("{}", "No commits found!".red());
+        crate::say!("{}", "No commits found!".red());
         return Ok(());
     }
     // Fail early on a detached/unborn HEAD and remember the tip the edits are based on.
@@ -890,16 +890,16 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     let modified_commits = table.get_modified_commits();
 
     if modified_commits.is_empty() {
-        println!("{}", "No changes made.".yellow());
+        crate::say!("{}", "No changes made.".yellow());
         return Ok(());
     }
 
     // Show summary of changes
-    println!("\n{}", "Summary of Changes:".bold().green());
-    println!("{}", "=".repeat(80).cyan());
+    crate::say!("\n{}", "Summary of Changes:".bold().green());
+    crate::say!("{}", "=".repeat(80).cyan());
 
     for commit_edit in &modified_commits {
-        println!(
+        crate::say!(
             "\n{}: {} ({})",
             format!("Commit {}", commit_edit.index + 1).bold(),
             commit_edit.original.short_hash.yellow(),
@@ -907,7 +907,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
         );
 
         if commit_edit.modifications.author_name_changed {
-            println!(
+            crate::say!(
                 "  {}: {} -> {}",
                 "Author Name".bold(),
                 commit_edit.original.author_name.red(),
@@ -916,7 +916,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
         }
 
         if commit_edit.modifications.author_email_changed {
-            println!(
+            crate::say!(
                 "  {}: {} -> {}",
                 "Author Email".bold(),
                 commit_edit.original.author_email.red(),
@@ -925,7 +925,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
         }
 
         if commit_edit.modifications.timestamp_changed {
-            println!(
+            crate::say!(
                 "  {}: {} -> {}",
                 "Timestamp".bold(),
                 commit_edit
@@ -945,7 +945,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
         if commit_edit.modifications.message_changed {
             let original_first_line = commit_edit.original.message.lines().next().unwrap_or("");
             let new_first_line = commit_edit.message.lines().next().unwrap_or("");
-            println!(
+            crate::say!(
                 "  {}: {} -> {}",
                 "Message".bold(),
                 original_first_line.red(),
@@ -961,7 +961,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     // Apply changes
     apply_interactive_range_changes(args, &table.commits, head)?;
 
-    println!("\n{}", "✓ Commit range successfully edited!".green().bold());
+    crate::say!("\n{}", "✓ Commit range successfully edited!".green().bold());
 
     if args.show_history {
         get_commit_history(args, true)?;

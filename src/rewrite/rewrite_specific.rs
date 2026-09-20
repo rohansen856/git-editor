@@ -12,11 +12,11 @@ use git2::Repository;
 use std::io::{self, Write};
 
 pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
-    println!("\n{}", "Commit History:".bold().green());
-    println!("{}", "-".repeat(80).cyan());
+    crate::say!("\n{}", "Commit History:".bold().green());
+    crate::say!("{}", "-".repeat(80).cyan());
 
     for (i, commit) in commits.iter().enumerate() {
-        println!(
+        crate::say!(
             "{:3}. {} {} {} {}",
             i + 1,
             commit.short_hash.yellow().bold(),
@@ -35,8 +35,8 @@ pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
         );
     }
 
-    println!("{}", "-".repeat(80).cyan());
-    print!(
+    crate::say!("{}", "-".repeat(80).cyan());
+    crate::say_inline!(
         "\n{} {} ",
         "Select commit number to edit:".bold().green(),
         "(Esc to cancel)".bright_black()
@@ -55,17 +55,17 @@ pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
 }
 
 pub fn show_commit_details(commit: &CommitInfo, repo: &Repository) -> Result<()> {
-    println!("\n{}", "Selected Commit Details:".bold().green());
-    println!("{}", "=".repeat(80).cyan());
+    crate::say!("\n{}", "Selected Commit Details:".bold().green());
+    crate::say!("{}", "=".repeat(80).cyan());
 
-    println!("{}: {}", "Hash".bold(), commit.oid.to_string().yellow());
-    println!("{}: {}", "Short Hash".bold(), commit.short_hash.yellow());
-    println!(
+    crate::say!("{}: {}", "Hash".bold(), commit.oid.to_string().yellow());
+    crate::say!("{}: {}", "Short Hash".bold(), commit.short_hash.yellow());
+    crate::say!(
         "{}: {}",
         "Author".bold(),
         format!("{} <{}>", commit.author_name, commit.author_email).magenta()
     );
-    println!(
+    crate::say!(
         "{}: {}",
         "Date".bold(),
         commit
@@ -74,22 +74,22 @@ pub fn show_commit_details(commit: &CommitInfo, repo: &Repository) -> Result<()>
             .to_string()
             .blue()
     );
-    println!(
+    crate::say!(
         "{}: {}",
         "Parent Count".bold(),
         commit.parent_count.to_string().white()
     );
 
-    println!("\n{}", "Message:".bold());
-    println!("{}", commit.message.white());
+    crate::say!("\n{}", "Message:".bold());
+    crate::say!("{}", commit.message.white());
 
     // Show parent commits
     if commit.parent_count > 0 {
         let git_commit = repo.find_commit(commit.oid)?;
-        println!("\n{}", "Parent Commits:".bold());
+        crate::say!("\n{}", "Parent Commits:".bold());
         for (i, parent_id) in git_commit.parent_ids().enumerate() {
             let parent = repo.find_commit(parent_id)?;
-            println!(
+            crate::say!(
                 "  {}: {} - {}",
                 i + 1,
                 parent_id.to_string()[..8].to_string().yellow(),
@@ -98,7 +98,7 @@ pub fn show_commit_details(commit: &CommitInfo, repo: &Repository) -> Result<()>
         }
     }
 
-    println!("{}", "=".repeat(80).cyan());
+    crate::say!("{}", "=".repeat(80).cyan());
     Ok(())
 }
 
@@ -121,14 +121,14 @@ fn parse_edit_selection(input: &str) -> Result<Vec<usize>> {
 }
 
 fn prompt_line(label: &str) -> Result<String> {
-    print!("{} {} ", label.bold(), "(Esc to cancel)".bright_black());
+    crate::say_inline!("{} {} ", label.bold(), "(Esc to cancel)".bright_black());
     io::stdout().flush()?;
     read_prompted_line()
 }
 
 /// Read a multi-line message; a line containing only `.` ends it.
 fn prompt_message() -> Result<String> {
-    println!(
+    crate::say!(
         "{} {} ",
         "New commit message (finish with a line containing only '.'):".bold(),
         "(Esc to cancel)".bright_black()
@@ -156,12 +156,12 @@ fn build_message(lines: &[String]) -> Result<String> {
 
 // Get user input for what to change
 pub fn get_edit_options() -> Result<EditOptions> {
-    println!("\n{}", "What would you like to edit?".bold().green());
-    println!("1. Author name");
-    println!("2. Author email");
-    println!("3. Commit timestamp");
-    println!("4. Commit message");
-    println!("5. All of the above");
+    crate::say!("\n{}", "What would you like to edit?".bold().green());
+    crate::say!("1. Author name");
+    crate::say!("2. Author email");
+    crate::say!("3. Commit timestamp");
+    crate::say!("4. Commit message");
+    crate::say!("5. All of the above");
 
     let selections = parse_edit_selection(&prompt_line("Select option(s) (comma-separated):")?)?;
     let mut options = EditOptions::default();
@@ -197,7 +197,7 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     let commits = get_commit_history(args, false)?;
 
     if commits.is_empty() {
-        println!("{}", "No commits found!".red());
+        crate::say!("{}", "No commits found!".red());
         return Ok(());
     }
 
@@ -213,23 +213,23 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     let edit_options = get_edit_options()?;
 
     // Confirm changes
-    println!("\n{}", "Planned changes:".bold().yellow());
+    crate::say!("\n{}", "Planned changes:".bold().yellow());
     if let Some(ref name) = edit_options.author_name {
-        println!(
+        crate::say!(
             "  Author name: {} -> {}",
             selected_commit.author_name.red(),
             name.green()
         );
     }
     if let Some(ref email) = edit_options.author_email {
-        println!(
+        crate::say!(
             "  Author email: {} -> {}",
             selected_commit.author_email.red(),
             email.green()
         );
     }
     if let Some(ref timestamp) = edit_options.timestamp {
-        println!(
+        crate::say!(
             "  Timestamp: {} -> {}",
             selected_commit
                 .timestamp
@@ -240,7 +240,7 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
         );
     }
     if let Some(ref message) = edit_options.message {
-        println!(
+        crate::say!(
             "  Message: {} -> {}",
             selected_commit.message.lines().next().unwrap_or("").red(),
             message.lines().next().unwrap_or("").green()
@@ -260,7 +260,7 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
         args.committer.into(),
     )?;
 
-    println!("\n{}", "✓ Commit successfully edited!".green().bold());
+    crate::say!("\n{}", "✓ Commit successfully edited!".green().bold());
 
     if args.show_history {
         get_commit_history(args, true)?;

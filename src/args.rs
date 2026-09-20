@@ -125,6 +125,30 @@ pub struct Args {
     pub yes: bool,
 
     #[arg(
+        long = "commit",
+        value_name = "REF",
+        requires = "pick_specific_commits",
+        help = "With -p: commit to edit without the menu (hash prefix, or 1-based number from -s; 1 = newest)"
+    )]
+    pub commit: Option<String>,
+
+    #[arg(
+        long = "set-date",
+        value_name = "DATE",
+        requires = "pick_specific_commits",
+        help = "With -p --commit: new author date (YYYY-MM-DD HH:MM:SS [+HH:MM], default UTC)"
+    )]
+    pub set_date: Option<String>,
+
+    #[arg(
+        long = "set-message",
+        value_name = "TEXT",
+        requires = "pick_specific_commits",
+        help = "With -p --commit: new commit message"
+    )]
+    pub set_message: Option<String>,
+
+    #[arg(
         long = "clone-dir",
         value_name = "DIR",
         help = "When --repo-path is a URL, clone into DIR and keep it (required for modes that rewrite history)"

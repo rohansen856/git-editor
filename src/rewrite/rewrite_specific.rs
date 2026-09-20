@@ -193,6 +193,65 @@ pub fn get_edit_options() -> Result<EditOptions> {
     Ok(options)
 }
 
+/// Find a commit by unique hash prefix (4+ hex digits) or by 1-based list
+/// number (1 = newest, as shown by `-s`). A hash prefix wins when both match.
+fn resolve_commit<'a>(commits: &'a [CommitInfo], reference: &str) -> Result<&'a CommitInfo> {
+    let reference = reference.trim().to_ascii_lowercase();
+    if reference.len() >= 4 && reference.chars().all(|c| c.is_ascii_hexdigit()) {
+        let mut matches = commits
+            .iter()
+            .filter(|c| c.oid.to_string().starts_with(&reference));
+        match (matches.next(), matches.next()) {
+            (Some(commit), None) => return Ok(commit),
+            (Some(_), Some(_)) => {
+                return Err(format!("--commit '{reference}' matches several commits").into())
+            }
+            (None, _) => {}
+        }
+    }
+    match reference.parse::<usize>() {
+        Ok(number) if (1..=commits.len()).contains(&number) => Ok(&commits[number - 1]),
+        _ => Err(format!(
+            "--commit '{reference}' matches no commit hash and is not a number between 1 and {}",
+            commits.len()
+        )
+        .into()),
+    }
+}
+
+/// Edits requested with --name/--email/--set-date/--set-message.
+fn edit_options_from_args(args: &Args) -> Result<EditOptions> {
+    if let Some(name) = &args.name {
+        validate_identity_part(name, "Author name")?;
+    }
+    if let Some(email) = &args.email {
+        if !is_valid_email(email) {
+            return Err(format!("Invalid email format: {email}").into());
+        }
+    }
+    let options = EditOptions {
+        author_name: args.name.clone(),
+        author_email: args.email.clone(),
+        timestamp: args.set_date.as_deref().map(parse_git_time).transpose()?,
+        message: args.set_message.clone(),
+    };
+    if options.author_name.is_none()
+        && options.author_email.is_none()
+        && options.timestamp.is_none()
+        && options.message.is_none()
+    {
+        return Err("Nothing to change: pass --name, --email, --set-date and/or --set-message with --commit".into());
+    }
+    if options
+        .message
+        .as_deref()
+        .is_some_and(|m| m.trim().is_empty())
+    {
+        return Err("Commit message cannot be empty".into());
+    }
+    Ok(options)
+}
+
 pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     let commits = get_commit_history(args, false)?;
 
@@ -205,12 +264,18 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     // Fail early on a detached/unborn HEAD and remember the tip the edit is based on.
     let head = engine::current_branch(&repo)?.head;
 
-    let selected_index = select_commit(&commits)?;
-    let selected_commit = &commits[selected_index];
-
-    show_commit_details(selected_commit, &repo)?;
-
-    let edit_options = get_edit_options()?;
+    let (selected_commit, edit_options) = match &args.commit {
+        // Flag-driven (non-interactive) edit.
+        Some(reference) => (
+            resolve_commit(&commits, reference)?,
+            edit_options_from_args(args)?,
+        ),
+        None => {
+            let selected = &commits[select_commit(&commits)?];
+            show_commit_details(selected, &repo)?;
+            (selected, get_edit_options()?)
+        }
+    };
 
     // Confirm changes
     crate::say!("\n{}", "Planned changes:".bold().yellow());
@@ -380,6 +445,47 @@ mod tests {
             "subject\n\n  indented body\n"
         );
         assert!(build_message(&["  ".to_string()]).is_err());
+    }
+
+    #[test]
+    fn test_resolve_commit_by_number_and_prefix() {
+        let make = |hex: &str| CommitInfo {
+            oid: git2::Oid::from_str(hex).unwrap(),
+            ..Default::default()
+        };
+        let commits = vec![
+            make("abcdef0000000000000000000000000000000000"),
+            make("abcd120000000000000000000000000000000000"),
+            make("1234560000000000000000000000000000000000"),
+        ];
+        assert_eq!(resolve_commit(&commits, "1").unwrap().oid, commits[0].oid);
+        assert_eq!(resolve_commit(&commits, "3").unwrap().oid, commits[2].oid);
+        assert_eq!(
+            resolve_commit(&commits, "1234").unwrap().oid,
+            commits[2].oid
+        );
+        assert_eq!(
+            resolve_commit(&commits, "ABCDEF").unwrap().oid,
+            commits[0].oid
+        );
+        assert!(resolve_commit(&commits, "abcd").is_err()); // ambiguous
+        assert!(resolve_commit(&commits, "4").is_err());
+        assert!(resolve_commit(&commits, "ffff").is_err());
+    }
+
+    #[test]
+    fn test_edit_options_from_args_requires_a_change() {
+        let args = Args {
+            pick_specific_commits: true,
+            commit: Some("1".into()),
+            ..Default::default()
+        };
+        assert!(edit_options_from_args(&args).is_err());
+        let args = Args {
+            email: Some("not-an-email".into()),
+            ..args
+        };
+        assert!(edit_options_from_args(&args).is_err());
     }
 
     #[test]

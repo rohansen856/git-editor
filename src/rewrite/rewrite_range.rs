@@ -964,6 +964,17 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
         }
     }
 
+    if args.simulate {
+        let plan = plan_from_table(&table.commits, args.committer.into());
+        let preview = simulation_from_plan(&commits, &plan, "Range Edit");
+        preview.stats.print_summary(&preview.operation_mode);
+        if args.show_diff {
+            print_detailed_diff(&preview);
+        }
+        crate::say!("{}", "Simulation only: nothing was written.".cyan());
+        return Ok(());
+    }
+
     if !confirm(&format!("\n{}", "Apply these changes?".bold()), args.yes)? {
         return Err(cancelled());
     }
@@ -1050,6 +1061,10 @@ fn rewrite_selection_from_flags(
     if args.show_diff {
         print_detailed_diff(&preview);
     }
+    if args.simulate {
+        crate::say!("{}", "Simulation only: nothing was written.".cyan());
+        return Ok(());
+    }
     if !confirm(&format!("\n{}", "Apply these changes?".bold()), args.yes)? {
         return Err(cancelled());
     }
@@ -1080,13 +1095,11 @@ fn warn_if_out_of_order(commits: &[CommitInfo], first: usize, last: usize, times
     }
 }
 
-/// Rewrite only the commits edited in the table; older commits keep their ids.
-fn apply_interactive_range_changes(
-    args: &Args,
+/// Plan for the commits edited in the table (keyed by id; untouched commits are absent).
+fn plan_from_table(
     edited_commits: &[CommitEdit],
-    expected_head: git2::Oid,
-) -> Result<()> {
-    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
+    committer: crate::rewrite::engine::CommitterMode,
+) -> Plan {
     let edits = edited_commits
         .iter()
         .filter(|c| c.is_modified)
@@ -1103,10 +1116,17 @@ fn apply_interactive_range_changes(
             (c.original.oid, edit)
         })
         .collect();
-    let plan = Plan {
-        edits,
-        committer: args.committer.into(),
-    };
+    Plan { edits, committer }
+}
+
+/// Rewrite only the commits edited in the table; older commits keep their ids.
+fn apply_interactive_range_changes(
+    args: &Args,
+    edited_commits: &[CommitEdit],
+    expected_head: git2::Oid,
+) -> Result<()> {
+    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
+    let plan = plan_from_table(edited_commits, args.committer.into());
     let outcome = engine::apply(&repo, &plan, expected_head)?;
     print_outcome(&outcome);
     Ok(())

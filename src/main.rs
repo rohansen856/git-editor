@@ -223,16 +223,15 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
         return Ok(());
     }
 
-    // Determine what kind of simulation we can perform based on available arguments
-    let simulation_result = if args.range {
-        // Range simulation - show that no changes would be made without proper setup
-        use crate::utils::simulation::create_specific_commit_simulation;
-        create_specific_commit_simulation(&commits, 0, None, None, None, None)?
-    } else if args.pick_specific_commits {
-        // Pick specific simulation - show that no changes would be made
-        use crate::utils::simulation::create_specific_commit_simulation;
-        create_specific_commit_simulation(&commits, 0, None, None, None, None)?
-    } else {
+    // Pick and range modes run their normal selection/editing and stop before writing.
+    if args.range {
+        return rewrite_range_commits(args);
+    }
+    if args.pick_specific_commits {
+        return rewrite_specific_commits(args);
+    }
+
+    let simulation_result = {
         // Full rewrite simulation - check if we have the required arguments
         if args.email.is_some() && args.name.is_some() && args.start.is_some() && args.end.is_some()
         {

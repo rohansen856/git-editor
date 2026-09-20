@@ -3,6 +3,7 @@ use crate::rewrite::report::print_outcome;
 use crate::utils::dates::{format_git_time, parse_git_time};
 use crate::utils::prompt::{cancelled, confirm};
 use crate::utils::prompt::{read_prompted_line, read_prompted_line_raw};
+use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
 use crate::utils::types::Result;
 use crate::utils::types::{CommitInfo, EditOptions};
 use crate::utils::validator::{is_valid_email, validate_identity_part};
@@ -312,6 +313,22 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
         );
     }
 
+    if args.simulate {
+        let plan = Plan {
+            edits: [(selected_commit.oid, edit_from_options(&edit_options))]
+                .into_iter()
+                .collect(),
+            committer: args.committer.into(),
+        };
+        let preview = simulation_from_plan(&commits, &plan, "Specific Commit Edit");
+        preview.stats.print_summary(&preview.operation_mode);
+        if args.show_diff {
+            print_detailed_diff(&preview);
+        }
+        crate::say!("{}", "Simulation only: nothing was written.".cyan());
+        return Ok(());
+    }
+
     if !confirm(&format!("\n{}", "Proceed with changes?".bold()), args.yes)? {
         return Err(cancelled());
     }
@@ -334,6 +351,15 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     Ok(())
 }
 
+fn edit_from_options(options: &EditOptions) -> Edit {
+    Edit {
+        name: options.author_name.clone(),
+        email: options.author_email.clone(),
+        time: options.timestamp,
+        message: options.message.clone(),
+    }
+}
+
 /// Rewrite only the selected commit (descendants are re-parented, ancestors reused).
 fn apply_commit_changes(
     repo: &Repository,
@@ -342,14 +368,10 @@ fn apply_commit_changes(
     expected_head: git2::Oid,
     committer: CommitterMode,
 ) -> Result<()> {
-    let edit = Edit {
-        name: options.author_name.clone(),
-        email: options.author_email.clone(),
-        time: options.timestamp,
-        message: options.message.clone(),
-    };
     let plan = Plan {
-        edits: [(target_commit.oid, edit)].into_iter().collect(),
+        edits: [(target_commit.oid, edit_from_options(options))]
+            .into_iter()
+            .collect(),
         committer,
     };
     let outcome = engine::apply(repo, &plan, expected_head)?;

@@ -125,6 +125,14 @@ pub struct Args {
     pub yes: bool,
 
     #[arg(
+        long = "select",
+        value_name = "RANGE",
+        requires = "range",
+        help = "With -x: commits to edit without the table, e.g. 2-5, 3 or * (1 = newest, as shown by -s)"
+    )]
+    pub select: Option<String>,
+
+    #[arg(
         long = "commit",
         value_name = "REF",
         requires = "pick_specific_commits",

@@ -1,10 +1,14 @@
 use crate::rewrite::engine::{self, Edit, GitTime, Plan};
 use crate::rewrite::report::print_outcome;
+use crate::rewrite::rewrite_all::begin_offset;
 use crate::utils::dates::{format_git_time, parse_git_time, parse_utc};
+use crate::utils::datetime::spread_timestamps;
 use crate::utils::prompt::read_prompted_line;
 use crate::utils::prompt::{cancelled, confirm};
+use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
 use crate::utils::types::CommitInfo;
 use crate::utils::types::Result;
+use crate::utils::validator::{is_valid_email, validate_identity_part};
 use crate::{args::Args, utils::commit_history::get_commit_history};
 use chrono::NaiveDateTime;
 use colored::Colorize;
@@ -700,18 +704,20 @@ pub fn select_commit_range(commits: &[CommitInfo]) -> Result<(usize, usize)> {
     io::stdout().flush()?;
 
     let input = read_prompted_line()?;
+    parse_selection(&input, commits.len())
+}
 
-    let (start, end) = parse_range_input(&input, commits.len())?;
-
-    if start > commits.len() || end > commits.len() {
-        return Err(format!(
-            "Range out of bounds. Available commits: 1-{}",
-            commits.len()
-        )
-        .into());
+/// Parse `N-M`, `N` or `*` (1-based, 1 = newest) into 0-based inclusive indices.
+pub fn parse_selection(input: &str, total_commits: usize) -> Result<(usize, usize)> {
+    let input = input.trim();
+    let (start, end) = match input.parse::<usize>() {
+        Ok(single) => (single, single),
+        Err(_) => parse_range_input(input, total_commits)?,
+    };
+    if start < 1 || end > total_commits {
+        return Err(format!("Range out of bounds. Available commits: 1-{total_commits}").into());
     }
-
-    Ok((start - 1, end - 1)) // Convert to 0-based indexing
+    Ok((start - 1, end - 1))
 }
 
 pub fn show_range_details(commits: &[CommitInfo], start_idx: usize, end_idx: usize) -> Result<()> {
@@ -871,6 +877,10 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     // Fail early on a detached/unborn HEAD and remember the tip the edits are based on.
     let head = engine::current_branch(&Repository::open(args.repo_path.as_ref().unwrap())?)?.head;
 
+    if let Some(selection) = &args.select {
+        return rewrite_selection_from_flags(args, &commits, selection, head);
+    }
+
     let (start_idx, end_idx) = select_commit_range(&commits)?;
 
     // Show range details for user feedback
@@ -968,6 +978,106 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Non-interactive range edit: `--select` with `--name/--email/--begin/--end`.
+fn rewrite_selection_from_flags(
+    args: &Args,
+    commits: &[CommitInfo],
+    selection: &str,
+    expected_head: git2::Oid,
+) -> Result<()> {
+    let (first, last) = parse_selection(selection, commits.len())?;
+    // Selected commits, oldest first.
+    let selected: Vec<&CommitInfo> = commits[first..=last].iter().rev().collect();
+
+    if let Some(name) = &args.name {
+        validate_identity_part(name, "Author name")?;
+    }
+    if let Some(email) = &args.email {
+        if !is_valid_email(email) {
+            return Err(format!("Invalid email format: {email}").into());
+        }
+    }
+    let times: Option<Vec<GitTime>> = match (&args.start, &args.end) {
+        (Some(begin), Some(end)) => {
+            let spread = spread_timestamps(
+                parse_utc(begin)?,
+                parse_utc(end)?,
+                selected.len(),
+                args.skip_range_check,
+            )?;
+            let offset = begin_offset(args);
+            Some(
+                spread
+                    .iter()
+                    .map(|t| GitTime::new(t.and_utc().timestamp(), offset))
+                    .collect(),
+            )
+        }
+        (None, None) => None,
+        _ => return Err("--begin and --end must be given together".into()),
+    };
+    if args.name.is_none() && args.email.is_none() && times.is_none() {
+        return Err(
+            "Nothing to change: pass --name, --email and/or --begin/--end with --select".into(),
+        );
+    }
+    if let Some(times) = &times {
+        warn_if_out_of_order(commits, first, last, times);
+    }
+
+    let edits = selected
+        .iter()
+        .enumerate()
+        .map(|(i, commit)| {
+            let edit = Edit {
+                name: args.name.clone(),
+                email: args.email.clone(),
+                time: times.as_ref().map(|t| t[i]),
+                message: None,
+            };
+            (commit.oid, edit)
+        })
+        .collect();
+    let plan = Plan {
+        edits,
+        committer: args.committer.into(),
+    };
+
+    let preview = simulation_from_plan(commits, &plan, "Range Edit");
+    preview.stats.print_summary(&preview.operation_mode);
+    if args.show_diff {
+        print_detailed_diff(&preview);
+    }
+    if !confirm(&format!("\n{}", "Apply these changes?".bold()), args.yes)? {
+        return Err(cancelled());
+    }
+    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
+    let outcome = engine::apply(&repo, &plan, expected_head)?;
+    print_outcome(&outcome);
+    Ok(())
+}
+
+/// Warn when new dates would put the selection before its parent or after its child.
+fn warn_if_out_of_order(commits: &[CommitInfo], first: usize, last: usize, times: &[GitTime]) {
+    let older_neighbor = commits
+        .get(last + 1)
+        .map(|c| c.timestamp.and_utc().timestamp());
+    let newer_neighbor = first
+        .checked_sub(1)
+        .map(|i| commits[i].timestamp.and_utc().timestamp());
+    let (Some(earliest), Some(latest)) = (times.first(), times.last()) else {
+        return;
+    };
+    if older_neighbor.is_some_and(|t| t > earliest.seconds)
+        || newer_neighbor.is_some_and(|t| t < latest.seconds)
+    {
+        crate::say!(
+            "{} the new dates are not in order with the commits around the selection",
+            "Warning:".yellow().bold()
+        );
+    }
 }
 
 /// Rewrite only the commits edited in the table; older commits keep their ids.
@@ -1135,6 +1245,16 @@ mod tests {
         assert_eq!(truncate_chars("émoji 🎉 ok", 20), "émoji 🎉 ok");
         assert_eq!(truncate_chars("abcdef", 4), "abc…");
         assert_eq!(truncate_chars("", 3), "");
+    }
+
+    #[test]
+    fn test_parse_selection_bounds_and_forms() {
+        assert_eq!(parse_selection("2-4", 5).unwrap(), (1, 3));
+        assert_eq!(parse_selection("3", 5).unwrap(), (2, 2));
+        assert_eq!(parse_selection("*", 5).unwrap(), (0, 4));
+        assert!(parse_selection("4-9", 5).is_err());
+        assert!(parse_selection("0", 5).is_err());
+        assert!(parse_selection("3-2", 5).is_err());
     }
 
     #[test]

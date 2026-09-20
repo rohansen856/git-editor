@@ -17,7 +17,14 @@ use clap::Parser;
 fn main() -> Result<()> {
     run().unwrap_or_else(|error| {
         let code = crate::utils::prompt::exit_code_for_error(error.as_ref());
-        if !crate::utils::prompt::is_cancelled(error.as_ref()) {
+        if crate::output::json_mode() {
+            let message = if crate::utils::prompt::is_cancelled(error.as_ref()) {
+                "Operation cancelled".to_string()
+            } else {
+                error.to_string()
+            };
+            crate::output::emit(&crate::output::error_json(&message, code));
+        } else if !crate::utils::prompt::is_cancelled(error.as_ref()) {
             eprintln!("{} {}", "Error:".red().bold(), error.to_string().red());
         }
         std::process::exit(code);
@@ -27,6 +34,22 @@ fn main() -> Result<()> {
 
 fn run() -> Result<()> {
     let mut args = Args::parse();
+    if args.json {
+        crate::output::set_json_mode(true);
+        colored::control::set_override(false);
+        if args.range && args.select.is_none() {
+            return Err(
+                "--json with -x needs --select (the interactive table cannot run in JSON mode)"
+                    .into(),
+            );
+        }
+        if args.pick_specific_commits && args.commit.is_none() {
+            return Err(
+                "--json with -p needs --commit (the interactive menu cannot run in JSON mode)"
+                    .into(),
+            );
+        }
+    }
 
     args.ensure_all_args_present()?;
     args.validate_simulation_args()?;
@@ -88,8 +111,24 @@ fn execute_pick_specific_operation(args: &Args) -> Result<()> {
 }
 
 fn execute_show_history_operation(args: &Args) -> Result<()> {
-    crate::say!("{}", "Showing commit history...".cyan());
     use crate::utils::commit_history::get_commit_history;
+    if crate::output::json_mode() {
+        let commits = get_commit_history(args, false)?;
+        let repo = git2::Repository::open(args.repo_path.as_ref().unwrap())?;
+        let head = repo.head().ok();
+        let branch = head
+            .as_ref()
+            .filter(|h| h.is_branch())
+            .and_then(|h| h.shorthand().map(str::to_string));
+        let head_oid = head.and_then(|h| h.target()).map(|o| o.to_string());
+        crate::output::emit(&crate::output::history_json(
+            branch.as_deref(),
+            head_oid,
+            &commits,
+        ));
+        return Ok(());
+    }
+    crate::say!("{}", "Showing commit history...".cyan());
     get_commit_history(args, true)?;
     Ok(())
 }
@@ -98,7 +137,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
     use crate::rewrite::rewrite_all::{apply_plan, begin_offset, full_rewrite_plan};
     use crate::utils::commit_history::get_commit_history;
     use crate::utils::prompt::{cancelled, confirm};
-    use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
+    use crate::utils::simulation::{report_simulation, simulation_from_plan};
 
     // First, show a summary of what will be changed
     crate::say!("{}", "📊 SUMMARY OF PLANNED CHANGES".bold().cyan());
@@ -130,10 +169,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         let simulation_result = simulation_from_plan(&commits, &plan, "Author Information Update");
 
         // Show summary
-        simulation_result
-            .stats
-            .print_summary("Author Information Update");
-        print_detailed_diff(&simulation_result);
+        report_simulation(&simulation_result, true, false);
 
         // Ask for confirmation
         crate::say!(
@@ -179,10 +215,7 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         let simulation_result = simulation_from_plan(&commits, &plan, "Full History Rewrite");
 
         // Show summary
-        simulation_result
-            .stats
-            .print_summary("Full History Rewrite");
-        print_detailed_diff(&simulation_result);
+        report_simulation(&simulation_result, true, false);
 
         // Ask for confirmation
         crate::say!(
@@ -211,7 +244,7 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
     use crate::rewrite::engine::current_branch;
     use crate::rewrite::rewrite_all::{begin_offset, full_rewrite_plan};
     use crate::utils::commit_history::get_commit_history;
-    use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
+    use crate::utils::simulation::{report_simulation, simulation_from_plan};
 
     crate::say!("{}", "🔍 SIMULATION MODE".bold().cyan());
     crate::say!("{}", "Analyzing repository to preview changes...".cyan());
@@ -233,10 +266,16 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
 
     let simulation_result = {
         // Full rewrite simulation - check if we have the required arguments
-        if args.email.is_some() && args.name.is_some() && args.start.is_some() && args.end.is_some()
+        if args.email.is_some()
+            && args.name.is_some()
+            && (args.keep_dates || (args.start.is_some() && args.end.is_some()))
         {
             // We have all required arguments, do full simulation
-            let timestamps = generate_timestamps(args)?;
+            let timestamps = if args.keep_dates {
+                None
+            } else {
+                Some(generate_timestamps(args)?)
+            };
             let repo = git2::Repository::open(args.repo_path.as_ref().unwrap())?;
             let head = current_branch(&repo)?.head;
             let plan = full_rewrite_plan(
@@ -244,7 +283,7 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
                 head,
                 args.name.as_ref().unwrap(),
                 args.email.as_ref().unwrap(),
-                Some(&timestamps),
+                timestamps.as_deref(),
                 begin_offset(args),
                 args.committer.into(),
             )?;
@@ -284,6 +323,13 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
             .flatten()
             .collect::<Vec<_>>();
 
+            if crate::output::json_mode() {
+                return Err(format!(
+                    "Missing required arguments for simulation: {}",
+                    missing.join(", ")
+                )
+                .into());
+            }
             if !missing.is_empty() {
                 crate::say!(
                     "{} {}",
@@ -317,15 +363,6 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
         }
     };
 
-    // Print summary statistics
-    simulation_result
-        .stats
-        .print_summary(&simulation_result.operation_mode);
-
-    // Print detailed diff if requested
-    if args.show_diff {
-        print_detailed_diff(&simulation_result);
-    }
-
+    report_simulation(&simulation_result, args.show_diff, true);
     Ok(())
 }

@@ -118,6 +118,12 @@ pub struct Args {
     pub keep_dates: bool,
 
     #[arg(
+        long = "json",
+        help = "Print one JSON document on stdout (history, preview or rewrite result, or the error); progress goes to stderr"
+    )]
+    pub json: bool,
+
+    #[arg(
         short = 'y',
         long = "yes",
         help = "Answer yes to the final confirmation (for scripts and agents)"

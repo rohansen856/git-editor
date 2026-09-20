@@ -393,6 +393,19 @@ pub fn create_specific_commit_simulation(
     })
 }
 
+/// Show a preview. In `--json` mode a `final_result` preview (dry run) is the
+/// JSON document on stdout; otherwise it is human text (on stderr in JSON mode).
+pub fn report_simulation(result: &SimulationResult, show_diff: bool, final_result: bool) {
+    if final_result && crate::output::json_mode() {
+        crate::output::emit(&crate::output::simulation_json(result));
+        return;
+    }
+    result.stats.print_summary(&result.operation_mode);
+    if show_diff {
+        print_detailed_diff(result);
+    }
+}
+
 pub fn print_detailed_diff(result: &SimulationResult) {
     crate::say!("\n{}", "📋 DETAILED CHANGE PREVIEW".bold().cyan());
     crate::say!("{}", "=".repeat(70).cyan());

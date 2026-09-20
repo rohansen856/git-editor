@@ -3,7 +3,7 @@ use crate::rewrite::report::print_outcome;
 use crate::utils::dates::{format_git_time, parse_git_time};
 use crate::utils::prompt::{cancelled, confirm};
 use crate::utils::prompt::{read_prompted_line, read_prompted_line_raw};
-use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
+use crate::utils::simulation::{report_simulation, simulation_from_plan};
 use crate::utils::types::Result;
 use crate::utils::types::{CommitInfo, EditOptions};
 use crate::utils::validator::{is_valid_email, validate_identity_part};
@@ -321,10 +321,7 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
             committer: args.committer.into(),
         };
         let preview = simulation_from_plan(&commits, &plan, "Specific Commit Edit");
-        preview.stats.print_summary(&preview.operation_mode);
-        if args.show_diff {
-            print_detailed_diff(&preview);
-        }
+        report_simulation(&preview, args.show_diff, true);
         crate::say!("{}", "Simulation only: nothing was written.".cyan());
         return Ok(());
     }

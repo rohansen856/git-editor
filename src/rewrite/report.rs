@@ -8,6 +8,10 @@ fn short(oid: git2::Oid) -> String {
 }
 
 pub fn print_outcome(outcome: &Outcome) {
+    if crate::output::json_mode() {
+        crate::output::emit(&crate::output::outcome_json(outcome));
+        return;
+    }
     if !outcome.changed() {
         crate::say!(
             "{}",

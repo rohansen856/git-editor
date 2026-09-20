@@ -5,7 +5,7 @@ use crate::utils::dates::{format_git_time, parse_git_time, parse_utc};
 use crate::utils::datetime::spread_timestamps;
 use crate::utils::prompt::read_prompted_line;
 use crate::utils::prompt::{cancelled, confirm};
-use crate::utils::simulation::{print_detailed_diff, simulation_from_plan};
+use crate::utils::simulation::{report_simulation, simulation_from_plan};
 use crate::utils::types::CommitInfo;
 use crate::utils::types::Result;
 use crate::utils::validator::{is_valid_email, validate_identity_part};
@@ -967,10 +967,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     if args.simulate {
         let plan = plan_from_table(&table.commits, args.committer.into());
         let preview = simulation_from_plan(&commits, &plan, "Range Edit");
-        preview.stats.print_summary(&preview.operation_mode);
-        if args.show_diff {
-            print_detailed_diff(&preview);
-        }
+        report_simulation(&preview, args.show_diff, true);
         crate::say!("{}", "Simulation only: nothing was written.".cyan());
         return Ok(());
     }
@@ -1057,10 +1054,7 @@ fn rewrite_selection_from_flags(
     };
 
     let preview = simulation_from_plan(commits, &plan, "Range Edit");
-    preview.stats.print_summary(&preview.operation_mode);
-    if args.show_diff {
-        print_detailed_diff(&preview);
-    }
+    report_simulation(&preview, args.show_diff, args.simulate);
     if args.simulate {
         crate::say!("{}", "Simulation only: nothing was written.".cyan());
         return Ok(());

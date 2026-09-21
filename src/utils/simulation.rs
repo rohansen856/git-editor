@@ -53,8 +53,8 @@ impl SimulationChange {
             if new_author != &self.original_author {
                 changes.push(format!(
                     "Author: {} → {}",
-                    self.original_author.red(),
-                    new_author.green()
+                    crate::utils::sanitize::safe(&self.original_author).red(),
+                    crate::utils::sanitize::safe(new_author).green()
                 ));
             }
         }
@@ -63,8 +63,8 @@ impl SimulationChange {
             if new_email != &self.original_email {
                 changes.push(format!(
                     "Email: {} → {}",
-                    self.original_email.red(),
-                    new_email.green()
+                    crate::utils::sanitize::safe(&self.original_email).red(),
+                    crate::utils::sanitize::safe(new_email).green()
                 ));
             }
         }
@@ -91,8 +91,8 @@ impl SimulationChange {
             if new_first_line != original_first_line {
                 changes.push(format!(
                     "Message: {} → {}",
-                    original_first_line.red(),
-                    new_first_line.green()
+                    crate::utils::sanitize::safe(original_first_line).red(),
+                    crate::utils::sanitize::safe(new_first_line).green()
                 ));
             }
         }

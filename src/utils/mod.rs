@@ -6,6 +6,7 @@ pub mod git_config;
 pub mod help;
 pub mod message_trailers;
 pub mod prompt;
+pub mod sanitize;
 pub mod simulation;
 pub mod types;
 pub mod validator;

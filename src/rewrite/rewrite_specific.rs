@@ -26,7 +26,7 @@ pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
                 .format("%Y-%m-%d %H:%M:%S")
                 .to_string()
                 .blue(),
-            commit.author_name.magenta(),
+            crate::utils::sanitize::safe(&commit.author_name).magenta(),
             commit
                 .message
                 .lines()
@@ -283,14 +283,14 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     if let Some(ref name) = edit_options.author_name {
         crate::say!(
             "  Author name: {} -> {}",
-            selected_commit.author_name.red(),
+            crate::utils::sanitize::safe(&selected_commit.author_name).red(),
             name.green()
         );
     }
     if let Some(ref email) = edit_options.author_email {
         crate::say!(
             "  Author email: {} -> {}",
-            selected_commit.author_email.red(),
+            crate::utils::sanitize::safe(&selected_commit.author_email).red(),
             email.green()
         );
     }
@@ -308,8 +308,9 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     if let Some(ref message) = edit_options.message {
         crate::say!(
             "  Message: {} -> {}",
-            selected_commit.message.lines().next().unwrap_or("").red(),
-            message.lines().next().unwrap_or("").green()
+            crate::utils::sanitize::safe(selected_commit.message.lines().next().unwrap_or(""))
+                .red(),
+            crate::utils::sanitize::safe(message.lines().next().unwrap_or("")).green()
         );
     }
 

@@ -629,6 +629,7 @@ fn viewport(current: usize, total: usize, height: usize) -> (usize, usize) {
 
 /// Shorten `text` to at most `max_width` characters (never splitting a UTF-8 char).
 fn truncate_chars(text: &str, max_width: usize) -> String {
+    let text = &*crate::utils::sanitize::safe(text);
     if text.chars().count() > max_width {
         let kept: String = text.chars().take(max_width.saturating_sub(1)).collect();
         format!("{kept}…")
@@ -688,8 +689,8 @@ pub fn select_commit_range(commits: &[CommitInfo]) -> Result<(usize, usize)> {
                 .format("%Y-%m-%d %H:%M:%S")
                 .to_string()
                 .blue(),
-            commit.author_name.magenta(),
-            commit.message.lines().next().unwrap_or("").white()
+            crate::utils::sanitize::safe(&commit.author_name).magenta(),
+            crate::utils::sanitize::safe(commit.message.lines().next().unwrap_or("")).white()
         );
     }
 
@@ -755,7 +756,7 @@ pub fn show_range_details(commits: &[CommitInfo], start_idx: usize, end_idx: usi
         crate::say!(
             "{}: {}",
             "Message".bold(),
-            commit.message.lines().next().unwrap_or("").white()
+            crate::utils::sanitize::safe(commit.message.lines().next().unwrap_or("")).white()
         );
     }
 
@@ -920,8 +921,8 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
             crate::say!(
                 "  {}: {} -> {}",
                 "Author Name".bold(),
-                commit_edit.original.author_name.red(),
-                commit_edit.author_name.green()
+                crate::utils::sanitize::safe(&commit_edit.original.author_name).red(),
+                crate::utils::sanitize::safe(&commit_edit.author_name).green()
             );
         }
 
@@ -929,8 +930,8 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
             crate::say!(
                 "  {}: {} -> {}",
                 "Author Email".bold(),
-                commit_edit.original.author_email.red(),
-                commit_edit.author_email.green()
+                crate::utils::sanitize::safe(&commit_edit.original.author_email).red(),
+                crate::utils::sanitize::safe(&commit_edit.author_email).green()
             );
         }
 
@@ -958,8 +959,8 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
             crate::say!(
                 "  {}: {} -> {}",
                 "Message".bold(),
-                original_first_line.red(),
-                new_first_line.green()
+                crate::utils::sanitize::safe(original_first_line).red(),
+                crate::utils::sanitize::safe(new_first_line).green()
             );
         }
     }

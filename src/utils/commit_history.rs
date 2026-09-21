@@ -130,8 +130,9 @@ pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
                         .format("%Y-%m-%d %H:%M:%S")
                         .to_string()
                         .blue(),
-                    commit_info.author_name.magenta(),
-                    commit_info.message.lines().next().unwrap_or("").white()
+                    crate::utils::sanitize::safe(&commit_info.author_name).magenta(),
+                    crate::utils::sanitize::safe(commit_info.message.lines().next().unwrap_or(""))
+                        .white()
                 );
             }
 

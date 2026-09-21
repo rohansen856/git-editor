@@ -34,6 +34,12 @@ fn main() -> Result<()> {
 
 fn run() -> Result<()> {
     let mut args = Args::parse();
+    // Plain text when piped (agents, CI, files); NO_COLOR / CLICOLOR_FORCE still apply.
+    if !std::io::IsTerminal::is_terminal(&std::io::stdout())
+        && std::env::var_os("CLICOLOR_FORCE").is_none()
+    {
+        colored::control::set_override(false);
+    }
     if args.json {
         crate::output::set_json_mode(true);
         colored::control::set_override(false);

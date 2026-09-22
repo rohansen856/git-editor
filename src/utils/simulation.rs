@@ -1,7 +1,6 @@
-use crate::args::Args;
 use crate::rewrite::engine::Plan;
 use crate::utils::message_trailers::rewrite_author_trailers;
-use crate::utils::types::{CommitInfo, Result};
+use crate::utils::types::CommitInfo;
 use chrono::NaiveDateTime;
 use colored::Colorize;
 
@@ -285,114 +284,6 @@ pub fn simulation_from_plan(
     }
 }
 
-pub fn create_range_simulation(
-    commits: &[CommitInfo],
-    selected_range: (usize, usize),
-    range_timestamps: &[NaiveDateTime],
-    args: &Args,
-) -> Result<SimulationResult> {
-    let mut changes = Vec::new();
-    let (start_idx, end_idx) = selected_range;
-
-    for (i, commit) in commits.iter().enumerate() {
-        let change = if i >= start_idx && i <= end_idx {
-            let timestamp_idx = i - start_idx;
-            let new_timestamp = range_timestamps.get(timestamp_idx).copied();
-
-            SimulationChange {
-                commit_oid: commit.oid,
-                short_hash: commit.short_hash.clone(),
-                original_author: commit.author_name.clone(),
-                original_email: commit.author_email.clone(),
-                original_timestamp: commit.timestamp,
-                original_message: commit.message.clone(),
-                new_author: args.name.clone(),
-                new_email: args.email.clone(),
-                new_timestamp,
-                new_message: None,
-            }
-        } else {
-            // Commits outside range remain unchanged
-            SimulationChange {
-                commit_oid: commit.oid,
-                short_hash: commit.short_hash.clone(),
-                original_author: commit.author_name.clone(),
-                original_email: commit.author_email.clone(),
-                original_timestamp: commit.timestamp,
-                original_message: commit.message.clone(),
-                new_author: None,
-                new_email: None,
-                new_timestamp: None,
-                new_message: None,
-            }
-        };
-
-        changes.push(change);
-    }
-
-    let mut stats = SimulationStats::new(commits);
-    stats.update_from_changes(&changes);
-
-    Ok(SimulationResult {
-        changes,
-        stats,
-        operation_mode: format!("Range Edit (commits {}-{})", start_idx + 1, end_idx + 1),
-    })
-}
-
-pub fn create_specific_commit_simulation(
-    commits: &[CommitInfo],
-    selected_commit_idx: usize,
-    new_author: Option<String>,
-    new_email: Option<String>,
-    new_timestamp: Option<NaiveDateTime>,
-    new_message: Option<String>,
-) -> Result<SimulationResult> {
-    let mut changes = Vec::new();
-
-    for (i, commit) in commits.iter().enumerate() {
-        let change = if i == selected_commit_idx {
-            SimulationChange {
-                commit_oid: commit.oid,
-                short_hash: commit.short_hash.clone(),
-                original_author: commit.author_name.clone(),
-                original_email: commit.author_email.clone(),
-                original_timestamp: commit.timestamp,
-                original_message: commit.message.clone(),
-                new_author: new_author.clone(),
-                new_email: new_email.clone(),
-                new_timestamp,
-                new_message: new_message.clone(),
-            }
-        } else {
-            // Other commits remain unchanged
-            SimulationChange {
-                commit_oid: commit.oid,
-                short_hash: commit.short_hash.clone(),
-                original_author: commit.author_name.clone(),
-                original_email: commit.author_email.clone(),
-                original_timestamp: commit.timestamp,
-                original_message: commit.message.clone(),
-                new_author: None,
-                new_email: None,
-                new_timestamp: None,
-                new_message: None,
-            }
-        };
-
-        changes.push(change);
-    }
-
-    let mut stats = SimulationStats::new(commits);
-    stats.update_from_changes(&changes);
-
-    Ok(SimulationResult {
-        changes,
-        stats,
-        operation_mode: "Specific Commit Edit".to_string(),
-    })
-}
-
 /// Show a preview. In `--json` mode a `final_result` preview (dry run) is the
 /// JSON document on stdout; otherwise it is human text (on stderr in JSON mode).
 pub fn report_simulation(result: &SimulationResult, show_diff: bool, final_result: bool) {
@@ -619,45 +510,5 @@ mod tests {
         };
         let result = simulation_from_plan(&[commit], &plan, "x");
         assert_eq!(result.stats.commits_to_change, 0);
-    }
-
-    #[test]
-    fn test_create_specific_commit_simulation() {
-        let commits = vec![
-            create_test_commit(
-                "1234567890abcdef1234567890abcdef12345678",
-                "User1",
-                "user1@example.com",
-                "2023-01-01 10:00:00",
-                "First commit",
-            ),
-            create_test_commit(
-                "abcdef1234567890abcdef1234567890abcdef12",
-                "User2",
-                "user2@example.com",
-                "2023-01-02 15:30:00",
-                "Second commit",
-            ),
-        ];
-
-        let result = create_specific_commit_simulation(
-            &commits,
-            0, // Edit first commit
-            Some("New Author".to_string()),
-            Some("new@example.com".to_string()),
-            None,
-            Some("Updated message".to_string()),
-        )
-        .unwrap();
-
-        assert_eq!(result.changes.len(), 2);
-        assert_eq!(result.stats.commits_to_change, 1);
-
-        // First commit should have changes
-        assert!(result.changes[0].has_changes());
-        assert_eq!(result.changes[0].new_author.as_ref().unwrap(), "New Author");
-
-        // Second commit should not have changes
-        assert!(!result.changes[1].has_changes());
     }
 }

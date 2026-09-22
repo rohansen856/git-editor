@@ -120,7 +120,7 @@ fn test_pick_specific_commits_mode_integration() {
 fn test_full_rewrite_mode_integration() {
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
@@ -134,7 +134,7 @@ fn test_full_rewrite_mode_integration() {
     assert!(validation_result.is_ok());
 
     // Test that timestamp generation works
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(timestamp_result.is_ok());
 
     let timestamps = timestamp_result.unwrap();
@@ -201,7 +201,7 @@ fn test_invalid_repo_path_all_modes() {
     assert!(history_result.is_err());
 
     // Test full rewrite mode with invalid repo
-    let mut args_full = Args {
+    let args_full = Args {
         repo_path: Some(invalid_repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
@@ -210,7 +210,7 @@ fn test_invalid_repo_path_all_modes() {
         ..Default::default()
     };
 
-    let timestamp_result = generate_timestamps(&mut args_full);
+    let timestamp_result = generate_timestamps(&args_full);
     assert!(timestamp_result.is_err());
 }
 
@@ -233,8 +233,8 @@ fn test_full_rewrite_mode_insufficient_date_range() {
     assert!(validation_result.is_ok());
 
     // The error message should mention --skip-range-check
-    let mut args_mut = args;
-    let timestamp_result = generate_timestamps(&mut args_mut);
+    let args_mut = args;
+    let timestamp_result = generate_timestamps(&args_mut);
     assert!(timestamp_result.is_err());
     let err_msg = timestamp_result.unwrap_err().to_string();
     assert!(
@@ -248,7 +248,7 @@ fn test_full_rewrite_mode_insufficient_date_range() {
 fn test_skip_range_check_succeeds_with_small_range() {
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
@@ -258,7 +258,7 @@ fn test_skip_range_check_succeeds_with_small_range() {
         ..Default::default()
     };
 
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(
         timestamp_result.is_ok(),
         "Should succeed with --skip-range-check: {:?}",
@@ -290,7 +290,7 @@ fn test_skip_range_check_with_5min_minimum_gap() {
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
     // 2 hours for 3 commits - enough room for 5-min gaps with random distribution
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
@@ -300,7 +300,7 @@ fn test_skip_range_check_with_5min_minimum_gap() {
         ..Default::default()
     };
 
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(timestamp_result.is_ok());
 
     let timestamps = timestamp_result.unwrap();
@@ -324,7 +324,7 @@ fn test_skip_range_check_with_5min_minimum_gap() {
 fn test_full_rewrite_mode_invalid_date_format() {
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
@@ -333,7 +333,7 @@ fn test_full_rewrite_mode_invalid_date_format() {
         ..Default::default()
     };
 
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(timestamp_result.is_err());
 }
 
@@ -375,7 +375,7 @@ fn test_workflow_show_history_then_pick_commits() {
 fn test_simulation_mode_complete_args() {
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
@@ -390,7 +390,7 @@ fn test_simulation_mode_complete_args() {
     assert!(validation_result.is_ok());
 
     // Test that timestamp generation works in simulation
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(timestamp_result.is_ok());
 }
 
@@ -515,7 +515,7 @@ fn test_cli_execution_simulate_complete_args_success() {
     assert!(validate_inputs(&args).is_ok());
 
     // Test timestamp generation works
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(timestamp_result.is_ok());
 }
 
@@ -526,7 +526,7 @@ fn test_simulation_execution_function_missing_args() {
     // that was causing the original panic
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: None, // Missing - should trigger graceful handling
         name: None,  // Missing - should trigger graceful handling
@@ -550,7 +550,7 @@ fn test_simulation_execution_function_missing_args() {
     // If all required args are missing, it should handle gracefully
     if args.email.is_some() && args.name.is_some() && args.start.is_some() && args.end.is_some() {
         // Only generate timestamps if we have all required args
-        let timestamp_result = generate_timestamps(&mut args);
+        let timestamp_result = generate_timestamps(&args);
         assert!(timestamp_result.is_ok());
     } else {
         // With missing args, we should not attempt to generate timestamps

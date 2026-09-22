@@ -3,9 +3,8 @@ use crate::utils::dates::parse_utc;
 use crate::utils::types::Result;
 use chrono::{Duration, NaiveDateTime};
 use rand::Rng;
-use uuid::Uuid;
 
-pub fn generate_timestamps(args: &mut Args) -> Result<Vec<NaiveDateTime>> {
+pub fn generate_timestamps(args: &Args) -> Result<Vec<NaiveDateTime>> {
     let start_dt = parse_utc(args.start.as_deref().ok_or("Missing --begin")?)?;
     let end_dt = parse_utc(args.end.as_deref().ok_or("Missing --end")?)?;
 
@@ -13,27 +12,6 @@ pub fn generate_timestamps(args: &mut Args) -> Result<Vec<NaiveDateTime>> {
         return Err("Start datetime must be before end datetime".into());
     }
 
-    if url::Url::parse(args.repo_path.as_ref().unwrap()).is_ok()
-        && !std::path::Path::new(args.repo_path.as_ref().unwrap()).exists()
-    {
-        let tmp_dir = std::env::temp_dir().join(format!("git_editor_{}", Uuid::new_v4()));
-        std::fs::create_dir_all(&tmp_dir)?;
-
-        let status = std::process::Command::new("git")
-            .args([
-                "clone",
-                args.repo_path.as_ref().unwrap(),
-                &tmp_dir.to_string_lossy(),
-            ])
-            .status()?;
-
-        if !status.success() {
-            return Err("Failed to clone repository".into());
-        }
-
-        // Update repo_path to point to the cloned repository
-        args.repo_path = Some(tmp_dir.to_string_lossy().to_string());
-    }
     let total_commits = count_commits(args.repo_path.as_ref().unwrap())?;
     if total_commits == 0 {
         return Err("No commits found in repository".into());
@@ -200,7 +178,7 @@ mod tests {
     #[test]
     fn test_generate_timestamps_invalid_date_format() {
         let (_temp_dir, repo_path) = create_test_repo();
-        let mut args = Args {
+        let args = Args {
             repo_path: Some(repo_path),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
@@ -209,14 +187,14 @@ mod tests {
             ..Default::default()
         };
 
-        let result = generate_timestamps(&mut args);
+        let result = generate_timestamps(&args);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_generate_timestamps_valid_range() {
         let (_temp_dir, repo_path) = create_test_repo();
-        let mut args = Args {
+        let args = Args {
             repo_path: Some(repo_path),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
@@ -225,7 +203,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = generate_timestamps(&mut args);
+        let result = generate_timestamps(&args);
         assert!(result.is_ok());
 
         let timestamps = result.unwrap();
@@ -243,7 +221,7 @@ mod tests {
     #[test]
     fn test_generate_timestamps_preserves_order() {
         let (_temp_dir, repo_path) = create_test_repo();
-        let mut args = Args {
+        let args = Args {
             repo_path: Some(repo_path),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
@@ -252,7 +230,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = generate_timestamps(&mut args);
+        let result = generate_timestamps(&args);
         assert!(result.is_ok());
 
         let timestamps = result.unwrap();
@@ -313,7 +291,7 @@ mod tests {
     #[test]
     fn test_small_range_error_mentions_skip_flag() {
         let (_temp_dir, repo_path) = create_test_repo_with_n_commits(5);
-        let mut args = Args {
+        let args = Args {
             repo_path: Some(repo_path),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
@@ -322,7 +300,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = generate_timestamps(&mut args);
+        let result = generate_timestamps(&args);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(
@@ -334,7 +312,7 @@ mod tests {
     #[test]
     fn test_skip_range_check_produces_correct_count() {
         let (_temp_dir, repo_path) = create_test_repo_with_n_commits(5);
-        let mut args = Args {
+        let args = Args {
             repo_path: Some(repo_path),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
@@ -344,7 +322,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = generate_timestamps(&mut args);
+        let result = generate_timestamps(&args);
         assert!(
             result.is_ok(),
             "skip_range_check should succeed: {:?}",
@@ -358,7 +336,7 @@ mod tests {
     #[test]
     fn test_skip_range_check_respects_5min_gap_and_bounds() {
         let (_temp_dir, repo_path) = create_test_repo_with_n_commits(3);
-        let mut args = Args {
+        let args = Args {
             repo_path: Some(repo_path),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
@@ -368,7 +346,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = generate_timestamps(&mut args);
+        let result = generate_timestamps(&args);
         assert!(result.is_ok());
 
         let timestamps = result.unwrap();
@@ -403,7 +381,7 @@ mod tests {
     #[test]
     fn test_skip_range_check_single_commit() {
         let (_temp_dir, repo_path) = create_test_repo(); // single commit
-        let mut args = Args {
+        let args = Args {
             repo_path: Some(repo_path),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
@@ -413,7 +391,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = generate_timestamps(&mut args);
+        let result = generate_timestamps(&args);
         assert!(result.is_ok());
 
         let timestamps = result.unwrap();

@@ -16,7 +16,6 @@ rand = "0.9.1"
 regex = "1.7"
 colored = "3.0.0"
 url = "2.5.4"
-uuid = { version = "1.17.0", features = ["v4"] }
 crossterm = "0.27"
 tempfile = "3.0"
 open = "5.0"

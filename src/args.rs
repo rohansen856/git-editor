@@ -182,6 +182,14 @@ pub struct Args {
     pub clone_dir: Option<String>,
 
     #[arg(
+        long = "docs-out",
+        value_name = "PATH",
+        requires = "docs",
+        help = "With --docs: write the HTML documentation to PATH instead of a temporary file"
+    )]
+    pub docs_out: Option<String>,
+
+    #[arg(
         long = "docs",
         help = "Open comprehensive documentation in the browser"
     )]

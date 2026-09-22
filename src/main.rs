@@ -61,7 +61,7 @@ fn run() -> Result<()> {
     validate_inputs(&args)?;
 
     match determine_operation_mode(&args) {
-        OperationMode::Docs => execute_docs_operation(),
+        OperationMode::Docs => execute_docs_operation(args.docs_out.as_deref()),
         OperationMode::Range => execute_range_operation(&args),
         OperationMode::PickSpecific => execute_pick_specific_operation(&args),
         OperationMode::ShowHistory => execute_show_history_operation(&args),
@@ -101,8 +101,8 @@ fn determine_operation_mode(args: &Args) -> OperationMode {
     }
 }
 
-fn execute_docs_operation() -> Result<()> {
-    crate::docs::execute_docs_operation()
+fn execute_docs_operation(out: Option<&str>) -> Result<()> {
+    crate::docs::execute_docs_operation(out)
 }
 
 fn execute_range_operation(args: &Args) -> Result<()> {

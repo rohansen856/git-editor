@@ -980,8 +980,6 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     // Apply changes
     apply_interactive_range_changes(args, &table.commits, head)?;
 
-    crate::say!("\n{}", "✓ Commit range successfully edited!".green().bold());
-
     if args.show_history {
         get_commit_history(args, true)?;
     }

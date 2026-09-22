@@ -340,8 +340,6 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
         args.committer.into(),
     )?;
 
-    crate::say!("\n{}", "✓ Commit successfully edited!".green().bold());
-
     if args.show_history {
         get_commit_history(args, true)?;
     }

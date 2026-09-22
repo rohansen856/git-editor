@@ -69,9 +69,6 @@ fn run() -> Result<()> {
         OperationMode::Simulate => execute_simulation_operation(&mut args),
     }?;
 
-    if !args.simulate && !args.docs {
-        crate::say!("{}", "Operation completed successfully!".green().bold());
-    }
     Ok(())
 }
 

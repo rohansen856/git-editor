@@ -80,7 +80,7 @@ pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
                 commit_infos.iter().map(|c| c.author_name.clone()).collect();
 
             // Print summary
-            crate::say!("\n{}", "Updated Commit History Summary:".bold().green());
+            crate::say!("\n{}", "Commit History Summary:".bold().green());
             crate::say!("{}", "-".repeat(60).cyan());
             crate::say!(
                 "{}: {}",

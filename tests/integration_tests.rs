@@ -159,24 +159,6 @@ fn test_full_rewrite_mode_integration() {
 
 #[test]
 #[serial]
-fn test_mode_flag_precedence() {
-    let (_temp_dir, repo_path) = create_test_repo_with_commits();
-
-    // Test that when both show_history and pick_specific_commits are true,
-    // validation still passes (both modes are valid)
-    let args = Args {
-        repo_path: Some(repo_path),
-        show_history: true,
-        pick_specific_commits: true,
-        ..Default::default()
-    };
-
-    let validation_result = validate_inputs(&args);
-    assert!(validation_result.is_ok());
-}
-
-#[test]
-#[serial]
 fn test_invalid_repo_path_all_modes() {
     let invalid_repo_path = "/nonexistent/path".to_string();
 

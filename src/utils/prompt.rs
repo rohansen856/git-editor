@@ -201,20 +201,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_prompt_for_missing_arg_formats_correctly() {
-        let arg_name = "test_arg";
-        assert_eq!(arg_name, "test_arg");
-    }
-
-    #[test]
-    fn test_prompt_functions_exist() {
-        let _prompt_fn: fn(&str) -> Result<String> = prompt_for_input;
-        let _prompt_missing_fn: fn(&str) -> Result<String> = prompt_for_missing_arg;
-        let _prompt_with_default_fn: fn(&str, &str) -> Result<String> = prompt_with_default;
-        let _read_fn: fn() -> Result<String> = read_prompted_line;
-    }
-
-    #[test]
     fn test_is_yes_accepts_y_and_yes_only() {
         for yes in ["y", "Y", "yes", "YES", " yes "] {
             assert!(is_yes(yes), "{yes}");

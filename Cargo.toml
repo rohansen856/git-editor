@@ -2,10 +2,11 @@
 name = "git-editor"
 version = "2.0.1"
 edition = "2021"
+rust-version = "1.81"
 description = "A command-line tool to edit git commit timestamps, messages, and author information"
 license = "MIT"
 homepage = "https://github.com/rohansen856/git-editor"
-authors = ["Rohan Sen", "rohansen856@gmail.com"]
+authors = ["Rohan Sen <rohansen856@gmail.com>"]
 repository = "https://github.com/rohansen856/git-editor"
 
 [dependencies]
@@ -30,9 +31,8 @@ serial_test = "3.0"
 maintainer = "Rohan Sen <rohansen856@gmail.com>"
 copyright = "2024, Rohan Sen <rohansen856@gmail.com>"
 license-file = ["LICENSE", "4"]
-changelog = "CHANGELOG.md"
 depends = "$auto"
-section = "utility"
+section = "utils"
 priority = "optional"
 assets = [
     [
@@ -61,6 +61,3 @@ assets = [
     { source = "README.md", dest = "/usr/share/doc/git-editor/README.md", mode = "644" },
     { source = "LICENSE", dest = "/usr/share/doc/git-editor/LICENSE", mode = "644" },
 ]
-
-[package.metadata.generate-rpm.requires]
-git = "*"

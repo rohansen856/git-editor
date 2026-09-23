@@ -1,30 +1,24 @@
 use colored::*;
 
-pub mod args;
-pub mod docs;
-pub mod output;
-pub mod rewrite;
-pub mod utils;
-
-use crate::rewrite::rewrite_range::rewrite_range_commits;
-use crate::rewrite::rewrite_specific::rewrite_specific_commits;
-use crate::utils::datetime::generate_timestamps;
-use crate::utils::types::Result;
-use crate::utils::validator::validate_inputs;
-use args::Args;
 use clap::Parser;
+use git_editor::args::Args;
+use git_editor::rewrite::rewrite_range::rewrite_range_commits;
+use git_editor::rewrite::rewrite_specific::rewrite_specific_commits;
+use git_editor::utils::datetime::generate_timestamps;
+use git_editor::utils::types::Result;
+use git_editor::utils::validator::validate_inputs;
 
 fn main() -> Result<()> {
     run().unwrap_or_else(|error| {
-        let code = crate::utils::prompt::exit_code_for_error(error.as_ref());
-        if crate::output::json_mode() {
-            let message = if crate::utils::prompt::is_cancelled(error.as_ref()) {
+        let code = git_editor::utils::prompt::exit_code_for_error(error.as_ref());
+        if git_editor::output::json_mode() {
+            let message = if git_editor::utils::prompt::is_cancelled(error.as_ref()) {
                 "Operation cancelled".to_string()
             } else {
                 error.to_string()
             };
-            crate::output::emit(&crate::output::error_json(&message, code));
-        } else if !crate::utils::prompt::is_cancelled(error.as_ref()) {
+            git_editor::output::emit(&git_editor::output::error_json(&message, code));
+        } else if !git_editor::utils::prompt::is_cancelled(error.as_ref()) {
             eprintln!("{} {}", "Error:".red().bold(), error.to_string().red());
         }
         std::process::exit(code);
@@ -41,7 +35,7 @@ fn run() -> Result<()> {
         colored::control::set_override(false);
     }
     if args.json {
-        crate::output::set_json_mode(true);
+        git_editor::output::set_json_mode(true);
         colored::control::set_override(false);
         if args.range && args.select.is_none() {
             return Err(
@@ -99,22 +93,22 @@ fn determine_operation_mode(args: &Args) -> OperationMode {
 }
 
 fn execute_docs_operation(out: Option<&str>) -> Result<()> {
-    crate::docs::execute_docs_operation(out)
+    git_editor::docs::execute_docs_operation(out)
 }
 
 fn execute_range_operation(args: &Args) -> Result<()> {
-    crate::say!("{}", "Editing commit range...".cyan());
+    git_editor::say!("{}", "Editing commit range...".cyan());
     rewrite_range_commits(args)
 }
 
 fn execute_pick_specific_operation(args: &Args) -> Result<()> {
-    crate::say!("{}", "Picking specific commits...".cyan());
+    git_editor::say!("{}", "Picking specific commits...".cyan());
     rewrite_specific_commits(args)
 }
 
 fn execute_show_history_operation(args: &Args) -> Result<()> {
-    use crate::utils::commit_history::get_commit_history;
-    if crate::output::json_mode() {
+    use git_editor::utils::commit_history::get_commit_history;
+    if git_editor::output::json_mode() {
         let commits = get_commit_history(args, false)?;
         let repo = git2::Repository::open(args.repo_path.as_ref().unwrap())?;
         let head = repo.head().ok();
@@ -123,40 +117,40 @@ fn execute_show_history_operation(args: &Args) -> Result<()> {
             .filter(|h| h.is_branch())
             .and_then(|h| h.shorthand().map(str::to_string));
         let head_oid = head.and_then(|h| h.target()).map(|o| o.to_string());
-        crate::output::emit(&crate::output::history_json(
+        git_editor::output::emit(&git_editor::output::history_json(
             branch.as_deref(),
             head_oid,
             &commits,
         ));
         return Ok(());
     }
-    crate::say!("{}", "Showing commit history...".cyan());
+    git_editor::say!("{}", "Showing commit history...".cyan());
     get_commit_history(args, true)?;
     Ok(())
 }
 
 fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
-    use crate::rewrite::rewrite_all::{apply_plan, begin_offset, full_rewrite_plan};
-    use crate::utils::commit_history::get_commit_history;
-    use crate::utils::prompt::{cancelled, confirm};
-    use crate::utils::simulation::{report_simulation, simulation_from_plan};
+    use git_editor::rewrite::rewrite_all::{apply_plan, begin_offset, full_rewrite_plan};
+    use git_editor::utils::commit_history::get_commit_history;
+    use git_editor::utils::prompt::{cancelled, confirm};
+    use git_editor::utils::simulation::{report_simulation, simulation_from_plan};
 
     // First, show a summary of what will be changed
-    crate::say!("{}", "📊 SUMMARY OF PLANNED CHANGES".bold().cyan());
-    crate::say!("{}", "Analyzing repository...".cyan());
+    git_editor::say!("{}", "📊 SUMMARY OF PLANNED CHANGES".bold().cyan());
+    git_editor::say!("{}", "Analyzing repository...".cyan());
 
     let commits = get_commit_history(args, false)?;
     if commits.is_empty() {
-        crate::say!("{}", "No commits found in repository.".yellow());
+        git_editor::say!("{}", "No commits found in repository.".yellow());
         return Ok(());
     }
     // The branch tip the preview is based on; the rewrite refuses to run if it moves.
     let repo = git2::Repository::open(args.repo_path.as_ref().unwrap())?;
-    let head = crate::rewrite::engine::current_branch(&repo)?.head;
+    let head = git_editor::rewrite::engine::current_branch(&repo)?.head;
 
     // Check if user wants to keep original timestamps
     if args.should_keep_original_timestamps() {
-        crate::say!("{}", "✅ Keeping original timestamps as requested.".green());
+        git_editor::say!("{}", "✅ Keeping original timestamps as requested.".green());
 
         // No timestamps: every commit keeps its own author date and offset.
         let plan = full_rewrite_plan(
@@ -174,17 +168,17 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         report_simulation(&simulation_result, args.show_diff, false);
 
         // Ask for confirmation
-        crate::say!(
+        git_editor::say!(
             "\n{}",
             "⚠️  This operation will rewrite Git history!"
                 .yellow()
                 .bold()
         );
-        crate::say!(
+        git_editor::say!(
             "{}",
             "Only author information will be changed, timestamps will remain the same.".cyan()
         );
-        crate::say!(
+        git_editor::say!(
             "{}",
             "Make sure you have backed up your repository.".yellow()
         );
@@ -193,13 +187,13 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             return Err(cancelled());
         }
 
-        crate::say!(
+        git_editor::say!(
             "{}",
             "\n🚀 Proceeding with author information update..."
                 .green()
                 .bold()
         );
-        crate::say!("{}", "Updating author information...".cyan());
+        git_editor::say!("{}", "Updating author information...".cyan());
 
         apply_plan(&repo, &plan, head)?;
         Ok(())
@@ -220,13 +214,13 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
         report_simulation(&simulation_result, args.show_diff, false);
 
         // Ask for confirmation
-        crate::say!(
+        git_editor::say!(
             "\n{}",
             "⚠️  This operation will rewrite Git history permanently!"
                 .yellow()
                 .bold()
         );
-        crate::say!(
+        git_editor::say!(
             "{}",
             "Make sure you have backed up your repository.".yellow()
         );
@@ -235,26 +229,26 @@ fn execute_full_rewrite_operation(args: &mut Args) -> Result<()> {
             return Err(cancelled());
         }
 
-        crate::say!("{}", "\n🚀 Proceeding with rewrite...".green().bold());
-        crate::say!("{}", "Rewriting commits...".cyan());
+        git_editor::say!("{}", "\n🚀 Proceeding with rewrite...".green().bold());
+        git_editor::say!("{}", "Rewriting commits...".cyan());
         apply_plan(&repo, &plan, head)?;
         Ok(())
     }
 }
 
 fn execute_simulation_operation(args: &mut Args) -> Result<()> {
-    use crate::rewrite::engine::current_branch;
-    use crate::rewrite::rewrite_all::{begin_offset, full_rewrite_plan};
-    use crate::utils::commit_history::get_commit_history;
-    use crate::utils::simulation::{report_simulation, simulation_from_plan};
+    use git_editor::rewrite::engine::current_branch;
+    use git_editor::rewrite::rewrite_all::{begin_offset, full_rewrite_plan};
+    use git_editor::utils::commit_history::get_commit_history;
+    use git_editor::utils::simulation::{report_simulation, simulation_from_plan};
 
-    crate::say!("{}", "🔍 SIMULATION MODE".bold().cyan());
-    crate::say!("{}", "Analyzing repository to preview changes...".cyan());
+    git_editor::say!("{}", "🔍 SIMULATION MODE".bold().cyan());
+    git_editor::say!("{}", "Analyzing repository to preview changes...".cyan());
 
     let commits = get_commit_history(args, false)?;
 
     if commits.is_empty() {
-        crate::say!("{}", "No commits found in repository.".yellow());
+        git_editor::say!("{}", "No commits found in repository.".yellow());
         return Ok(());
     }
 
@@ -292,7 +286,7 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
             simulation_from_plan(&commits, &plan, "Full Repository Rewrite")
         } else {
             // Missing required arguments - show what's needed
-            crate::say!(
+            git_editor::say!(
                 "{}",
                 "\n⚠️  Incomplete arguments for full simulation."
                     .yellow()
@@ -325,7 +319,7 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
             .flatten()
             .collect::<Vec<_>>();
 
-            if crate::output::json_mode() {
+            if git_editor::output::json_mode() {
                 return Err(format!(
                     "Missing required arguments for simulation: {}",
                     missing.join(", ")
@@ -333,26 +327,26 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
                 .into());
             }
             if !missing.is_empty() {
-                crate::say!(
+                git_editor::say!(
                     "{} {}",
                     "Missing required arguments:".red(),
                     missing.join(", ").yellow()
                 );
-                crate::say!("{}", "\nExample usage:".bold());
-                crate::say!(
+                git_editor::say!("{}", "\nExample usage:".bold());
+                git_editor::say!(
                     "{}",
                     "git-editor --simulate --name \"Your Name\" --email \"your@email.com\" \\"
                         .cyan()
                 );
-                crate::say!(
+                git_editor::say!(
                     "{}",
                     "    --begin \"2023-01-01 09:00:00\" --end \"2023-12-31 17:00:00\"".cyan()
                 );
-                crate::say!();
+                git_editor::say!();
             }
 
             // Still show basic repository info
-            use crate::utils::simulation::{SimulationResult, SimulationStats};
+            use git_editor::utils::simulation::{SimulationResult, SimulationStats};
             let stats = SimulationStats::new(&commits);
             let result = SimulationResult {
                 changes: vec![],

@@ -94,7 +94,12 @@ pub fn show_commit_details(commit: &CommitInfo, repo: &Repository) -> Result<()>
                 "  {}: {} - {}",
                 i + 1,
                 parent_id.to_string()[..8].to_string().yellow(),
-                parent.summary().unwrap_or("(no message)").white()
+                parent
+                    .summary()
+                    .ok()
+                    .flatten()
+                    .unwrap_or("(no message)")
+                    .white()
             );
         }
     }

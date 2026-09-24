@@ -52,7 +52,7 @@ pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
                 committer_timestamp: naive_utc(committer.when().seconds()),
                 committer_offset_min: committer.when().offset_minutes(),
                 message: String::from_utf8_lossy(commit.message_bytes()).into_owned(),
-                message_is_utf8: commit.message().is_some(),
+                message_is_utf8: commit.message().is_ok(),
                 parent_count: commit.parent_count(),
             }
         };

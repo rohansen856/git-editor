@@ -29,7 +29,7 @@ pub struct CommitInfo {
 impl Default for CommitInfo {
     fn default() -> Self {
         Self {
-            oid: git2::Oid::zero(),
+            oid: git2::Oid::ZERO_SHA1,
             short_hash: String::new(),
             timestamp: NaiveDateTime::default(),
             author_offset_min: 0,

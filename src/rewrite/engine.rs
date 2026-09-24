@@ -125,7 +125,7 @@ pub fn current_branch(repo: &Repository) -> Result<BranchHead> {
     }
     let refname = head
         .name()
-        .ok_or("HEAD reference name is not valid UTF-8")?
+        .map_err(|_| "HEAD reference name is not valid UTF-8")?
         .to_string();
     let shorthand = head.shorthand().unwrap_or(&refname).to_string();
     let head_oid = head.target().ok_or("HEAD is a symbolic reference")?;
@@ -280,7 +280,7 @@ fn refs_containing(
     let mut stale = Vec::new();
     for reference in repo.references()? {
         let reference = reference?;
-        let Some(name) = reference.name() else {
+        let Ok(name) = reference.name() else {
             continue;
         };
         if name == current || !(name.starts_with("refs/heads/") || name.starts_with("refs/tags/")) {

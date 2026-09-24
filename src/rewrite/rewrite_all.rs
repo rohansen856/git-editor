@@ -141,6 +141,6 @@ mod tests {
             "expected rewritten Signed-off-by, got: {msg}"
         );
         assert!(!msg.contains("old@example.com"));
-        assert_eq!(tip.author().email(), Some("new@example.com"));
+        assert_eq!(tip.author().email().ok(), Some("new@example.com"));
     }
 }

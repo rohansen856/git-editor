@@ -115,7 +115,7 @@ fn execute_show_history_operation(args: &Args) -> Result<()> {
         let branch = head
             .as_ref()
             .filter(|h| h.is_branch())
-            .and_then(|h| h.shorthand().map(str::to_string));
+            .and_then(|h| h.shorthand().ok().map(str::to_string));
         let head_oid = head.and_then(|h| h.target()).map(|o| o.to_string());
         git_editor::output::emit(&git_editor::output::history_json(
             branch.as_deref(),

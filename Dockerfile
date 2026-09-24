@@ -1,39 +1,36 @@
-# Stage 1: Build the application
-FROM rust:1.81-slim AS builder
+# Stage 1: build
+FROM rust:1.87-slim-bookworm AS builder
 
 WORKDIR /usr/src/app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends pkg-config libssl-dev make \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a new empty shell project
+# Build dependencies first so source changes do not rebuild them.
 COPY Cargo.toml Cargo.lock ./
+RUN mkdir src \
+    && echo 'fn main() {}' > src/main.rs \
+    && touch src/lib.rs \
+    && cargo build --release --locked \
+    && rm -rf src
 
-# Now copy the actual source code
 COPY . .
+RUN touch src/main.rs src/lib.rs && cargo build --release --locked
 
-# Build the application
-RUN cargo build --release
-
-# Stage 2: Create the runtime image
+# Stage 2: runtime
 FROM debian:bookworm-slim
 
-WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libssl3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1000 editor
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/src/app/target/release/git-editor /usr/local/bin/git-editor
 
-# Copy the binary from the builder stage
-COPY --from=builder /usr/src/app/target/release/git-editor /app/git-editor
-
-# Set up environment
-ENV git-editor=/app/git-editor
-
-# Set the entrypoint
-ENTRYPOINT ["/app/git-editor"]
+# Run as an unprivileged user. Mount the repository at /workspace and pass
+# --user "$(id -u):$(id -g)" so the repository owner matches (libgit2 refuses
+# repositories owned by another user, like git's safe.directory check).
+USER editor
+WORKDIR /workspace
+ENTRYPOINT ["git-editor"]

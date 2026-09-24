@@ -2,7 +2,7 @@
 name = "git-editor"
 version = "2.0.1"
 edition = "2021"
-rust-version = "1.81"
+rust-version = "1.87"
 description = "A command-line tool to edit git commit timestamps, messages, and author information"
 license = "MIT"
 homepage = "https://github.com/rohansen856/git-editor"

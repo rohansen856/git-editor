@@ -168,6 +168,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // ':' is not allowed in Windows file names
     fn test_existing_path_with_at_and_colon_is_local() {
         let dir = tempfile::TempDir::new().unwrap();
         let odd = dir.path().join("we@ird:dir");

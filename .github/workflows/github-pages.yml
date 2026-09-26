@@ -4,86 +4,55 @@ on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
-    name: Build Documentation
+    name: Build documentation site
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: 🦀 Set up Rust
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: stable
-          override: true
-
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-pages-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: 📦 Build project
-        run: cargo build --release
-
-      - name: 📚 Generate documentation
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+      - name: Generate documentation
+        env:
+          GIT_EDITOR_NO_BROWSER: "1"
         run: |
-          # Set environment variables to prevent browser opening
-          export GIT_EDITOR_NO_BROWSER=1
-          export NO_BROWSER=1
-
-          # Create docs directory
           mkdir -p docs-site
-
-          # Generate the documentation HTML
-          cargo run --release -- --docs
-
-          # Copy the generated HTML to docs-site directory
-          cp /tmp/git-editor-docs.html docs-site/index.html
-
-          # Create a simple robots.txt for better SEO
-          echo -e "User-agent: *\nAllow: /" > docs-site/robots.txt
-
-          # Create a .nojekyll file to bypass Jekyll processing
+          cargo run --release --locked -- --docs --docs-out docs-site/index.html
+          printf 'User-agent: *\nAllow: /\n' > docs-site/robots.txt
           touch docs-site/.nojekyll
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
-          path: './docs-site'
+          path: ./docs-site
 
   deploy:
     name: Deploy to GitHub Pages
+    needs: build
+    # Only deploy from master/main (never from pull requests).
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    # Only deploy on pushes to main/master, not on PRs
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

@@ -19,8 +19,25 @@ impl From<CommitterArg> for crate::rewrite::engine::CommitterMode {
     }
 }
 
+const AFTER_HELP: &str = "\
+Examples:
+  git-editor -s                                   Show history (numbers used by --commit/--select)
+  git-editor --simulate --name N --email e@x.io --begin '2024-01-01 09:00:00' --end '2024-02-01 18:00:00'
+  git-editor --name N --email e@x.io --keep-dates --yes        Rewrite identity, keep every date
+  git-editor -p --commit 3 --set-message 'Fix typo' --yes      Edit one commit without menus
+  git-editor -x --select 2-5 --name N --email e@x.io --yes     Edit a range without the table
+
+Agents and scripts:
+  1. git-editor -s --json                 inspect (JSON on stdout, progress on stderr)
+  2. git-editor <edit flags> --simulate --json    preview exactly what would change
+  3. git-editor <edit flags> --yes --json          apply; prints old/new ids and a backup ref
+  Undo: git reset --keep refs/git-editor/backup/<branch>
+
+Dates: 'YYYY-MM-DD HH:MM:SS' is UTC; add an offset ('... +05:30') or use RFC 3339.
+Exit codes: 0 success, 1 error, 2 invalid arguments, 130 cancelled.";
+
 #[derive(Parser, Default)]
-#[command(author, version, about)]
+#[command(author, version, about, after_long_help = AFTER_HELP)]
 #[command(group(
     clap::ArgGroup::new("mode")
         .args(["show_history", "pick_specific_commits", "range", "docs"])

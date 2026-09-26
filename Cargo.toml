@@ -61,3 +61,10 @@ assets = [
     { source = "README.md", dest = "/usr/share/doc/git-editor/README.md", mode = "644" },
     { source = "LICENSE", dest = "/usr/share/doc/git-editor/LICENSE", mode = "644" },
 ]
+
+# Stable GUIDs so each MSI upgrades the previous install (cargo wix init reads these)
+[package.metadata.wix]
+upgrade-guid = "EFEE90CF-2BBC-441B-96F2-96F71DD2D7BE"
+path-guid = "1639BC60-5763-4F1A-902C-CDEE03F36516"
+license = false
+eula = false

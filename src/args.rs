@@ -47,27 +47,34 @@ pub struct Args {
     #[arg(
         short = 'r',
         long = "repo-path",
-        help = "Path or URI to the repository"
+        help = "Repository path (any directory inside it) or clone URL; default: current directory"
     )]
     pub repo_path: Option<String>,
 
-    #[arg(long, help = "Email associated with the commits")]
+    #[arg(
+        long,
+        help = "New author email (full rewrite, -p --commit, -x --select)"
+    )]
     pub email: Option<String>,
 
-    #[arg(short = 'n', long = "name", help = "Name associated with the commits")]
+    #[arg(
+        short = 'n',
+        long = "name",
+        help = "New author name (full rewrite, -p --commit, -x --select)"
+    )]
     pub name: Option<String>,
 
     #[arg(
         short = 'b',
         long = "begin",
-        help = "Start date for the commits in YYYY-MM-DD HH:MM:SS format"
+        help = "First new date: YYYY-MM-DD HH:MM:SS (UTC) or with an offset like +05:30"
     )]
     pub start: Option<String>,
 
     #[arg(
         short = 'e',
         long = "end",
-        help = "End date for the commits in YYYY-MM-DD HH:MM:SS format"
+        help = "Last new date: YYYY-MM-DD HH:MM:SS (UTC) or with an offset like +05:30"
     )]
     pub end: Option<String>,
 
@@ -81,21 +88,21 @@ pub struct Args {
     #[arg(
         short = 'p',
         long = "pick-specific-commits",
-        help = "Interactively pick one commit by number and edit its metadata"
+        help = "Edit one commit (menu, or non-interactive with --commit)"
     )]
     pub pick_specific_commits: bool,
 
     #[arg(
         short = 'x',
         long = "range",
-        help = "Edit a range of commits (e.g., --range to interactively select range)"
+        help = "Edit a range of commits (table editor, or non-interactive with --select)"
     )]
     pub range: bool,
 
     #[arg(
         long = "simulate",
         conflicts_with_all = ["show_history", "docs"],
-        help = "Show what changes would be made without applying them (dry-run mode)"
+        help = "Preview the changes without writing anything (dry run)"
     )]
     pub simulate: bool,
 
@@ -128,7 +135,7 @@ pub struct Args {
 
     #[arg(
         long = "skip-range-check",
-        help = "Skip the minimum date range check (allows tightly packed commit timestamps)"
+        help = "Allow date ranges shorter than 3 hours per commit (gaps shrink to 5 minutes, then evenly)"
     )]
     pub skip_range_check: bool,
 

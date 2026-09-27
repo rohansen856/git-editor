@@ -1,6 +1,6 @@
 [package]
 name = "git-editor"
-version = "2.0.1"
+version = "2.1.0"
 edition = "2021"
 rust-version = "1.87"
 description = "A command-line tool to edit git commit timestamps, messages, and author information"

@@ -18,12 +18,12 @@ Thank you for your interest in contributing to Git Editor! This guide will help 
 
 ### Prerequisites
 
-- **Rust**: Version 1.72+ ([Install Rust](https://www.rust-lang.org/tools/install))
-- **Git**: For version control ([Install Git](https://git-scm.com/downloads))
-- **OpenSSL**: Development libraries for secure connections
-  - Ubuntu/Debian: `sudo apt-get install pkg-config libssl-dev`
+- **Rust**: 1.87+ (git2 0.21 needs it; checked by the MSRV job in CI) ([Install Rust](https://www.rust-lang.org/tools/install))
+- **Git**: for version control ([Install Git](https://git-scm.com/downloads)); the tool itself does not need the `git` command at runtime
+- **C toolchain and OpenSSL headers**: libgit2 is vendored and built from source
+  - Ubuntu/Debian: `sudo apt-get install build-essential pkg-config libssl-dev`
   - macOS: `brew install pkg-config openssl`
-  - Windows: Handled automatically by vcpkg
+  - Windows: MSVC build tools; OpenSSL is not needed (`openssl-sys` is not in the Windows dependency tree)
 
 ### Fork and Clone
 
@@ -110,28 +110,16 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 ## Testing
 
-Git Editor has a test suite of roughly **105** tests (~83 unit including docs module + **22** integration).
+`cargo test` runs four suites:
 
-### Test Structure
+| Suite | Where | What it covers |
+|---|---|---|
+| Unit tests | `#[cfg(test)]` modules under `src/` | parsing, validation, dates, trailers, TUI state machine, JSON builders |
+| Engine tests | `tests/engine.rs` | rewrite engine on raw fixture commits: reuse of untouched commits, preserved headers/encodings/offsets, committer modes, merges, backup/stale refs, `git fsck --strict` |
+| End-to-end tests | `tests/e2e.rs` | the real binary with `--yes --json`: full rewrite, `--keep-dates`, `-p --commit`, `-x --select`, exit codes, refusals |
+| Integration tests | `tests/integration_tests.rs` | library flows (history, timestamp generation, validation, docs, argument parsing) |
 
-```
-tests
-├── Unit Tests (inline #[cfg(test)] under src/)
-│   ├── args.rs
-│   ├── docs.rs
-│   ├── utils/datetime.rs
-│   ├── utils/validator.rs
-│   ├── utils/commit_history.rs
-│   ├── utils/types.rs
-│   ├── utils/prompt.rs
-│   ├── utils/simulation.rs
-│   ├── utils/git_clone.rs
-│   ├── utils/git_config.rs
-│   ├── rewrite/rewrite_specific.rs
-│   └── rewrite/rewrite_range.rs
-└── Integration Tests (22 tests)
-    └── tests/integration_tests.rs
-```
+The binary is a thin wrapper over the `git_editor` library, so every test runs once.
 
 ### Running Tests
 
@@ -216,67 +204,60 @@ cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out html
 
 ## CI/CD Pipeline
 
-Workflows live under `.github/workflows/`:
+Workflows live under `.github/workflows/`. Every third-party action is pinned to a commit SHA, and the default token is read-only.
 
-### 1. Comprehensive Test Suite (`test.yml`)
-- Runs on every push and PR
-- Executes unit and integration tests
+### 1. CI (`ci-cd.yaml`): pushes to master/main and all pull requests
+- `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings`
+- `cargo test --locked` on Ubuntu, macOS and Windows
+- MSRV check with Rust 1.87
+- `cargo deny check` (advisories, licenses, sources, bans; see `deny.toml`)
 
-### 2. CI/CD Pipeline (`ci-cd.yaml`)
-- Runs linting, formatting, and tests
-- Cross-compiles for multiple platforms
-- Uploads build artifacts
+### 2. Coverage (`coverage.yml`)
+- `cargo tarpaulin` produces `cobertura.xml` and an HTML report (uploaded as a build artifact)
+- Uploads to Codecov on pushes when the `CODECOV_TOKEN` secret is set
 
-### 3. Multi-Platform Testing (`multi-platform-test.yml`)
-- Tests on Ubuntu, Windows, and macOS
-- Tests with stable and beta Rust versions
+### 3. User docs (`github-pages.yml`)
+- Builds the site with `git-editor --docs --docs-out docs-site/index.html`
+- Deploys to GitHub Pages only from master/main; only the deploy job has `pages`/`id-token` write permissions
 
-### 4. Coverage Report (`coverage.yml`)
-- Generates test coverage reports
-- Uploads coverage to Codecov
-- Builds rustdoc and may deploy to GitHub Pages
-
-### 5. User Docs Pages (`github-pages.yml`)
-- Runs `git-editor --docs` and deploys the HTML user docs site
-
-### 6. Release Pipeline (`release.yaml`)
-- Runs on version tags (`v*`)
-- Publishes to crates.io and creates GitHub releases with binaries / packages
+### 4. Release (`release.yaml`): `v*` tags
+- Fails unless the tag equals `v` + the `version` in `Cargo.toml`, so bump the version before tagging
+- Lint and test, then build binaries, `.deb`/`.rpm` (pinned `cargo-deb`/`cargo-generate-rpm`), `.msi` (checksum-verified WiX, stable GUIDs from `[package.metadata.wix]`), `.pkg` and archives
+- Creates the GitHub release with `SHA256SUMS`; only this job gets `contents: write`
+- Publishes to crates.io **after** the release, and only for `X.Y.0` tags, from the protected `release` environment using the `CARGO_REGISTRY_TOKEN` secret
 
 ## Project Structure
 
 ```
 git-editor/
 ├── src/
-│   ├── main.rs              # Entry point and mode dispatch
-│   ├── lib.rs               # Library re-exports (args, rewrite, utils)
-│   ├── args.rs              # Command-line argument parsing
+│   ├── main.rs              # CLI entry point and mode dispatch
+│   ├── lib.rs               # Library crate (all modules)
+│   ├── args.rs              # Command-line arguments (clap) and argument resolution
 │   ├── docs.rs              # --docs HTML generation
+│   ├── output.rs            # say! macros and --json documents
 │   ├── rewrite/
-│   │   ├── mod.rs
-│   │   ├── rewrite_all.rs   # Full history rewriting
-│   │   ├── rewrite_specific.rs # Pick-one commit editing
-│   │   └── rewrite_range.rs # Range editing (crossterm TUI)
+│   │   ├── engine.rs        # History rewrite engine (plans, raw commit rebuilding, ref update)
+│   │   ├── report.rs        # Human/JSON reporting of rewrite outcomes
+│   │   ├── rewrite_all.rs   # Full-rewrite plans
+│   │   ├── rewrite_specific.rs # Pick-one-commit mode (menu and --commit)
+│   │   └── rewrite_range.rs # Range mode (crossterm table and --select)
 │   └── utils/
-│       ├── mod.rs
-│       ├── commit_history.rs
-│       ├── datetime.rs
-│       ├── prompt.rs
-│       ├── types.rs
-│       ├── validator.rs
-│       ├── simulation.rs
-│       ├── git_clone.rs
-│       ├── git_config.rs
-│       └── help.rs          # Unused custom help (clap --help is primary)
-├── docs/
-│   └── template.html        # Embedded by --docs / GitHub Pages
-├── tests/
-│   └── integration_tests.rs
-├── .github/
-│   └── workflows/
-├── Cargo.toml
-├── README.md
-└── CONTRIBUTING.md
+│       ├── commit_history.rs # Branch history listing
+│       ├── dates.rs          # Date parsing/formatting with offsets
+│       ├── datetime.rs       # Timestamp distribution over a range
+│       ├── git_clone.rs      # URL detection, cloning with credentials, URL redaction
+│       ├── git_config.rs     # Identity defaults from git config (libgit2)
+│       ├── message_trailers.rs # Signed-off-by / Co-authored-by / Authored-by rewriting
+│       ├── prompt.rs         # Prompts, confirmation, cancellation/exit codes
+│       ├── sanitize.rs       # Escaping of control characters in displayed metadata
+│       ├── simulation.rs     # Previews built from plans
+│       ├── types.rs          # Shared types
+│       └── validator.rs      # Input validation
+├── docs/template.html       # Embedded by --docs / GitHub Pages
+├── tests/                   # engine.rs, e2e.rs, integration_tests.rs
+├── AGENTS.md                # Guide for LLM agents and scripts
+└── deny.toml                # cargo-deny policy
 ```
 
 ## Common Development Tasks
@@ -330,16 +311,14 @@ sudo apt-get install pkg-config libssl-dev
 
 # macOS
 brew install pkg-config openssl
-export PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig"
+export PKG_CONFIG_PATH="$(brew --prefix openssl)/lib/pkgconfig"   # /opt/homebrew on Apple Silicon, /usr/local on Intel
 ```
 
 #### Git2 Compilation Issues
+`libgit2-sys` builds its bundled libgit2 1.9.0 from source unless a matching system libgit2 is found, so installing `libgit2-dev` is normally unnecessary. Build failures are almost always missing `pkg-config`, OpenSSL headers (Linux/macOS) or a C compiler.
 ```bash
 # Ubuntu/Debian
-sudo apt-get install libgit2-dev
-
-# macOS
-brew install libgit2
+sudo apt-get install build-essential pkg-config libssl-dev
 ```
 
 #### Test Failures in CI

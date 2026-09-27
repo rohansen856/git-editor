@@ -33,7 +33,24 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
         return Err(format!("Not a Git repository: {repo_path} ({})", e.message()).into());
     }
 
-    // Skip validation for email, name, start, end if using show_history, pick_specific_commits, range, simulate, or docs
+    // A dry run still rejects values that a real run would reject.
+    if args.simulate {
+        if let Some(email) = &args.email {
+            if !is_valid_email(email) {
+                return Err(format!("Invalid email format: {email}").into());
+            }
+        }
+        if let Some(name) = &args.name {
+            validate_identity_part(name, "Name")?;
+        }
+        for (flag, value) in [("start", &args.start), ("end", &args.end)] {
+            if let Some(value) = value {
+                parse_git_time(value).map_err(|e| format!("Invalid {flag} date: {e}"))?;
+            }
+        }
+    }
+
+    // Other modes validate their own inputs (or are read-only).
     if args.show_history || args.pick_specific_commits || args.range || args.simulate || args.docs {
         return Ok(());
     }
@@ -406,5 +423,18 @@ mod tests {
         };
         let err = validate_inputs(&args).unwrap_err().to_string();
         assert!(err.contains("invalid character"), "{err}");
+    }
+
+    #[test]
+    fn test_simulation_rejects_invalid_email() {
+        let (_temp_dir, repo_path) = create_test_repo();
+        let args = Args {
+            repo_path: Some(repo_path),
+            email: Some("bogus".to_string()),
+            name: Some("N".to_string()),
+            simulate: true,
+            ..Default::default()
+        };
+        assert!(validate_inputs(&args).is_err());
     }
 }

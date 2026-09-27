@@ -262,9 +262,9 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
 
     let simulation_result = {
         // Full rewrite simulation - check if we have the required arguments
-        if args.email.is_some()
-            && args.name.is_some()
-            && (args.keep_dates || (args.start.is_some() && args.end.is_some()))
+        let dates_given = args.keep_dates || (args.start.is_some() && args.end.is_some());
+        if let (Some(name), Some(email), true) =
+            (args.name.clone(), args.email.clone(), dates_given)
         {
             // We have all required arguments, do full simulation
             let timestamps = if args.keep_dates {
@@ -277,8 +277,8 @@ fn execute_simulation_operation(args: &mut Args) -> Result<()> {
             let plan = full_rewrite_plan(
                 &repo,
                 head,
-                args.name.as_ref().unwrap(),
-                args.email.as_ref().unwrap(),
+                &name,
+                &email,
                 timestamps.as_deref(),
                 begin_offset(args),
                 args.committer.into(),

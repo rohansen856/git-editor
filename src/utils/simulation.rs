@@ -1,6 +1,6 @@
-use crate::args::Args;
+use crate::rewrite::engine::Plan;
 use crate::utils::message_trailers::rewrite_author_trailers;
-use crate::utils::types::{CommitInfo, Result};
+use crate::utils::types::CommitInfo;
 use chrono::NaiveDateTime;
 use colored::Colorize;
 
@@ -52,8 +52,8 @@ impl SimulationChange {
             if new_author != &self.original_author {
                 changes.push(format!(
                     "Author: {} → {}",
-                    self.original_author.red(),
-                    new_author.green()
+                    crate::utils::sanitize::safe(&self.original_author).red(),
+                    crate::utils::sanitize::safe(new_author).green()
                 ));
             }
         }
@@ -62,8 +62,8 @@ impl SimulationChange {
             if new_email != &self.original_email {
                 changes.push(format!(
                     "Email: {} → {}",
-                    self.original_email.red(),
-                    new_email.green()
+                    crate::utils::sanitize::safe(&self.original_email).red(),
+                    crate::utils::sanitize::safe(new_email).green()
                 ));
             }
         }
@@ -90,8 +90,8 @@ impl SimulationChange {
             if new_first_line != original_first_line {
                 changes.push(format!(
                     "Message: {} → {}",
-                    original_first_line.red(),
-                    new_first_line.green()
+                    crate::utils::sanitize::safe(original_first_line).red(),
+                    crate::utils::sanitize::safe(new_first_line).green()
                 ));
             }
         }
@@ -143,16 +143,16 @@ impl SimulationStats {
     }
 
     pub fn print_summary(&self, operation_mode: &str) {
-        println!("\n{}", "📊 SIMULATION SUMMARY".bold().cyan());
-        println!("{}", "=".repeat(50).cyan());
+        crate::say!("\n{}", "📊 SIMULATION SUMMARY".bold().cyan());
+        crate::say!("{}", "=".repeat(50).cyan());
 
-        println!("{}: {}", "Operation Mode".bold(), operation_mode.yellow());
-        println!(
+        crate::say!("{}: {}", "Operation Mode".bold(), operation_mode.yellow());
+        crate::say!(
             "{}: {}",
             "Total Commits".bold(),
             self.total_commits.to_string().cyan()
         );
-        println!(
+        crate::say!(
             "{}: {}",
             "Commits to Change".bold(),
             if self.commits_to_change > 0 {
@@ -163,27 +163,27 @@ impl SimulationStats {
         );
 
         if self.commits_to_change > 0 {
-            println!("\n{}", "Changes Breakdown:".bold());
+            crate::say!("\n{}", "Changes Breakdown:".bold());
             if self.authors_changed > 0 {
-                println!(
+                crate::say!(
                     "  • {} commits will have author names changed",
                     self.authors_changed.to_string().yellow()
                 );
             }
             if self.emails_changed > 0 {
-                println!(
+                crate::say!(
                     "  • {} commits will have author emails changed",
                     self.emails_changed.to_string().yellow()
                 );
             }
             if self.timestamps_changed > 0 {
-                println!(
+                crate::say!(
                     "  • {} commits will have timestamps changed",
                     self.timestamps_changed.to_string().yellow()
                 );
             }
             if self.messages_changed > 0 {
-                println!(
+                crate::say!(
                     "  • {} commits will have messages changed",
                     self.messages_changed.to_string().yellow()
                 );
@@ -191,8 +191,8 @@ impl SimulationStats {
         }
 
         if let (Some(start), Some(end)) = (self.date_range_start, self.date_range_end) {
-            println!("\n{}", "Date Range:".bold());
-            println!(
+            crate::say!("\n{}", "Date Range:".bold());
+            crate::say!(
                 "  {} → {}",
                 start.format("%Y-%m-%d %H:%M:%S").to_string().blue(),
                 end.format("%Y-%m-%d %H:%M:%S").to_string().blue()
@@ -200,20 +200,20 @@ impl SimulationStats {
         }
 
         if self.commits_to_change == 0 {
-            println!(
+            crate::say!(
                 "\n{}",
                 "✅ No changes would be made with current parameters."
                     .green()
                     .bold()
             );
         } else {
-            println!(
+            crate::say!(
                 "\n{}",
                 "⚠️  This is a simulation - no actual changes have been made."
                     .yellow()
                     .bold()
             );
-            println!(
+            crate::say!(
                 "{}",
                 "   Run without --simulate to apply these changes.".bright_black()
             );
@@ -221,178 +221,95 @@ impl SimulationStats {
     }
 }
 
-pub fn create_full_rewrite_simulation(
+/// Preview exactly what `engine::apply(plan)` would write, commit by commit.
+///
+/// Changes are matched to commits by id, so the preview cannot drift from the
+/// rewrite regardless of list order.
+pub fn simulation_from_plan(
     commits: &[CommitInfo],
-    timestamps: &[NaiveDateTime],
-    args: &Args,
-) -> Result<SimulationResult> {
-    let mut changes = Vec::new();
-    let new_author = args.name.as_ref().unwrap();
-    let new_email = args.email.as_ref().unwrap();
+    plan: &Plan,
+    operation_mode: &str,
+) -> SimulationResult {
+    let changes: Vec<SimulationChange> = commits
+        .iter()
+        .map(|commit| {
+            let edit = plan.edits.get(&commit.oid).cloned().unwrap_or_default();
+            let new_author = edit.name.clone();
+            let new_email = edit.email.clone();
+            let new_timestamp = edit.time.map(|t| {
+                chrono::DateTime::from_timestamp(t.seconds, 0)
+                    .unwrap_or_default()
+                    .naive_utc()
+            });
+            let identity_changed = new_author.is_some() || new_email.is_some();
+            let base = edit
+                .message
+                .clone()
+                .unwrap_or_else(|| commit.message.clone());
+            let message = if identity_changed && commit.message_is_utf8 {
+                rewrite_author_trailers(
+                    &base,
+                    &commit.author_name,
+                    &commit.author_email,
+                    new_author.as_deref().unwrap_or(&commit.author_name),
+                    new_email.as_deref().unwrap_or(&commit.author_email),
+                )
+            } else {
+                base
+            };
+            let new_message = (message != commit.message).then_some(message);
 
-    for (i, commit) in commits.iter().enumerate() {
-        let new_timestamp = timestamps.get(i).copied();
-
-        let rewritten_message = rewrite_author_trailers(
-            &commit.message,
-            &commit.author_name,
-            &commit.author_email,
-            new_author,
-            new_email,
-        );
-        let new_message = if rewritten_message != commit.message {
-            Some(rewritten_message)
-        } else {
-            None
-        };
-
-        let change = SimulationChange {
-            commit_oid: commit.oid,
-            short_hash: commit.short_hash.clone(),
-            original_author: commit.author_name.clone(),
-            original_email: commit.author_email.clone(),
-            original_timestamp: commit.timestamp,
-            original_message: commit.message.clone(),
-            new_author: Some(new_author.clone()),
-            new_email: Some(new_email.clone()),
-            new_timestamp,
-            new_message,
-        };
-
-        changes.push(change);
-    }
+            SimulationChange {
+                commit_oid: commit.oid,
+                short_hash: commit.short_hash.clone(),
+                original_author: commit.author_name.clone(),
+                original_email: commit.author_email.clone(),
+                original_timestamp: commit.timestamp,
+                original_message: commit.message.clone(),
+                new_author: new_author.filter(|n| *n != commit.author_name),
+                new_email: new_email.filter(|e| *e != commit.author_email),
+                new_timestamp: new_timestamp.filter(|t| *t != commit.timestamp),
+                new_message,
+            }
+        })
+        .collect();
 
     let mut stats = SimulationStats::new(commits);
     stats.update_from_changes(&changes);
 
-    Ok(SimulationResult {
+    SimulationResult {
         changes,
         stats,
-        operation_mode: "Full Repository Rewrite".to_string(),
-    })
+        operation_mode: operation_mode.to_string(),
+    }
 }
 
-pub fn create_range_simulation(
-    commits: &[CommitInfo],
-    selected_range: (usize, usize),
-    range_timestamps: &[NaiveDateTime],
-    args: &Args,
-) -> Result<SimulationResult> {
-    let mut changes = Vec::new();
-    let (start_idx, end_idx) = selected_range;
-
-    for (i, commit) in commits.iter().enumerate() {
-        let change = if i >= start_idx && i <= end_idx {
-            let timestamp_idx = i - start_idx;
-            let new_timestamp = range_timestamps.get(timestamp_idx).copied();
-
-            SimulationChange {
-                commit_oid: commit.oid,
-                short_hash: commit.short_hash.clone(),
-                original_author: commit.author_name.clone(),
-                original_email: commit.author_email.clone(),
-                original_timestamp: commit.timestamp,
-                original_message: commit.message.clone(),
-                new_author: args.name.clone(),
-                new_email: args.email.clone(),
-                new_timestamp,
-                new_message: None,
-            }
-        } else {
-            // Commits outside range remain unchanged
-            SimulationChange {
-                commit_oid: commit.oid,
-                short_hash: commit.short_hash.clone(),
-                original_author: commit.author_name.clone(),
-                original_email: commit.author_email.clone(),
-                original_timestamp: commit.timestamp,
-                original_message: commit.message.clone(),
-                new_author: None,
-                new_email: None,
-                new_timestamp: None,
-                new_message: None,
-            }
-        };
-
-        changes.push(change);
+/// Show a preview. In `--json` mode a `final_result` preview (dry run) is the
+/// JSON document on stdout; otherwise it is human text (on stderr in JSON mode).
+pub fn report_simulation(result: &SimulationResult, show_diff: bool, final_result: bool) {
+    if final_result && crate::output::json_mode() {
+        crate::output::emit(&crate::output::simulation_json(result));
+        return;
     }
-
-    let mut stats = SimulationStats::new(commits);
-    stats.update_from_changes(&changes);
-
-    Ok(SimulationResult {
-        changes,
-        stats,
-        operation_mode: format!("Range Edit (commits {}-{})", start_idx + 1, end_idx + 1),
-    })
-}
-
-pub fn create_specific_commit_simulation(
-    commits: &[CommitInfo],
-    selected_commit_idx: usize,
-    new_author: Option<String>,
-    new_email: Option<String>,
-    new_timestamp: Option<NaiveDateTime>,
-    new_message: Option<String>,
-) -> Result<SimulationResult> {
-    let mut changes = Vec::new();
-
-    for (i, commit) in commits.iter().enumerate() {
-        let change = if i == selected_commit_idx {
-            SimulationChange {
-                commit_oid: commit.oid,
-                short_hash: commit.short_hash.clone(),
-                original_author: commit.author_name.clone(),
-                original_email: commit.author_email.clone(),
-                original_timestamp: commit.timestamp,
-                original_message: commit.message.clone(),
-                new_author: new_author.clone(),
-                new_email: new_email.clone(),
-                new_timestamp,
-                new_message: new_message.clone(),
-            }
-        } else {
-            // Other commits remain unchanged
-            SimulationChange {
-                commit_oid: commit.oid,
-                short_hash: commit.short_hash.clone(),
-                original_author: commit.author_name.clone(),
-                original_email: commit.author_email.clone(),
-                original_timestamp: commit.timestamp,
-                original_message: commit.message.clone(),
-                new_author: None,
-                new_email: None,
-                new_timestamp: None,
-                new_message: None,
-            }
-        };
-
-        changes.push(change);
+    result.stats.print_summary(&result.operation_mode);
+    if show_diff {
+        print_detailed_diff(result);
     }
-
-    let mut stats = SimulationStats::new(commits);
-    stats.update_from_changes(&changes);
-
-    Ok(SimulationResult {
-        changes,
-        stats,
-        operation_mode: "Specific Commit Edit".to_string(),
-    })
 }
 
 pub fn print_detailed_diff(result: &SimulationResult) {
-    println!("\n{}", "📋 DETAILED CHANGE PREVIEW".bold().cyan());
-    println!("{}", "=".repeat(70).cyan());
+    crate::say!("\n{}", "📋 DETAILED CHANGE PREVIEW".bold().cyan());
+    crate::say!("{}", "=".repeat(70).cyan());
 
     let changes_to_show: Vec<_> = result.changes.iter().filter(|c| c.has_changes()).collect();
 
     if changes_to_show.is_empty() {
-        println!("{}", "No changes to display.".green());
+        crate::say!("{}", "No changes to display.".green());
         return;
     }
 
     for (i, change) in changes_to_show.iter().enumerate() {
-        println!(
+        crate::say!(
             "\n{} {} {} ({})",
             format!("{}.", i + 1).bold(),
             "Commit".bold(),
@@ -404,15 +321,15 @@ pub fn print_detailed_diff(result: &SimulationResult) {
 
         let change_summary = change.get_change_summary();
         for summary_line in change_summary {
-            println!("   {summary_line}");
+            crate::say!("   {summary_line}");
         }
 
         if i < changes_to_show.len() - 1 {
-            println!("{}", "─".repeat(50).bright_black());
+            crate::say!("{}", "─".repeat(50).bright_black());
         }
     }
 
-    println!(
+    crate::say!(
         "\n{}",
         format!(
             "Showing {} changes out of {} total commits",
@@ -426,6 +343,7 @@ pub fn print_detailed_diff(result: &SimulationResult) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rewrite::engine::{CommitterMode, Edit, GitTime};
     use chrono::NaiveDateTime;
 
     fn create_test_commit(
@@ -443,6 +361,7 @@ mod tests {
             author_email: email.to_string(),
             message: message.to_string(),
             parent_count: 1,
+            ..Default::default()
         }
     }
 
@@ -526,89 +445,70 @@ mod tests {
     }
 
     #[test]
-    fn test_create_full_rewrite_simulation() {
-        let commits = vec![create_test_commit(
-            "1234567890abcdef1234567890abcdef12345678",
+    fn test_simulation_from_plan_matches_edits_by_commit_id() {
+        // Newest first, as listed by get_commit_history.
+        let newest = create_test_commit(
+            "2222222222222222222222222222222222222222",
+            "Old User",
+            "old@example.com",
+            "2023-01-02 10:00:00",
+            "Second commit",
+        );
+        let oldest = create_test_commit(
+            "1111111111111111111111111111111111111111",
             "Old User",
             "old@example.com",
             "2023-01-01 10:00:00",
             "First commit",
-        )];
-
-        let timestamps =
-            vec![
-                NaiveDateTime::parse_from_str("2023-06-01 09:00:00", "%Y-%m-%d %H:%M:%S").unwrap(),
-            ];
-
-        let args = Args {
-            repo_path: Some("./test".to_string()),
-            email: Some("new@example.com".to_string()),
-            name: Some("New User".to_string()),
-            start: Some("2023-06-01 08:00:00".to_string()),
-            end: Some("2023-06-01 18:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: true,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+        );
+        let early =
+            NaiveDateTime::parse_from_str("2023-06-01 09:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+        let late =
+            NaiveDateTime::parse_from_str("2023-06-02 09:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
+        let edit = |t: NaiveDateTime| Edit {
+            name: Some("New User".into()),
+            email: Some("new@example.com".into()),
+            time: Some(GitTime::new(t.and_utc().timestamp(), 0)),
+            message: None,
+        };
+        let plan = Plan {
+            edits: [(oldest.oid, edit(early)), (newest.oid, edit(late))]
+                .into_iter()
+                .collect(),
+            committer: CommitterMode::MatchAuthor,
         };
 
-        let result = create_full_rewrite_simulation(&commits, &timestamps, &args).unwrap();
+        let result = simulation_from_plan(&[newest, oldest], &plan, "Full History Rewrite");
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.stats.total_commits, 1);
-        assert_eq!(result.stats.commits_to_change, 1);
-        assert_eq!(result.operation_mode, "Full Repository Rewrite");
-
-        let change = &result.changes[0];
-        assert!(change.has_changes());
-        assert_eq!(change.new_author.as_ref().unwrap(), "New User");
-        assert_eq!(change.new_email.as_ref().unwrap(), "new@example.com");
+        assert_eq!(result.stats.commits_to_change, 2);
+        assert_eq!(result.changes[0].new_timestamp, Some(late));
+        assert_eq!(result.changes[1].new_timestamp, Some(early));
+        assert_eq!(result.changes[1].new_author.as_deref(), Some("New User"));
     }
 
     #[test]
-    fn test_create_specific_commit_simulation() {
-        let commits = vec![
-            create_test_commit(
-                "1234567890abcdef1234567890abcdef12345678",
-                "User1",
-                "user1@example.com",
-                "2023-01-01 10:00:00",
-                "First commit",
-            ),
-            create_test_commit(
-                "abcdef1234567890abcdef1234567890abcdef12",
-                "User2",
-                "user2@example.com",
-                "2023-01-02 15:30:00",
-                "Second commit",
-            ),
-        ];
-
-        let result = create_specific_commit_simulation(
-            &commits,
-            0, // Edit first commit
-            Some("New Author".to_string()),
-            Some("new@example.com".to_string()),
-            None,
-            Some("Updated message".to_string()),
-        )
-        .unwrap();
-
-        assert_eq!(result.changes.len(), 2);
-        assert_eq!(result.stats.commits_to_change, 1);
-
-        // First commit should have changes
-        assert!(result.changes[0].has_changes());
-        assert_eq!(result.changes[0].new_author.as_ref().unwrap(), "New Author");
-
-        // Second commit should not have changes
-        assert!(!result.changes[1].has_changes());
+    fn test_simulation_from_plan_ignores_unchanged_values() {
+        let commit = create_test_commit(
+            "1111111111111111111111111111111111111111",
+            "Same User",
+            "same@example.com",
+            "2023-01-01 10:00:00",
+            "msg",
+        );
+        let plan = Plan {
+            edits: [(
+                commit.oid,
+                Edit {
+                    name: Some("Same User".into()),
+                    email: Some("same@example.com".into()),
+                    ..Default::default()
+                },
+            )]
+            .into_iter()
+            .collect(),
+            committer: CommitterMode::MatchAuthor,
+        };
+        let result = simulation_from_plan(&[commit], &plan, "x");
+        assert_eq!(result.stats.commits_to_change, 0);
     }
 }

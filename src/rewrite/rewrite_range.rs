@@ -1,18 +1,24 @@
-use crate::utils::message_trailers::rewrite_author_trailers;
+use crate::rewrite::engine::{self, Edit, GitTime, Plan};
+use crate::rewrite::report::print_outcome;
+use crate::rewrite::rewrite_all::begin_offset;
+use crate::utils::dates::{format_git_time, parse_git_time, parse_utc};
+use crate::utils::datetime::spread_timestamps;
 use crate::utils::prompt::read_prompted_line;
+use crate::utils::prompt::{cancelled, confirm};
+use crate::utils::simulation::{report_simulation, simulation_from_plan};
 use crate::utils::types::CommitInfo;
 use crate::utils::types::Result;
+use crate::utils::validator::{is_valid_email, validate_identity_part};
 use crate::{args::Args, utils::commit_history::get_commit_history};
 use chrono::NaiveDateTime;
 use colored::Colorize;
 use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal::{self, Clear, ClearType},
     ExecutableCommand,
 };
-use git2::{Repository, Signature, Sort, Time};
-use std::collections::HashMap;
+use git2::Repository;
 use std::io::{self, Write};
 
 #[derive(Debug, Clone)]
@@ -21,7 +27,9 @@ struct CommitEdit {
     original: CommitInfo,
     author_name: String,
     author_email: String,
+    /// Author date as UTC; `offset_minutes` is the zone it is written in.
     timestamp: NaiveDateTime,
+    offset_minutes: i32,
     message: String,
     is_modified: bool,
     modifications: ModificationFlags,
@@ -35,6 +43,14 @@ struct ModificationFlags {
     message_changed: bool,
 }
 
+/// What the table loop should do after a key press.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TableAction {
+    Continue,
+    SaveAndExit,
+    Cancel,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum TableColumn {
     Index = 0,
@@ -45,12 +61,33 @@ enum TableColumn {
     Message = 5,
 }
 
+/// Draws the table on the alternate screen and restores the terminal (raw mode
+/// off, original screen back) when dropped — on success, error or panic.
+struct TerminalGuard;
+
+impl TerminalGuard {
+    fn enter() -> Result<Self> {
+        io::stdout().execute(terminal::EnterAlternateScreen)?;
+        Ok(Self)
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        let _ = terminal::disable_raw_mode();
+        let _ = io::stdout().execute(terminal::LeaveAlternateScreen);
+        let _ = io::stdout().execute(cursor::Show);
+    }
+}
+
 struct InteractiveTable {
     commits: Vec<CommitEdit>,
     current_row: usize,
     current_col: TableColumn,
     editing: bool,
     edit_buffer: String,
+    /// Last validation error, shown below the table (never stored in a field).
+    status: Option<String>,
     editable_fields: (bool, bool, bool, bool), // (author_name, author_email, timestamp, message)
 }
 
@@ -70,6 +107,7 @@ impl InteractiveTable {
                 author_name: commit.author_name.clone(),
                 author_email: commit.author_email.clone(),
                 timestamp: commit.timestamp,
+                offset_minutes: commit.author_offset_min,
                 message: commit.message.clone(), // Keep full message, truncate only for display
                 is_modified: false,
                 modifications: ModificationFlags::default(),
@@ -99,6 +137,7 @@ impl InteractiveTable {
             current_col: starting_col,
             editing: false,
             edit_buffer: String::new(),
+            status: None,
             editable_fields,
         }
     }
@@ -108,7 +147,7 @@ impl InteractiveTable {
         let _ = io::stdout().execute(Clear(ClearType::All));
         let _ = io::stdout().execute(cursor::MoveTo(0, 0));
 
-        println!(
+        crate::say!(
             "{}",
             "Interactive Commit Editor - Range Mode".bold().green()
         );
@@ -129,27 +168,33 @@ impl InteractiveTable {
             }
             format!("Editable: {}", editable.join(", "))
         };
-        println!("{}", editable_info.cyan());
-        println!(
+        crate::say!("{}", editable_info.cyan());
+        crate::say!(
             "{}",
-            "Use Arrow Keys to navigate, Enter to edit, Esc to save & exit, Ctrl+C to cancel"
+            "Arrow keys/hjkl: move  Enter: edit  Esc: save & exit  q or Ctrl+C: cancel without saving"
                 .yellow()
         );
-        println!();
+        crate::say!();
 
         // Print header
-        println!(
+        crate::say!(
             "{:<4} {:<8} {:<15} {:<20} {:<19} {}",
             "#".bold().white(),
             "HASH".bold().white(),
             "AUTHOR NAME".bold().white(),
             "AUTHOR EMAIL".bold().white(),
-            "TIMESTAMP".bold().white(),
+            "TIMESTAMP (UTC)".bold().white(),
             "MESSAGE".bold().white()
         );
 
-        // Draw rows
-        for (row_idx, commit) in self.commits.iter().enumerate() {
+        // Draw only the rows that fit on screen, keeping the cursor row visible.
+        let screen_rows = terminal::size().map(|(_, h)| h as usize).unwrap_or(24);
+        let (first, count) = viewport(
+            self.current_row,
+            self.commits.len(),
+            screen_rows.saturating_sub(TABLE_CHROME_LINES),
+        );
+        for (row_idx, commit) in self.commits.iter().enumerate().skip(first).take(count) {
             let is_current_row = row_idx == self.current_row;
 
             // Prepare content
@@ -209,7 +254,7 @@ impl InteractiveTable {
             // Apply formatting and colors
             if is_current_row {
                 if self.editing {
-                    println!(
+                    crate::say!(
                         "{:<4} {:<8} {:<15} {:<20} {:<19} {}",
                         index_final.black().on_yellow(),
                         hash_final.black().on_yellow(),
@@ -253,12 +298,12 @@ impl InteractiveTable {
                         message_final.green().on_bright_black()
                     };
 
-                    println!(
+                    crate::say!(
                         "{index_styled:<4} {hash_styled:<8} {author_name_styled:<15} {author_email_styled:<20} {timestamp_styled:<19} {message_styled}"
                     );
                 }
             } else {
-                println!(
+                crate::say!(
                     "{:<4} {:<8} {:<15} {:<20} {:<19} {}",
                     index_final.white(),
                     hash_final.yellow(),
@@ -270,17 +315,36 @@ impl InteractiveTable {
             }
         }
 
-        println!();
-
-        if self.editing {
-            println!("{}: {}", "Editing".bold().yellow(), self.edit_buffer);
-            println!("{}", "Press Enter to save, Esc to cancel edit".italic());
-        } else {
-            println!(
+        if count < self.commits.len() {
+            crate::say!(
                 "{}",
-                "Navigation: ←→↑↓  Edit: Enter  Save & Exit: Esc  Cancel: Ctrl+C".italic()
+                format!(
+                    "Rows {}-{} of {} (scroll with ↑↓)",
+                    first + 1,
+                    first + count,
+                    self.commits.len()
+                )
+                .dimmed()
             );
-            println!(
+        }
+        crate::say!();
+
+        if let Some(status) = &self.status {
+            crate::say!("{} {}", "Error:".red().bold(), status.red());
+        }
+        if self.editing {
+            crate::say!("{}: {}", "Editing".bold().yellow(), self.edit_buffer);
+            crate::say!(
+                "{}",
+                "Press Enter to save, Esc to cancel this edit, Ctrl+C to abandon all edits"
+                    .italic()
+            );
+        } else {
+            crate::say!(
+                "{}",
+                "Navigation: ←→↑↓  Edit: Enter  Save & Exit: Esc  Cancel: q / Ctrl+C".italic()
+            );
+            crate::say!(
                 "{}",
                 "Tip: Use '*' when selecting range to edit ALL commits at once".dimmed()
             );
@@ -288,14 +352,10 @@ impl InteractiveTable {
     }
 
     fn truncate_text(&self, text: &str, max_width: usize) -> String {
-        if text.len() > max_width {
-            format!("{}…", &text[..max_width.saturating_sub(1)])
-        } else {
-            text.to_string()
-        }
+        truncate_chars(text, max_width)
     }
 
-    fn handle_navigation_key_input(&mut self, key: KeyCode) -> Result<bool> {
+    fn handle_navigation_key_input(&mut self, key: KeyCode) -> TableAction {
         match key {
             KeyCode::Up if self.current_row > 0 => {
                 self.current_row -= 1;
@@ -325,16 +385,12 @@ impl InteractiveTable {
                 // Down (vim-style)
                 self.current_row += 1;
             }
-            KeyCode::Enter => {
-                self.start_editing();
-                return Ok(true);
-            }
-            KeyCode::Esc => {
-                return Ok(false); // Exit and save
-            }
+            KeyCode::Enter => self.start_editing(),
+            KeyCode::Esc => return TableAction::SaveAndExit,
+            KeyCode::Char('q') => return TableAction::Cancel,
             _ => {}
         }
-        Ok(true)
+        TableAction::Continue
     }
 
     fn is_column_editable(&self, col: &TableColumn) -> bool {
@@ -412,10 +468,13 @@ impl InteractiveTable {
         self.edit_buffer = match self.current_col {
             TableColumn::AuthorName => self.commits[self.current_row].author_name.clone(),
             TableColumn::AuthorEmail => self.commits[self.current_row].author_email.clone(),
-            TableColumn::Timestamp => self.commits[self.current_row]
-                .timestamp
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string(),
+            TableColumn::Timestamp => {
+                let commit = &self.commits[self.current_row];
+                format_git_time(GitTime::new(
+                    commit.timestamp.and_utc().timestamp(),
+                    commit.offset_minutes,
+                ))
+            }
             TableColumn::Message => {
                 // Use the full original message when editing, not the truncated display version
                 if self.commits[self.current_row].modifications.message_changed {
@@ -429,7 +488,10 @@ impl InteractiveTable {
         };
     }
 
-    fn handle_edit_key_input(&mut self, key: KeyCode) -> Result<bool> {
+    fn handle_edit_key_input(&mut self, key: KeyCode) -> TableAction {
+        if key != KeyCode::Enter {
+            self.status = None;
+        }
         match key {
             KeyCode::Esc => {
                 // Esc - cancel edit
@@ -439,10 +501,13 @@ impl InteractiveTable {
             KeyCode::Enter => {
                 // Enter - save edit
                 if let Err(e) = self.save_current_edit() {
-                    // On error, show message and stay in edit mode
-                    self.edit_buffer = format!("Error: {e} (Press Esc to cancel)");
-                    return Ok(true);
+                    // Keep the user's input and stay in edit mode; show the error separately.
+                    self.status = Some(format!(
+                        "{e} (fix the value or press Esc to cancel the edit)"
+                    ));
+                    return TableAction::Continue;
                 }
+                self.status = None;
                 self.editing = false;
                 self.edit_buffer.clear();
             }
@@ -455,7 +520,19 @@ impl InteractiveTable {
             }
             _ => {}
         }
-        Ok(true)
+        TableAction::Continue
+    }
+
+    /// Route one key press; Ctrl+C always abandons the session.
+    fn handle_key(&mut self, key: KeyEvent) -> TableAction {
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            return TableAction::Cancel;
+        }
+        if self.editing {
+            self.handle_edit_key_input(key.code)
+        } else {
+            self.handle_navigation_key_input(key.code)
+        }
     }
 
     fn save_current_edit(&mut self) -> Result<()> {
@@ -463,14 +540,11 @@ impl InteractiveTable {
 
         match self.current_col {
             TableColumn::AuthorName => {
-                if self.edit_buffer.trim().is_empty() {
-                    return Err("Author name cannot be empty".into());
-                }
+                crate::utils::validator::validate_identity_part(&self.edit_buffer, "Author name")?;
                 if commit.author_name != self.edit_buffer {
                     commit.author_name = self.edit_buffer.clone();
                     commit.modifications.author_name_changed =
                         commit.original.author_name != commit.author_name;
-                    commit.is_modified = true;
                 }
             }
             TableColumn::AuthorEmail => {
@@ -484,20 +558,15 @@ impl InteractiveTable {
                     commit.author_email = self.edit_buffer.clone();
                     commit.modifications.author_email_changed =
                         commit.original.author_email != commit.author_email;
-                    commit.is_modified = true;
                 }
             }
             TableColumn::Timestamp => {
-                let new_timestamp =
-                    NaiveDateTime::parse_from_str(&self.edit_buffer, "%Y-%m-%d %H:%M:%S")
-                        .map_err(|_| "Invalid timestamp format (use YYYY-MM-DD HH:MM:SS)")?;
-
-                if commit.timestamp != new_timestamp {
-                    commit.timestamp = new_timestamp;
-                    commit.modifications.timestamp_changed =
-                        commit.original.timestamp != commit.timestamp;
-                    commit.is_modified = true;
-                }
+                let time = parse_git_time(&self.edit_buffer)?;
+                commit.timestamp = parse_utc(&self.edit_buffer)?;
+                commit.offset_minutes = time.offset_minutes;
+                commit.modifications.timestamp_changed = commit.original.timestamp
+                    != commit.timestamp
+                    || commit.original.author_offset_min != commit.offset_minutes;
             }
             TableColumn::Message => {
                 if self.edit_buffer.trim().is_empty() {
@@ -507,16 +576,22 @@ impl InteractiveTable {
                     commit.message = self.edit_buffer.clone();
                     commit.modifications.message_changed =
                         commit.original.message != commit.message;
-                    commit.is_modified = true;
                 }
             }
             _ => {}
         }
+        // A value edited back to the original no longer counts as a change.
+        let m = &commit.modifications;
+        commit.is_modified = m.author_name_changed
+            || m.author_email_changed
+            || m.timestamp_changed
+            || m.message_changed;
         Ok(())
     }
 
     fn run(&mut self) -> Result<bool> {
-        let result = loop {
+        let _terminal = TerminalGuard::enter()?;
+        loop {
             // Disable raw mode for drawing the table
             let _ = terminal::disable_raw_mode();
             self.draw_table();
@@ -524,42 +599,42 @@ impl InteractiveTable {
             // Enable raw mode only for reading input
             terminal::enable_raw_mode()?;
 
-            if let Event::Key(KeyEvent {
-                code,
-                kind: KeyEventKind::Press,
-                ..
-            }) = event::read()?
-            {
-                let should_continue = if self.editing {
-                    match self.handle_edit_key_input(code) {
-                        Ok(cont) => cont,
-                        Err(_) => break Ok(false),
-                    }
-                } else {
-                    match self.handle_navigation_key_input(code) {
-                        Ok(cont) => cont,
-                        Err(_) => break Ok(false),
-                    }
-                };
-
-                if !should_continue {
-                    break Ok(true); // User wants to save
+            if let Event::Key(key) = event::read()? {
+                if key.kind != KeyEventKind::Press {
+                    continue;
+                }
+                match self.handle_key(key) {
+                    TableAction::Continue => {}
+                    TableAction::SaveAndExit => break Ok(true),
+                    TableAction::Cancel => break Ok(false),
                 }
             }
-        };
-
-        self.restore_terminal();
-        result
-    }
-
-    fn restore_terminal(&self) {
-        let _ = terminal::disable_raw_mode();
-        let _ = io::stdout().execute(Clear(ClearType::All));
-        let _ = io::stdout().execute(cursor::MoveTo(0, 0));
+        }
     }
 
     fn get_modified_commits(&self) -> Vec<&CommitEdit> {
         self.commits.iter().filter(|c| c.is_modified).collect()
+    }
+}
+
+/// Lines used by the table header, footer and help text.
+const TABLE_CHROME_LINES: usize = 12;
+
+/// First visible row and number of rows for a window of `height` rows that keeps `current` visible.
+fn viewport(current: usize, total: usize, height: usize) -> (usize, usize) {
+    let height = height.max(3).min(total);
+    let first = current.saturating_sub(height / 2).min(total - height);
+    (first, height)
+}
+
+/// Shorten `text` to at most `max_width` characters (never splitting a UTF-8 char).
+fn truncate_chars(text: &str, max_width: usize) -> String {
+    let text = &*crate::utils::sanitize::safe(text);
+    if text.chars().count() > max_width {
+        let kept: String = text.chars().take(max_width.saturating_sub(1)).collect();
+        format!("{kept}…")
+    } else {
+        text.to_string()
     }
 }
 
@@ -601,11 +676,11 @@ pub fn parse_range_input(input: &str, total_commits: usize) -> Result<(usize, us
 }
 
 pub fn select_commit_range(commits: &[CommitInfo]) -> Result<(usize, usize)> {
-    println!("\n{}", "Commit History:".bold().green());
-    println!("{}", "-".repeat(80).cyan());
+    crate::say!("\n{}", "Commit History:".bold().green());
+    crate::say!("{}", "-".repeat(80).cyan());
 
     for (i, commit) in commits.iter().enumerate() {
-        println!(
+        crate::say!(
             "{:3}. {} {} {} {}",
             i + 1,
             commit.short_hash.yellow().bold(),
@@ -614,34 +689,36 @@ pub fn select_commit_range(commits: &[CommitInfo]) -> Result<(usize, usize)> {
                 .format("%Y-%m-%d %H:%M:%S")
                 .to_string()
                 .blue(),
-            commit.author_name.magenta(),
-            commit.message.lines().next().unwrap_or("").white()
+            crate::utils::sanitize::safe(&commit.author_name).magenta(),
+            crate::utils::sanitize::safe(commit.message.lines().next().unwrap_or("")).white()
         );
     }
 
-    println!("{}", "-".repeat(80).cyan());
-    println!(
+    crate::say!("{}", "-".repeat(80).cyan());
+    crate::say!(
         "\n{}",
         "Enter range in format 'start-end' (e.g., '5-11') or '*' for all commits:"
             .bold()
             .green()
     );
-    print!("{} {} ", "Range:".bold(), "(Esc to cancel)".bright_black());
+    crate::say_inline!("{} {} ", "Range:".bold(), "(Esc to cancel)".bright_black());
     io::stdout().flush()?;
 
     let input = read_prompted_line()?;
+    parse_selection(&input, commits.len())
+}
 
-    let (start, end) = parse_range_input(&input, commits.len())?;
-
-    if start > commits.len() || end > commits.len() {
-        return Err(format!(
-            "Range out of bounds. Available commits: 1-{}",
-            commits.len()
-        )
-        .into());
+/// Parse `N-M`, `N` or `*` (1-based, 1 = newest) into 0-based inclusive indices.
+pub fn parse_selection(input: &str, total_commits: usize) -> Result<(usize, usize)> {
+    let input = input.trim();
+    let (start, end) = match input.parse::<usize>() {
+        Ok(single) => (single, single),
+        Err(_) => parse_range_input(input, total_commits)?,
+    };
+    if start < 1 || end > total_commits {
+        return Err(format!("Range out of bounds. Available commits: 1-{total_commits}").into());
     }
-
-    Ok((start - 1, end - 1)) // Convert to 0-based indexing
+    Ok((start - 1, end - 1))
 }
 
 pub fn show_range_details(commits: &[CommitInfo], start_idx: usize, end_idx: usize) -> Result<()> {
@@ -649,25 +726,25 @@ pub fn show_range_details(commits: &[CommitInfo], start_idx: usize, end_idx: usi
     let is_all_commits = total_selected == commits.len();
 
     if is_all_commits {
-        println!("\n{}", "Selected All Commits for Editing:".bold().green());
+        crate::say!("\n{}", "Selected All Commits for Editing:".bold().green());
     } else {
-        println!("\n{}", "Selected Commit Range:".bold().green());
+        crate::say!("\n{}", "Selected Commit Range:".bold().green());
     }
-    println!("{}", "=".repeat(80).cyan());
+    crate::say!("{}", "=".repeat(80).cyan());
 
     for (idx, commit) in commits[start_idx..=end_idx].iter().enumerate() {
-        println!(
+        crate::say!(
             "\n{}: {} ({})",
             format!("Commit {}", start_idx + idx + 1).bold(),
             commit.short_hash.yellow(),
             &commit.oid.to_string()[..8]
         );
-        println!(
+        crate::say!(
             "{}: {}",
             "Author".bold(),
             format!("{} <{}>", commit.author_name, commit.author_email).magenta()
         );
-        println!(
+        crate::say!(
             "{}: {}",
             "Date".bold(),
             commit
@@ -676,23 +753,23 @@ pub fn show_range_details(commits: &[CommitInfo], start_idx: usize, end_idx: usi
                 .to_string()
                 .blue()
         );
-        println!(
+        crate::say!(
             "{}: {}",
             "Message".bold(),
-            commit.message.lines().next().unwrap_or("").white()
+            crate::utils::sanitize::safe(commit.message.lines().next().unwrap_or("")).white()
         );
     }
 
-    println!("\n{}", "=".repeat(80).cyan());
+    crate::say!("\n{}", "=".repeat(80).cyan());
     if is_all_commits {
-        println!(
+        crate::say!(
             "{} {} commits selected for editing {}",
             "Total:".bold(),
             total_selected.to_string().green(),
             "(ALL COMMITS)".bold().yellow()
         );
     } else {
-        println!(
+        crate::say!(
             "{} {} commits selected for editing",
             "Total:".bold(),
             total_selected.to_string().green()
@@ -702,101 +779,18 @@ pub fn show_range_details(commits: &[CommitInfo], start_idx: usize, end_idx: usi
     Ok(())
 }
 
-pub fn get_range_edit_info(args: &Args) -> Result<(String, String, NaiveDateTime, NaiveDateTime)> {
-    println!("\n{}", "Range Edit Configuration:".bold().green());
-
-    // Get author name
-    let author_name = if let Some(name) = &args.name {
-        name.clone()
-    } else {
-        print!(
-            "{} {} ",
-            "New author name:".bold(),
-            "(Esc to cancel)".bright_black()
-        );
-        io::stdout().flush()?;
-        read_prompted_line()?
-    };
-
-    // Get author email
-    let author_email = if let Some(email) = &args.email {
-        email.clone()
-    } else {
-        print!(
-            "{} {} ",
-            "New author email:".bold(),
-            "(Esc to cancel)".bright_black()
-        );
-        io::stdout().flush()?;
-        read_prompted_line()?
-    };
-
-    // Get start timestamp
-    let start_timestamp = if let Some(start) = &args.start {
-        NaiveDateTime::parse_from_str(start, "%Y-%m-%d %H:%M:%S")
-            .map_err(|_| "Invalid start timestamp format")?
-    } else {
-        print!(
-            "{} {} ",
-            "Start timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
-            "(Esc to cancel)".bright_black()
-        );
-        io::stdout().flush()?;
-        let input = read_prompted_line()?;
-        NaiveDateTime::parse_from_str(&input, "%Y-%m-%d %H:%M:%S")
-            .map_err(|_| "Invalid start timestamp format")?
-    };
-
-    // Get end timestamp
-    let end_timestamp = if let Some(end) = &args.end {
-        NaiveDateTime::parse_from_str(end, "%Y-%m-%d %H:%M:%S")
-            .map_err(|_| "Invalid end timestamp format")?
-    } else {
-        print!(
-            "{} {} ",
-            "End timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
-            "(Esc to cancel)".bright_black()
-        );
-        io::stdout().flush()?;
-        let input = read_prompted_line()?;
-        NaiveDateTime::parse_from_str(&input, "%Y-%m-%d %H:%M:%S")
-            .map_err(|_| "Invalid end timestamp format")?
-    };
-
-    if end_timestamp <= start_timestamp {
-        return Err("End timestamp must be after start timestamp".into());
-    }
-
-    Ok((author_name, author_email, start_timestamp, end_timestamp))
-}
-
-pub fn generate_range_timestamps(
-    start_time: NaiveDateTime,
-    end_time: NaiveDateTime,
-    count: usize,
-) -> Vec<NaiveDateTime> {
-    if count == 0 {
-        return vec![];
-    }
-
-    if count == 1 {
-        return vec![start_time];
-    }
-
-    let total_duration = end_time.signed_duration_since(start_time);
-    let step_duration = total_duration / (count - 1) as i32;
-
-    (0..count)
-        .map(|i| start_time + step_duration * i as i32)
-        .collect()
-}
-
 pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     let commits = get_commit_history(args, false)?;
 
     if commits.is_empty() {
-        println!("{}", "No commits found!".red());
+        crate::say!("{}", "No commits found!".red());
         return Ok(());
+    }
+    // Fail early on a detached/unborn HEAD and remember the tip the edits are based on.
+    let head = engine::current_branch(&Repository::open(args.repo_path.as_ref().unwrap())?)?.head;
+
+    if let Some(selection) = &args.select {
+        return rewrite_selection_from_flags(args, &commits, selection, head);
     }
 
     let (start_idx, end_idx) = select_commit_range(&commits)?;
@@ -812,23 +806,22 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     let should_save = table.run()?;
 
     if !should_save {
-        println!("{}", "Operation cancelled.".yellow());
-        return Ok(());
+        return Err(cancelled());
     }
 
     let modified_commits = table.get_modified_commits();
 
     if modified_commits.is_empty() {
-        println!("{}", "No changes made.".yellow());
+        crate::say!("{}", "No changes made.".yellow());
         return Ok(());
     }
 
     // Show summary of changes
-    println!("\n{}", "Summary of Changes:".bold().green());
-    println!("{}", "=".repeat(80).cyan());
+    crate::say!("\n{}", "Summary of Changes:".bold().green());
+    crate::say!("{}", "=".repeat(80).cyan());
 
     for commit_edit in &modified_commits {
-        println!(
+        crate::say!(
             "\n{}: {} ({})",
             format!("Commit {}", commit_edit.index + 1).bold(),
             commit_edit.original.short_hash.yellow(),
@@ -836,25 +829,25 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
         );
 
         if commit_edit.modifications.author_name_changed {
-            println!(
+            crate::say!(
                 "  {}: {} -> {}",
                 "Author Name".bold(),
-                commit_edit.original.author_name.red(),
-                commit_edit.author_name.green()
+                crate::utils::sanitize::safe(&commit_edit.original.author_name).red(),
+                crate::utils::sanitize::safe(&commit_edit.author_name).green()
             );
         }
 
         if commit_edit.modifications.author_email_changed {
-            println!(
+            crate::say!(
                 "  {}: {} -> {}",
                 "Author Email".bold(),
-                commit_edit.original.author_email.red(),
-                commit_edit.author_email.green()
+                crate::utils::sanitize::safe(&commit_edit.original.author_email).red(),
+                crate::utils::sanitize::safe(&commit_edit.author_email).green()
             );
         }
 
         if commit_edit.modifications.timestamp_changed {
-            println!(
+            crate::say!(
                 "  {}: {} -> {}",
                 "Timestamp".bold(),
                 commit_edit
@@ -874,33 +867,29 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
         if commit_edit.modifications.message_changed {
             let original_first_line = commit_edit.original.message.lines().next().unwrap_or("");
             let new_first_line = commit_edit.message.lines().next().unwrap_or("");
-            println!(
+            crate::say!(
                 "  {}: {} -> {}",
                 "Message".bold(),
-                original_first_line.red(),
-                new_first_line.green()
+                crate::utils::sanitize::safe(original_first_line).red(),
+                crate::utils::sanitize::safe(new_first_line).green()
             );
         }
     }
 
-    print!(
-        "\n{} {} ",
-        "Apply these changes? (y/n):".bold(),
-        "(Esc to cancel)".bright_black()
-    );
-    io::stdout().flush()?;
-
-    let confirm = read_prompted_line()?;
-
-    if confirm.to_lowercase() != "y" {
-        println!("{}", "Operation cancelled.".yellow());
+    if args.simulate {
+        let plan = plan_from_table(&table.commits, args.committer.into());
+        let preview = simulation_from_plan(&commits, &plan, "Range Edit");
+        report_simulation(&preview, args.show_diff, true);
+        crate::say!("{}", "Simulation only: nothing was written.".cyan());
         return Ok(());
     }
 
-    // Apply changes
-    apply_interactive_range_changes(args, &commits, &table.commits)?;
+    if !confirm(&format!("\n{}", "Apply these changes?".bold()), args.yes)? {
+        return Err(cancelled());
+    }
 
-    println!("\n{}", "✓ Commit range successfully edited!".green().bold());
+    // Apply changes
+    apply_interactive_range_changes(args, &table.commits, head)?;
 
     if args.show_history {
         get_commit_history(args, true)?;
@@ -909,122 +898,141 @@ pub fn rewrite_range_commits(args: &Args) -> Result<()> {
     Ok(())
 }
 
-fn apply_interactive_range_changes(
+/// Non-interactive range edit: `--select` with `--name/--email/--begin/--end`.
+fn rewrite_selection_from_flags(
     args: &Args,
-    _original_commits: &[CommitInfo],
-    edited_commits: &[CommitEdit],
+    commits: &[CommitInfo],
+    selection: &str,
+    expected_head: git2::Oid,
 ) -> Result<()> {
-    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
-    let head_ref = repo.head()?;
-    let branch_name = head_ref
-        .shorthand()
-        .ok_or("Detached HEAD or invalid branch")?;
-    let full_ref = format!("refs/heads/{branch_name}");
+    let (first, last) = parse_selection(selection, commits.len())?;
+    // Selected commits, oldest first.
+    let selected: Vec<&CommitInfo> = commits[first..=last].iter().rev().collect();
 
-    let mut revwalk = repo.revwalk()?;
-    revwalk.push_head()?;
-    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
-    let mut orig_oids: Vec<_> = revwalk.collect::<std::result::Result<Vec<_>, _>>()?;
-    let total_commits = orig_oids.len();
-    orig_oids.reverse();
-
-    // Create a map for quick lookup of edited commits.
-    // commit_edit.index is in display order (newest-first, from get_commit_history),
-    // but orig_oids is now in chronological order (oldest-first) after the reverse.
-    // Convert: chronological_idx = total_commits - 1 - display_idx
-    let mut edit_map: HashMap<usize, &CommitEdit> = HashMap::new();
-    for commit_edit in edited_commits {
-        if commit_edit.is_modified {
-            let chronological_idx = total_commits - 1 - commit_edit.index;
-            edit_map.insert(chronological_idx, commit_edit);
+    if let Some(name) = &args.name {
+        validate_identity_part(name, "Author name")?;
+    }
+    if let Some(email) = &args.email {
+        if !is_valid_email(email) {
+            return Err(format!("Invalid email format: {email}").into());
         }
     }
-
-    let mut new_map: HashMap<git2::Oid, git2::Oid> = HashMap::new();
-    let mut last_new_oid = None;
-
-    for (commit_idx, &oid) in orig_oids.iter().enumerate() {
-        let orig = repo.find_commit(oid)?;
-        let tree = orig.tree()?;
-
-        let new_parents: Result<Vec<_>> = orig
-            .parent_ids()
-            .map(|pid| {
-                let new_pid = *new_map.get(&pid).unwrap_or(&pid);
-                repo.find_commit(new_pid).map_err(|e| e.into())
-            })
-            .collect();
-
-        let new_oid = if let Some(commit_edit) = edit_map.get(&commit_idx) {
-            // This commit has been edited - apply changes
-            let author_sig = Signature::new(
-                &commit_edit.author_name,
-                &commit_edit.author_email,
-                &Time::new(commit_edit.timestamp.and_utc().timestamp(), 0),
+    let times: Option<Vec<GitTime>> = match (&args.start, &args.end) {
+        (Some(begin), Some(end)) => {
+            let spread = spread_timestamps(
+                parse_utc(begin)?,
+                parse_utc(end)?,
+                selected.len(),
+                args.skip_range_check,
             )?;
-
-            let committer_sig = Signature::new(
-                &commit_edit.author_name,
-                &commit_edit.author_email,
-                &Time::new(commit_edit.timestamp.and_utc().timestamp(), 0),
-            )?;
-
-            // Use the edited message or keep the original if not changed
-            let base_message = if commit_edit.modifications.message_changed {
-                commit_edit.message.as_str()
-            } else {
-                orig.message().unwrap_or_default()
-            };
-            let message = rewrite_author_trailers(
-                base_message,
-                &commit_edit.original.author_name,
-                &commit_edit.original.author_email,
-                &commit_edit.author_name,
-                &commit_edit.author_email,
-            );
-
-            repo.commit(
-                None,
-                &author_sig,
-                &committer_sig,
-                &message,
-                &tree,
-                &new_parents?.iter().collect::<Vec<_>>(),
-            )?
-        } else {
-            // Keep other commits as-is but update parent references
-            let author = orig.author();
-            let committer = orig.committer();
-
-            repo.commit(
-                None,
-                &author,
-                &committer,
-                orig.message().unwrap_or_default(),
-                &tree,
-                &new_parents?.iter().collect::<Vec<_>>(),
-            )?
-        };
-
-        new_map.insert(oid, new_oid);
-        last_new_oid = Some(new_oid);
-    }
-
-    if let Some(new_head) = last_new_oid {
-        repo.reference(
-            &full_ref,
-            new_head,
-            true,
-            "edited commit range interactively",
-        )?;
-        println!(
-            "{} '{}' -> {}",
-            "Updated branch".green(),
-            branch_name.cyan(),
-            new_head.to_string()[..8].to_string().cyan()
+            let offset = begin_offset(args);
+            Some(
+                spread
+                    .iter()
+                    .map(|t| GitTime::new(t.and_utc().timestamp(), offset))
+                    .collect(),
+            )
+        }
+        (None, None) => None,
+        _ => return Err("--begin and --end must be given together".into()),
+    };
+    if args.name.is_none() && args.email.is_none() && times.is_none() {
+        return Err(
+            "Nothing to change: pass --name, --email and/or --begin/--end with --select".into(),
         );
     }
+    if let Some(times) = &times {
+        warn_if_out_of_order(commits, first, last, times);
+    }
 
+    let edits = selected
+        .iter()
+        .enumerate()
+        .map(|(i, commit)| {
+            let edit = Edit {
+                name: args.name.clone(),
+                email: args.email.clone(),
+                time: times.as_ref().map(|t| t[i]),
+                message: None,
+            };
+            (commit.oid, edit)
+        })
+        .collect();
+    let plan = Plan {
+        edits,
+        committer: args.committer.into(),
+    };
+
+    let preview = simulation_from_plan(commits, &plan, "Range Edit");
+    report_simulation(&preview, args.show_diff, args.simulate);
+    if args.simulate {
+        crate::say!("{}", "Simulation only: nothing was written.".cyan());
+        return Ok(());
+    }
+    if !confirm(&format!("\n{}", "Apply these changes?".bold()), args.yes)? {
+        return Err(cancelled());
+    }
+    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
+    let outcome = engine::apply(&repo, &plan, expected_head)?;
+    print_outcome(&outcome);
+    Ok(())
+}
+
+/// Warn when new dates would put the selection before its parent or after its child.
+fn warn_if_out_of_order(commits: &[CommitInfo], first: usize, last: usize, times: &[GitTime]) {
+    let older_neighbor = commits
+        .get(last + 1)
+        .map(|c| c.timestamp.and_utc().timestamp());
+    let newer_neighbor = first
+        .checked_sub(1)
+        .map(|i| commits[i].timestamp.and_utc().timestamp());
+    let (Some(earliest), Some(latest)) = (times.first(), times.last()) else {
+        return;
+    };
+    if older_neighbor.is_some_and(|t| t > earliest.seconds)
+        || newer_neighbor.is_some_and(|t| t < latest.seconds)
+    {
+        crate::say!(
+            "{} the new dates are not in order with the commits around the selection",
+            "Warning:".yellow().bold()
+        );
+    }
+}
+
+/// Plan for the commits edited in the table (keyed by id; untouched commits are absent).
+fn plan_from_table(
+    edited_commits: &[CommitEdit],
+    committer: crate::rewrite::engine::CommitterMode,
+) -> Plan {
+    let edits = edited_commits
+        .iter()
+        .filter(|c| c.is_modified)
+        .map(|c| {
+            let m = &c.modifications;
+            let edit = Edit {
+                name: m.author_name_changed.then(|| c.author_name.clone()),
+                email: m.author_email_changed.then(|| c.author_email.clone()),
+                time: m
+                    .timestamp_changed
+                    .then(|| GitTime::new(c.timestamp.and_utc().timestamp(), c.offset_minutes)),
+                message: m.message_changed.then(|| c.message.clone()),
+            };
+            (c.original.oid, edit)
+        })
+        .collect();
+    Plan { edits, committer }
+}
+
+/// Rewrite only the commits edited in the table; older commits keep their ids.
+fn apply_interactive_range_changes(
+    args: &Args,
+    edited_commits: &[CommitEdit],
+    expected_head: git2::Oid,
+) -> Result<()> {
+    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
+    let plan = plan_from_table(edited_commits, args.committer.into());
+    let outcome = engine::apply(&repo, &plan, expected_head)?;
+    print_outcome(&outcome);
     Ok(())
 }
 
@@ -1084,6 +1092,95 @@ mod tests {
         (temp_dir, repo_path)
     }
 
+    fn table_with_one_commit() -> InteractiveTable {
+        let commit = CommitInfo {
+            author_name: "Old Author".into(),
+            author_email: "old@example.com".into(),
+            message: "msg\n".into(),
+            ..Default::default()
+        };
+        InteractiveTable::new(vec![commit], 0, 0, (true, true, true, true))
+    }
+
+    #[test]
+    fn test_validation_error_is_not_saved_as_value() {
+        let mut table = table_with_one_commit();
+        table.current_col = TableColumn::AuthorName;
+        table.start_editing();
+        for _ in 0.."Old Author".len() {
+            table.handle_edit_key_input(KeyCode::Backspace);
+        }
+        table.handle_edit_key_input(KeyCode::Enter);
+        assert!(table.status.is_some());
+        assert!(table.editing);
+        assert_eq!(table.edit_buffer, "");
+        table.handle_edit_key_input(KeyCode::Enter);
+        assert_eq!(table.commits[0].author_name, "Old Author");
+        assert!(!table.commits[0].is_modified);
+    }
+
+    #[test]
+    fn test_ctrl_c_and_q_cancel_esc_saves() {
+        let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+        let mut table = table_with_one_commit();
+        assert_eq!(table.handle_key(ctrl_c), TableAction::Cancel);
+        table.start_editing();
+        assert_eq!(table.handle_key(ctrl_c), TableAction::Cancel);
+        assert!(!table.edit_buffer.ends_with('c'));
+
+        let mut table = table_with_one_commit();
+        let q = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE);
+        assert_eq!(table.handle_key(q), TableAction::Cancel);
+        let esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+        assert_eq!(table.handle_key(esc), TableAction::SaveAndExit);
+    }
+
+    #[test]
+    fn test_reverted_edit_is_not_a_change() {
+        let mut table = table_with_one_commit();
+        table.current_col = TableColumn::AuthorName;
+        table.start_editing();
+        table.edit_buffer = "Someone Else".into();
+        table.handle_edit_key_input(KeyCode::Enter);
+        assert!(table.commits[0].is_modified);
+        table.start_editing();
+        table.edit_buffer = "Old Author".into();
+        table.handle_edit_key_input(KeyCode::Enter);
+        assert!(!table.commits[0].is_modified);
+        assert!(table.get_modified_commits().is_empty());
+    }
+
+    #[test]
+    fn test_viewport_keeps_current_row_visible() {
+        assert_eq!(viewport(0, 5, 20), (0, 5));
+        assert_eq!(viewport(0, 100, 10), (0, 10));
+        assert_eq!(viewport(50, 100, 10), (45, 10));
+        assert_eq!(viewport(99, 100, 10), (90, 10));
+        assert_eq!(viewport(1, 2, 0), (0, 2));
+        for current in 0..100 {
+            let (first, count) = viewport(current, 100, 7);
+            assert!(first <= current && current < first + count);
+        }
+    }
+
+    #[test]
+    fn test_truncate_chars_handles_multibyte_text() {
+        assert_eq!(truncate_chars("张三李四王五", 5), "张三李四…");
+        assert_eq!(truncate_chars("émoji 🎉 ok", 20), "émoji 🎉 ok");
+        assert_eq!(truncate_chars("abcdef", 4), "abc…");
+        assert_eq!(truncate_chars("", 3), "");
+    }
+
+    #[test]
+    fn test_parse_selection_bounds_and_forms() {
+        assert_eq!(parse_selection("2-4", 5).unwrap(), (1, 3));
+        assert_eq!(parse_selection("3", 5).unwrap(), (2, 2));
+        assert_eq!(parse_selection("*", 5).unwrap(), (0, 4));
+        assert!(parse_selection("4-9", 5).is_err());
+        assert!(parse_selection("0", 5).is_err());
+        assert!(parse_selection("3-2", 5).is_err());
+    }
+
     #[test]
     fn test_parse_range_input_valid() {
         let result = parse_range_input("5-11", 20);
@@ -1137,103 +1234,14 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_range_timestamps() {
-        let start =
-            NaiveDateTime::parse_from_str("2023-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-        let end =
-            NaiveDateTime::parse_from_str("2023-01-01 10:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-
-        let timestamps = generate_range_timestamps(start, end, 5);
-
-        assert_eq!(timestamps.len(), 5);
-        assert_eq!(timestamps[0], start);
-        assert_eq!(timestamps[4], end);
-
-        // Check that timestamps are evenly distributed
-        for i in 1..timestamps.len() {
-            assert!(timestamps[i] >= timestamps[i - 1]);
-        }
-    }
-
-    #[test]
-    fn test_generate_range_timestamps_edge_cases() {
-        let start =
-            NaiveDateTime::parse_from_str("2023-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-        let end =
-            NaiveDateTime::parse_from_str("2023-01-01 10:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-
-        // Zero count
-        let timestamps = generate_range_timestamps(start, end, 0);
-        assert_eq!(timestamps.len(), 0);
-
-        // Single timestamp
-        let timestamps = generate_range_timestamps(start, end, 1);
-        assert_eq!(timestamps.len(), 1);
-        assert_eq!(timestamps[0], start);
-    }
-
-    #[test]
-    fn test_rewrite_range_commits_with_repo() {
-        let (_temp_dir, repo_path) = create_test_repo_with_commits();
-        let args = Args {
-            repo_path: Some(repo_path),
-            email: Some("new@example.com".to_string()),
-            name: Some("New User".to_string()),
-            start: Some("2023-01-01 00:00:00".to_string()),
-            end: Some("2023-01-01 10:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
-        };
-
-        // Test that get_commit_history returns commits for this repo
-        let commits = get_commit_history(&args, false).unwrap();
-        assert_eq!(commits.len(), 5);
-
-        // Test range validation
-        let (start, end) = (0, 2); // 0-based indexing
-        assert!(start <= end);
-        assert!(end < commits.len());
-
-        // Test timestamp generation
-        let start_time =
-            NaiveDateTime::parse_from_str("2023-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-        let end_time =
-            NaiveDateTime::parse_from_str("2023-01-01 10:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-        let timestamps = generate_range_timestamps(start_time, end_time, 3);
-        assert_eq!(timestamps.len(), 3);
-    }
-
-    #[test]
     fn test_apply_range_changes_correct_commit_ordering() {
         // This test verifies that editing commit at display index 0 (newest)
         // actually modifies the newest commit, not the oldest.
         let (_temp_dir, repo_path) = create_test_repo_with_commits();
         let args = Args {
             repo_path: Some(repo_path.clone()),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
             range: true,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         // get_commit_history returns newest-first
@@ -1255,6 +1263,7 @@ mod tests {
                 author_name: c.author_name.clone(),
                 author_email: c.author_email.clone(),
                 timestamp: c.timestamp,
+                offset_minutes: c.author_offset_min,
                 message: c.message.clone(),
                 is_modified: false,
                 modifications: ModificationFlags::default(),
@@ -1267,7 +1276,8 @@ mod tests {
         edited_commits[0].modifications.timestamp_changed = true;
 
         // Apply changes
-        apply_interactive_range_changes(&args, &commits, &edited_commits).unwrap();
+        let original_ids: Vec<_> = commits.iter().map(|c| c.oid).collect();
+        apply_interactive_range_changes(&args, &edited_commits, commits[0].oid).unwrap();
 
         // Re-read and verify
         let updated_commits = get_commit_history(&args, false).unwrap();
@@ -1285,12 +1295,49 @@ mod tests {
             "Oldest commit should NOT have the edited timestamp"
         );
 
-        // All other commits should retain their original timestamps
+        // All older commits are reused untouched: same ids, same timestamps.
         for (i, commit) in updated_commits.iter().enumerate().skip(1) {
-            assert_ne!(
-                commit.timestamp, new_timestamp,
-                "Commit at index {i} should not have the edited timestamp"
-            );
+            assert_eq!(commit.oid, original_ids[i], "commit {i} must keep its id");
+            assert_eq!(commit.timestamp, commits[i].timestamp);
         }
+    }
+
+    #[test]
+    fn test_editing_middle_commit_keeps_older_commit_ids() {
+        let (_temp_dir, repo_path) = create_test_repo_with_commits();
+        let args = Args {
+            repo_path: Some(repo_path.clone()),
+            range: true,
+            ..Default::default()
+        };
+        let commits = get_commit_history(&args, false).unwrap();
+        let mut edits: Vec<CommitEdit> = commits
+            .iter()
+            .enumerate()
+            .map(|(i, c)| CommitEdit {
+                index: i,
+                original: c.clone(),
+                author_name: c.author_name.clone(),
+                author_email: c.author_email.clone(),
+                timestamp: c.timestamp,
+                offset_minutes: c.author_offset_min,
+                message: c.message.clone(),
+                is_modified: false,
+                modifications: ModificationFlags::default(),
+            })
+            .collect();
+        // Display index 2 = "Commit 3"; commits 1 and 2 are older.
+        edits[2].timestamp += chrono::Duration::hours(1);
+        edits[2].is_modified = true;
+        edits[2].modifications.timestamp_changed = true;
+
+        apply_interactive_range_changes(&args, &edits, commits[0].oid).unwrap();
+
+        let updated = get_commit_history(&args, false).unwrap();
+        assert_eq!(updated[3].oid, commits[3].oid);
+        assert_eq!(updated[4].oid, commits[4].oid);
+        assert_ne!(updated[2].oid, commits[2].oid);
+        assert_eq!(updated[2].timestamp, edits[2].timestamp);
+        assert_eq!(updated[0].message, "Commit 5");
     }
 }

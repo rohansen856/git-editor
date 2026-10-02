@@ -1,8 +1,10 @@
 /// Rewrite author-related trailers in a commit message when identity changes.
 ///
-/// Updates `Signed-off-by`, `Co-authored-by`, and `Authored-by` lines whose email
-/// matches `old_email` (case-insensitive). Body text and unrelated trailers are
-/// left unchanged. Does not invent trailers.
+/// Only the trailer block — the last paragraph of a message that has more
+/// than one paragraph — is considered. `Signed-off-by`, `Co-authored-by` and
+/// `Authored-by` lines there whose email matches `old_email`
+/// (case-insensitive) are rewritten; everything else, including line endings
+/// (`\n` or `\r\n`), is left byte-for-byte unchanged. Does not invent trailers.
 pub fn rewrite_author_trailers(
     message: &str,
     old_name: &str,
@@ -10,27 +12,53 @@ pub fn rewrite_author_trailers(
     new_name: &str,
     new_email: &str,
 ) -> String {
-    if old_email.eq_ignore_ascii_case(new_email) && old_name == new_name {
+    if old_email == new_email && old_name == new_name {
         return message.to_string();
     }
 
-    let ends_with_newline = message.ends_with('\n');
-    let lines: Vec<&str> = message.lines().collect();
-    let mut out = Vec::with_capacity(lines.len());
+    let lines: Vec<&str> = message.split_inclusive('\n').collect();
+    let Some(block_start) = trailer_block_start(&lines) else {
+        return message.to_string();
+    };
 
-    for line in lines {
-        if let Some(rewritten) = rewrite_trailer_line(line, old_email, new_name, new_email) {
-            out.push(rewritten);
-        } else {
-            out.push(line.to_string());
+    let mut out = String::with_capacity(message.len());
+    for (i, line) in lines.iter().enumerate() {
+        let (content, ending) = split_line_ending(line);
+        match (i >= block_start)
+            .then(|| rewrite_trailer_line(content, old_email, new_name, new_email))
+            .flatten()
+        {
+            Some(rewritten) => {
+                out.push_str(&rewritten);
+                out.push_str(ending);
+            }
+            None => out.push_str(line),
         }
     }
+    out
+}
 
-    let mut result = out.join("\n");
-    if ends_with_newline && !result.ends_with('\n') {
-        result.push('\n');
+fn split_line_ending(line: &str) -> (&str, &str) {
+    if let Some(content) = line.strip_suffix("\r\n") {
+        (content, "\r\n")
+    } else if let Some(content) = line.strip_suffix('\n') {
+        (content, "\n")
+    } else {
+        (line, "")
     }
-    result
+}
+
+/// Index of the first line of the trailer block (last paragraph), if the
+/// message has a paragraph before it.
+fn trailer_block_start(lines: &[&str]) -> Option<usize> {
+    let blank = |l: &&str| split_line_ending(l).0.trim().is_empty();
+    let last_content = lines.iter().rposition(|l| !blank(l))?;
+    let separator = lines[..last_content].iter().rposition(blank)?;
+    // There must be a non-blank paragraph (e.g. the subject) before the block.
+    lines[..separator]
+        .iter()
+        .any(|l| !blank(l))
+        .then_some(separator + 1)
 }
 
 fn rewrite_trailer_line(
@@ -136,6 +164,43 @@ mod tests {
         let out = rewrite_author_trailers(msg, "Old", "old@ex.com", "New", "new@ex.com");
         assert!(out.contains("Co-authored-by: New <new@ex.com>"));
         assert!(out.contains("Authored-by: New <new@ex.com>"));
+    }
+
+    #[test]
+    fn ignores_signoff_lines_outside_the_trailer_block() {
+        let msg =
+            "x\n\nAs documented:\nSigned-off-by: old@ex.com\n\nSigned-off-by: Old <old@ex.com>\n";
+        let out = rewrite_author_trailers(msg, "Old", "old@ex.com", "New", "new@ex.com");
+        assert_eq!(
+            out,
+            "x\n\nAs documented:\nSigned-off-by: old@ex.com\n\nSigned-off-by: New <new@ex.com>\n"
+        );
+    }
+
+    #[test]
+    fn subject_only_message_has_no_trailers() {
+        let msg = "Signed-off-by: Old <old@ex.com>\n";
+        assert_eq!(
+            rewrite_author_trailers(msg, "Old", "old@ex.com", "New", "new@ex.com"),
+            msg
+        );
+    }
+
+    #[test]
+    fn preserves_crlf_line_endings() {
+        let msg = "subj\r\n\r\nbody\r\n\r\nSigned-off-by: Old <old@ex.com>\r\n";
+        let out = rewrite_author_trailers(msg, "Old", "old@ex.com", "New", "new@ex.com");
+        assert_eq!(
+            out,
+            "subj\r\n\r\nbody\r\n\r\nSigned-off-by: New <new@ex.com>\r\n"
+        );
+    }
+
+    #[test]
+    fn email_case_change_is_rewritten() {
+        let msg = "x\n\nSigned-off-by: Me <me@ex.com>\n";
+        let out = rewrite_author_trailers(msg, "Me", "me@ex.com", "Me", "Me@Ex.com");
+        assert_eq!(out, "x\n\nSigned-off-by: Me <Me@Ex.com>\n");
     }
 
     #[test]

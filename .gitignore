@@ -1,2 +1,10 @@
 target
 .env
+
+# local audit artifacts (not part of the project)
+AUDIT/
+
+# coverage / packaging outputs
+cobertura.xml
+tarpaulin-report.html
+/wix/

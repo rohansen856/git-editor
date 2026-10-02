@@ -369,7 +369,7 @@ git-editor --help</code></pre>
             <h3>🔨 From Source</h3>
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                <pre><code># Prerequisites: Rust 1.72+ and Git
+                <pre><code># Prerequisites: Rust 1.87+ and a C compiler (libgit2 is built from source)
 rustup update stable
 
 # Clone and build
@@ -392,8 +392,11 @@ cargo install --path .</code></pre>
                 <pre><code># Build Docker image
 docker build -t git-editor .
 
-# Run with repository mounted
-docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs</code></pre>
+# Run with repository mounted (-it is required: every prompt needs a TTY).
+# The image runs as root; on Linux with rootful Docker, pass your uid so that
+# libgit2's repository-ownership check passes and no root-owned files are written:
+docker run -it --user "$(id -u):$(id -g)" -e HOME=/tmp \
+  -v /path/to/repo:/workspace git-editor --repo-path /workspace -s</code></pre>
             </div>
 
             <h3>📋 System Requirements</h3>
@@ -402,7 +405,7 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                     <li><strong>Operating System:</strong> Linux, macOS, Windows</li>
                     <li><strong>Memory:</strong> Minimum 100MB RAM</li>
                     <li><strong>Storage:</strong> 50MB for binary + temporary space for repository cloning</li>
-                    <li><strong>Git:</strong> Version 2.0+ (for git2 library compatibility)</li>
+                    <li><strong>Git:</strong> Not required at runtime: repositories, configuration and clones are handled by the bundled libgit2</li>
                     <li><strong>Network:</strong> Required only for Git URL cloning (docs are local HTML)</li>
                 </ul>
             </div>
@@ -456,7 +459,7 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                         <td><code>--simulate</code></td>
                         <td>Preview changes without applying</td>
                         <td>Safe testing and validation</td>
-                        <td>Depends on base mode</td>
+                        <td>Modifier for full rewrite, <code>-p</code> and <code>-x</code></td>
                     </tr>
                     <tr>
                         <td><span class="badge badge-info">Documentation</span></td>
@@ -510,40 +513,112 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                         <td><code>--email</code></td>
                         <td>-</td>
                         <td>Email</td>
-                        <td>Author email address (RFC 5322 compliant)</td>
+                        <td>New author email (full rewrite, <code>-p --commit</code>, <code>-x --select</code>)</td>
                         <td><code>--email user@example.com</code></td>
-                        <td>✅ (full rewrite only)</td>
+                        <td>Full rewrite (prompted if missing)</td>
                     </tr>
                     <tr>
                         <td><code>--name</code></td>
                         <td><code>-n</code></td>
                         <td>String</td>
-                        <td>Author display name</td>
+                        <td>New author name</td>
                         <td><code>-n "John Doe"</code></td>
-                        <td>✅ (full rewrite only)</td>
+                        <td>Full rewrite (prompted if missing)</td>
                     </tr>
                     <tr>
                         <td><code>--begin</code></td>
                         <td><code>-b</code></td>
                         <td>DateTime</td>
-                        <td>Start timestamp (YYYY-MM-DD HH:MM:SS)</td>
-                        <td><code>-b "2023-01-01 09:00:00"</code></td>
-                        <td>✅ (full rewrite only)</td>
+                        <td>First new date: <code>YYYY-MM-DD HH:MM:SS</code> (UTC), optionally with an offset such as <code>+05:30</code>, or RFC 3339</td>
+                        <td><code>-b "2023-01-01 09:00:00 +05:30"</code></td>
+                        <td>Full rewrite unless <code>--keep-dates</code></td>
                     </tr>
                     <tr>
                         <td><code>--end</code></td>
                         <td><code>-e</code></td>
                         <td>DateTime</td>
-                        <td>End timestamp (YYYY-MM-DD HH:MM:SS)</td>
+                        <td>Last new date (same formats)</td>
                         <td><code>-e "2023-12-31 17:00:00"</code></td>
-                        <td>✅ (full rewrite only)</td>
+                        <td>Full rewrite unless <code>--keep-dates</code></td>
                     </tr>
                     <tr>
                         <td><code>--skip-range-check</code></td>
                         <td>-</td>
                         <td>Flag</td>
-                        <td>Skip the minimum date-span check (≥3h between commits). Uses random spacing with a 5-minute minimum gap when the range is tight.</td>
+                        <td>Allow ranges shorter than 3h per commit: random gaps of at least 5 minutes, or even spacing when that does not fit (never duplicate seconds)</td>
                         <td><code>--skip-range-check</code></td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td><code>--keep-dates</code></td>
+                        <td>-</td>
+                        <td>Flag</td>
+                        <td>Full rewrite: keep every commit's original date and time zone</td>
+                        <td><code>--keep-dates</code></td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td><code>--committer</code></td>
+                        <td>-</td>
+                        <td>Enum</td>
+                        <td><code>match-author</code> (default): committer follows the edited author fields; <code>keep</code>: committer unchanged</td>
+                        <td><code>--committer keep</code></td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td><code>--commit</code></td>
+                        <td>-</td>
+                        <td>String</td>
+                        <td>With <code>-p</code>: commit number (1 = newest, as listed by <code>-s</code>) or hash prefix, no menu</td>
+                        <td><code>-p --commit 3</code></td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td><code>--set-date</code> / <code>--set-message</code></td>
+                        <td>-</td>
+                        <td>String</td>
+                        <td>With <code>-p --commit</code>: new author date / new message</td>
+                        <td><code>--set-message "Fix typo"</code></td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td><code>--select</code></td>
+                        <td>-</td>
+                        <td>Range</td>
+                        <td>With <code>-x</code>: <code>N-M</code>, <code>N</code> or <code>*</code>, no table; combine with <code>--name</code>, <code>--email</code>, <code>--begin</code>/<code>--end</code></td>
+                        <td><code>-x --select 2-5</code></td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td><code>--yes</code></td>
+                        <td><code>-y</code></td>
+                        <td>Flag</td>
+                        <td>Confirm automatically (scripts and agents)</td>
+                        <td><code>--yes</code></td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td><code>--json</code></td>
+                        <td>-</td>
+                        <td>Flag</td>
+                        <td>Print one JSON document on stdout (history, preview, result or error); progress goes to stderr</td>
+                        <td><code>-s --json</code></td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td><code>--clone-dir</code></td>
+                        <td>-</td>
+                        <td>Path</td>
+                        <td>When <code>--repo-path</code> is a URL, keep the clone in this directory (required to rewrite a URL)</td>
+                        <td><code>--clone-dir ./repo-copy</code></td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td><code>--docs-out</code></td>
+                        <td>-</td>
+                        <td>Path</td>
+                        <td>With <code>--docs</code>: write the HTML to this file</td>
+                        <td><code>--docs --docs-out docs.html</code></td>
                         <td>❌</td>
                     </tr>
                 </tbody>
@@ -565,35 +640,35 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                         <td><code>--show-history</code></td>
                         <td><code>-s</code></td>
                         <td>Display repository commit history</td>
-                        <td>All other modes</td>
+                        <td>Other mode flags (<code>-s</code>, <code>-p</code>, <code>-x</code>, <code>--docs</code>): rejected</td>
                         <td>None</td>
                     </tr>
                     <tr>
                         <td><code>--pick-specific-commits</code></td>
                         <td><code>-p</code></td>
                         <td>Interactive commit selection</td>
-                        <td>Full rewrite, range mode</td>
+                        <td>Other mode flags (<code>-s</code>, <code>-p</code>, <code>-x</code>, <code>--docs</code>): rejected</td>
                         <td>None</td>
                     </tr>
                     <tr>
                         <td><code>--range</code></td>
                         <td><code>-x</code></td>
                         <td>Range-based commit editing</td>
-                        <td>Full rewrite, pick mode</td>
+                        <td>Other mode flags (<code>-s</code>, <code>-p</code>, <code>-x</code>, <code>--docs</code>): rejected</td>
                         <td><code>--message</code>, <code>--author</code>, <code>--time</code></td>
                     </tr>
                     <tr>
                         <td><code>--simulate</code></td>
                         <td>-</td>
                         <td>Dry-run mode (preview only)</td>
-                        <td>None (modifier)</td>
+                        <td><code>-s</code>, <code>--docs</code></td>
                         <td><code>--show-diff</code></td>
                     </tr>
                     <tr>
                         <td><code>--docs</code></td>
                         <td>-</td>
                         <td>Open documentation in browser</td>
-                        <td>All other modes</td>
+                        <td>Every other mode and <code>--simulate</code>: rejected</td>
                         <td>None</td>
                     </tr>
                 </tbody>
@@ -614,17 +689,17 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                         <tr>
                             <td><code>--message</code></td>
                             <td>Edit only commit messages</td>
-                            <td>Preserves author and timestamp</td>
+                            <td>Author name/email and timestamp fields are not editable; author, committer and dates stay untouched</td>
                         </tr>
                         <tr>
                             <td><code>--author</code></td>
                             <td>Edit only author information</td>
-                            <td>Preserves message and timestamp</td>
+                            <td>Message and timestamp fields are not editable</td>
                         </tr>
                         <tr>
                             <td><code>--time</code></td>
                             <td>Edit only timestamps</td>
-                            <td>Preserves message and author</td>
+                            <td>Message and author fields are not editable</td>
                         </tr>
                     </tbody>
                 </table>
@@ -648,7 +723,7 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                         <td><code>--show-diff</code></td>
                         <td>Show detailed change preview</td>
                         <td>Before/after comparison for each commit</td>
-                        <td><code>--simulate</code></td>
+                        <td>Any preview (dry run or before confirming)</td>
                     </tr>
                 </tbody>
             </table>
@@ -661,11 +736,12 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
             <div class="info">
                 <p>Git Editor distributes timestamps with random weighted gaps while preserving commit order:</p>
                 <ul>
-                    <li><strong>Chronological Preservation:</strong> Maintains original commit order</li>
+                    <li><strong>Chronological Preservation:</strong> the oldest commit gets <code>--begin</code>, the newest gets exactly <code>--end</code>, and dates strictly increase in between</li>
                     <li><strong>Minimum Gap:</strong> At least 3 hours between commits by default (validated against <code>--begin</code>/<code>--end</code>)</li>
-                    <li><strong>Random Weights:</strong> Gaps are randomized across the available slack in the date range</li>
-                    <li><strong><code>--skip-range-check</code>:</strong> Bypasses the 3-hour rule; uses a 5-minute minimum gap (or even spacing if the range is too small)</li>
-                    <li><strong>KEEP_ORIGINAL:</strong> Accepting prompt date defaults can keep original timestamps and only rewrite author metadata</li>
+                    <li><strong>Random Weights:</strong> Gaps are randomized across the available slack, in whole seconds</li>
+                    <li><strong><code>--skip-range-check</code>:</strong> for ranges shorter than 3h × (commits − 1): gaps of at least 5 minutes, or even spacing (at least one second apart) if 5 minutes do not fit</li>
+                    <li><strong>Time zone:</strong> dates without an offset are UTC; with an offset (e.g. <code>+05:30</code>) the generated dates are written in that zone</li>
+                    <li><strong>Keep dates:</strong> <code>--keep-dates</code> (or pressing Enter on both prompted date defaults) keeps every commit's own date and offset and changes only the identity</li>
                 </ul>
             </div>
 
@@ -675,24 +751,50 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
                     <pre><code># Git Editor performs these validations:
-1. Repository path or Git URL is present
-2. Local path exists and contains a .git directory
-3. Email / name / begin / end formats (full rewrite mode)
-4. Date range large enough for commit count (unless --skip-range-check)
-5. Detached HEAD is rejected at rewrite time</code></pre>
+1. The path exists and is (inside) a Git repository; bare repositories work
+2. Email / name / dates are valid; names and emails may not contain &lt; &gt; or newlines
+3. Date range large enough for commit count (unless --skip-range-check)
+4. HEAD is a branch with commits (detached or unborn HEAD is refused)
+5. The branch did not move since the preview (otherwise nothing is written)</code></pre>
                 </div>
 
                 <h4>History Rewriting Process</h4>
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
                     <pre><code># Internal rewriting workflow:
-1. Walk HEAD history (topo + time) via git2
-2. Create new commits with remapped parents (Oid → Oid map)
-3. Apply new author / timestamp / message metadata
-4. Rewrite matching Signed-off-by / Co-authored-by / Authored-by trailers to the new author
-5. Update refs/heads/&lt;branch&gt; to the rewritten tip
-6. Full rewrite shows a simulation preview and asks for confirmation first</code></pre>
+1. Build a plan: edits keyed by commit id (previews render the same plan)
+2. Walk HEAD history oldest-first
+3. Reuse every commit that has no edit and unchanged parents (same id, signature kept)
+4. Rebuild the others from their raw object: new parents, edited author fields,
+   committer per --committer; encoding, mergetag, other headers, raw message
+   bytes and time-zone offsets are kept; signatures are dropped (they would not verify)
+5. Rewrite matching Signed-off-by / Co-authored-by / Authored-by lines in the trailer block
+6. Save the old tip as refs/git-editor/backup/&lt;branch&gt;
+7. Move refs/heads/&lt;branch&gt; with a compare-and-swap; report other refs still on the old history
+
+# Undo:
+git reset --keep refs/git-editor/backup/&lt;branch&gt;</code></pre>
                 </div>
+            </div>
+
+            <h3>🤖 Automation &amp; Agents</h3>
+            <div class="info">
+                <ul>
+                    <li><strong>Non-interactive:</strong> <code>-p --commit</code> and <code>-x --select</code> replace the menu and table; <code>--yes</code> confirms. Without a terminal, prompts read plain lines from stdin and fail (instead of hanging) when stdin is closed.</li>
+                    <li><strong>JSON:</strong> <code>--json</code> prints one document on stdout: the history, the preview, the rewrite result (old/new ids, backup ref, stale refs) or the error.</li>
+                    <li><strong>Workflow:</strong> <code>-s --json</code> → <code>--simulate --json</code> → <code>--yes --json</code>. See <code>AGENTS.md</code> in the repository.</li>
+                    <li><strong>Colors</strong> are disabled automatically when output is not a terminal.</li>
+                </ul>
+            </div>
+
+            <h3>⌨️ Interactive Controls</h3>
+            <div class="command-section">
+                <ul>
+                    <li><strong>Prompts:</strong> Esc or Ctrl+C cancels (exit code 130); confirmations accept <code>y</code> or <code>yes</code>.</li>
+                    <li><strong>Range table:</strong> arrow keys or h/j/k/l to move, Enter to edit a cell, Esc to save &amp; exit, <code>q</code> or Ctrl+C to cancel without saving. Long tables scroll; validation errors are shown below the table.</li>
+                    <li><strong>Pick mode messages:</strong> finish a new message with a line containing only <code>.</code>; blank lines and indentation are kept.</li>
+                    <li><strong>Dates in tables</strong> are shown in UTC; edits accept an offset such as <code>+05:30</code>.</li>
+                </ul>
             </div>
 
             <h3>🌐 Git URL Support</h3>
@@ -701,17 +803,18 @@ docker run -v /path/to/repo:/workspace git-editor --repo-path /workspace --docs<
                     <h4>📡 Supported Protocols</h4>
                     <ul>
                         <li>HTTPS: <code>https://github.com/user/repo.git</code></li>
-                        <li>SSH: <code>git@github.com:user/repo.git</code></li>
+                        <li>SSH: <code>git@github.com:user/repo.git</code> (via ssh-agent)</li>
                         <li>HTTP: <code>http://example.com/repo.git</code></li>
+                        <li>git: <code>git://example.com/repo.git</code></li>
                     </ul>
                 </div>
                 <div class="feature-card">
                     <h4>🔄 Clone Behavior</h4>
                     <ul>
-                        <li>Temporary directory creation</li>
-                        <li>Full history clone (no shallow)</li>
-                        <li>Automatic cleanup on completion</li>
-                        <li>Authentication via Git credentials</li>
+                        <li>Read-only modes (<code>-s</code>, <code>--simulate</code>) use a temporary clone removed on exit</li>
+                        <li>Rewriting a URL requires <code>--clone-dir &lt;DIR&gt;</code>; push from that directory afterwards</li>
+                        <li>Authentication via ssh-agent and Git credential helpers</li>
+                        <li>Credentials embedded in a URL are masked in all output</li>
                     </ul>
                 </div>
             </div>
@@ -797,21 +900,24 @@ git-editor -r https://github.com/user/repo.git -s</code></pre>
   --begin "2023-01-01 09:00:00" \
   --end "2023-12-31 17:00:00"</code></pre>
                 </div>
-                <p>Rewrites all commits with new author info and timestamps distributed between the specified dates.</p>
+                <p>Rewrites all commits reachable from <code>HEAD</code> with new author info and timestamps distributed between the specified dates, then moves the current branch to the new tip.</p>
             </div>
 
             <h4>🌍 Remote Repository Rewrite</h4>
             <div class="example">
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <pre><code>git-editor \
-  --repo-path https://github.com/user/private-repo.git \
+                    <pre><code># Clone into a directory you keep, rewrite it, then push from it
+git-editor \
+  --repo-path https://github.com/user/repo.git \
+  --clone-dir ./repo-rewritten \
   --name "Corporate Identity" \
   --email corporate@company.com \
   --begin "2023-06-01 08:00:00" \
-  --end "2023-06-30 18:00:00"</code></pre>
+  --end "2023-06-30 18:00:00"
+git -C ./repo-rewritten push --force-with-lease</code></pre>
                 </div>
-                <p>Clones a remote repository, rewrites history, and prepares for push-back.</p>
+                <p>Without <code>--clone-dir</code>, a URL is cloned into a temporary directory that is removed on exit; that is fine for <code>-s</code> and <code>--simulate</code>, and write modes refuse to run so a rewrite is never silently lost.</p>
             </div>
 
             <h3>🎯 Targeted Editing</h3>
@@ -878,16 +984,14 @@ git-editor --simulate --show-diff \
             <div class="example">
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <pre><code># Simulate specific commit selection
-git-editor --simulate --pick-specific-commits
+                    <pre><code># Preview a pick-mode edit (menu or flags)
+git-editor --simulate -p --commit 2 --set-message "Reworded"
 
-# Simulate range editing
+# Preview a range edit made in the table, or from flags
 git-editor --simulate --range --message
-
-# Simulate with detailed output
-git-editor --simulate --show-diff --range --author</code></pre>
+git-editor --simulate --show-diff -x --select 1-3 --name "Jane"</code></pre>
                 </div>
-                <p>Simulation mode works with all other operation modes for safe testing.</p>
+                <p>With <code>-p</code> and <code>-x</code>, simulation runs the normal selection and editing, shows exactly what would be written, and stops before writing.</p>
             </div>
 
             <h3>🔧 Advanced Workflows</h3>
@@ -972,7 +1076,7 @@ git-editor \
                 <p><strong>Simulation Mode provides:</strong></p>
                 <ul>
                     <li><strong>Change Summary:</strong> Shows how many commits would be affected</li>
-                    <li><strong>Date Range Validation:</strong> Same span checks as a real rewrite</li>
+                    <li><strong>Validation:</strong> Same email, name and date checks as a real rewrite</li>
                     <li><strong>Author Preview:</strong> Planned author/email updates</li>
                     <li><strong>Detailed Diff:</strong> Per-commit before/after with <code>--show-diff</code></li>
                     <li><strong>No Mutation:</strong> Repository is left unchanged</li>
@@ -993,7 +1097,7 @@ https://bitbucket.org/user/repo.git
 
 # URL normalization and validation
 # Automatic .git suffix handling
-# Repository name extraction for temporary directories</code></pre>
+# Repository name extraction for display (the temporary directory itself has a random name)</code></pre>
                 </div>
             </div>
         </section>
@@ -1063,7 +1167,7 @@ https://bitbucket.org/user/repo.git
                         <td><code>chrono</code></td>
                         <td>0.4+</td>
                         <td>Date/time handling</td>
-                        <td>DateTime parsing, timezone support</td>
+                        <td>DateTime parsing (naive UTC; no time-zone handling)</td>
                     </tr>
                     <tr>
                         <td><code>colored</code></td>
@@ -1134,15 +1238,27 @@ https://bitbucket.org/user/repo.git
                     <tbody>
                         <tr>
                             <td><strong>Unit Tests</strong></td>
-                            <td>78</td>
+                            <td>100</td>
                             <td>Core logic</td>
-                            <td>Individual function validation</td>
+                            <td>Parsing, validation, dates, trailers, table editor, JSON</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Engine Tests</strong></td>
+                            <td>12</td>
+                            <td>Rewrite engine</td>
+                            <td>Commit reuse, preserved headers/offsets, committer modes, merges, backup refs, git fsck</td>
+                        </tr>
+                        <tr>
+                            <td><strong>End-to-End Tests</strong></td>
+                            <td>11</td>
+                            <td>CLI binary</td>
+                            <td>Non-interactive runs with --yes/--json against throwaway repositories</td>
                         </tr>
                         <tr>
                             <td><strong>Integration Tests</strong></td>
-                            <td>20</td>
-                            <td>CLI behavior</td>
-                            <td>End-to-end workflow testing</td>
+                            <td>21</td>
+                            <td>Library flows</td>
+                            <td>History, timestamps, validation, docs, argument parsing</td>
                         </tr>
                         <tr>
                             <td><strong>Doc Tests</strong></td>
@@ -1178,13 +1294,17 @@ cargo watch -x "run -- --docs"</code></pre>
             <h3>🧪 Testing</h3>
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                <pre><code># Run all tests (~105 total: ~83 unit including docs + 22 integration)
+                <pre><code># Run all tests (unit, engine, end-to-end, integration)
 cargo test
 
 # Run unit tests only
 cargo test --lib
 
-# Run integration tests only (22 tests)
+# Run the rewrite engine and end-to-end suites
+cargo test --test engine
+cargo test --test e2e
+
+# Run integration tests only
 cargo test --test integration_tests
 
 # Run specific test with output
@@ -1207,7 +1327,7 @@ cargo fmt --check
 cargo clippy
 
 # Run linter with strict warnings (CI requirement)
-cargo clippy -- -D warnings
+cargo clippy --all-targets --all-features -- -D warnings
 
 # Security audit
 cargo audit
@@ -1286,7 +1406,8 @@ make help</code></pre>
             <div class="danger">
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <pre><code>Error: Repository not found at path: /invalid/path</code></pre>
+                    <pre><code>Error: Invalid repository path or URL: /invalid/path
+Error: Repository path does not contain a valid Git repository: /path</code></pre>
                 </div>
                 <p><strong>Solutions:</strong></p>
                 <ul>
@@ -1321,9 +1442,8 @@ make help</code></pre>
                 <p><strong>Solutions:</strong></p>
                 <ul>
                     <li>Include top-level domain: <code>user@domain.com</code></li>
-                    <li>Follow RFC 5322 format requirements</li>
-                    <li>Avoid special characters in local part</li>
-                    <li>Use quotes for complex local parts: <code>"user name"@domain.com</code></li>
+                    <li>The validator is a simple pattern (<code>letters, digits, . _ % + -</code> before <code>@</code>, a domain with a dot), not full RFC 5322</li>
+                    <li>Quoted local parts and spaces are not accepted</li>
                 </ul>
             </div>
 
@@ -1331,14 +1451,13 @@ make help</code></pre>
             <div class="warning">
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <pre><code>Error: Authentication failed for Git URL</code></pre>
+                    <pre><code>Error: Failed to clone repository '&lt;url&gt;': authentication failed: no usable credentials from ssh-agent or git credential helpers</code></pre>
                 </div>
                 <p><strong>Solutions:</strong></p>
                 <ul>
-                    <li>Configure Git credentials: <code>git config --global credential.helper store</code></li>
-                    <li>Use SSH keys for SSH URLs: <code>ssh-add ~/.ssh/id_rsa</code></li>
-                    <li>For private repos, use personal access tokens</li>
-                    <li>Test with <code>git clone</code> first</li>
+                    <li>SSH URLs: make sure your key is loaded (<code>ssh-add -l</code>)</li>
+                    <li>HTTPS URLs: configure a credential helper (<code>git config --global credential.helper ...</code>)</li>
+                    <li>Test with <code>git clone</code> first; credentials embedded in URLs are masked in output</li>
                 </ul>
             </div>
 
@@ -1381,6 +1500,7 @@ df -h  # Check available space</code></pre>
                 <h4>🔄 Can I undo changes after rewriting history?</h4>
                 <p><strong>Answer:</strong> History rewriting is permanent. However, you can:</p>
                 <ul>
+                    <li>Every rewrite saves the old tip: <code>git reset --keep refs/git-editor/backup/&lt;branch&gt;</code></li>
                     <li>Use Git reflog to find previous HEAD positions</li>
                     <li>Restore from backups if available</li>
                     <li>Use simulation mode to preview changes first</li>
@@ -1391,10 +1511,10 @@ df -h  # Check available space</code></pre>
                 <h4>🌍 Does this work with remote repositories?</h4>
                 <p><strong>Answer:</strong> Yes, Git Editor can clone and process remote repositories:</p>
                 <ul>
-                    <li>Supports HTTPS, SSH, and HTTP protocols</li>
-                    <li>Handles authentication through Git credentials</li>
-                    <li>Creates temporary local clones for processing</li>
-                    <li>You'll need to push changes back manually</li>
+                    <li>Supports HTTPS, SSH, HTTP and git:// URLs</li>
+                    <li>Authenticates with ssh-agent and Git credential helpers</li>
+                    <li>Read-only modes use a temporary clone; rewrites need <code>--clone-dir</code></li>
+                    <li>Push the rewritten clone yourself with <code>git push --force-with-lease</code></li>
                 </ul>
             </div>
 
@@ -1528,12 +1648,22 @@ pub fn rewrite_range_commits(args: &Args) -> Result&lt;()&gt;</code></pre>
                     <tr>
                         <td><code>0</code></td>
                         <td>Success</td>
-                        <td>Operation completed (or user cancelled / soft no-op)</td>
+                        <td>Operation completed (including "nothing to change")</td>
                     </tr>
                     <tr>
                         <td><code>1</code></td>
                         <td>Error</td>
-                        <td>Any failure printed as <code>Error: …</code> on stderr</td>
+                        <td>Any failure, printed as <code>Error: …</code> on stderr (or as a JSON error with <code>--json</code>)</td>
+                    </tr>
+                    <tr>
+                        <td><code>2</code></td>
+                        <td>Usage error</td>
+                        <td>Invalid or conflicting arguments</td>
+                    </tr>
+                    <tr>
+                        <td><code>130</code></td>
+                        <td>Cancelled</td>
+                        <td>Declined confirmation, Esc or Ctrl+C</td>
                     </tr>
                 </tbody>
             </table>
@@ -1546,7 +1676,7 @@ pub fn rewrite_range_commits(args: &Args) -> Result&lt;()&gt;</code></pre>
                 <p style="font-size: 0.9em;">Made with ❤️ by <strong>Rohan Sen</strong></p>
             </div>
             <div style="font-size: 0.8em; color: #999;">
-                <p>This documentation is automatically generated and updated with each release.</p>
+                <p>This documentation is embedded in the binary at build time and published to GitHub Pages on pushes to master.</p>
                 <p>For the latest version, visit: <a href="https://github.com/rohansen856/git-editor">github.com/rohansen856/git-editor</a></p>
             </div>
         </footer>

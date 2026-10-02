@@ -2,6 +2,8 @@ CARGO = cargo
 BIN = git-editor
 TARGET_DIR = target/release
 DOCKER = docker
+PREFIX ?= /usr/local
+REPO_PATH ?= $(CURDIR)
 
 # Default target
 .PHONY: all
@@ -10,21 +12,28 @@ all: build
 # Build the project
 .PHONY: build
 build:
-	$(CARGO) build --release
+	$(CARGO) build --release --locked
 
-# Run the project with default settings
+# Show the history of REPO_PATH (read-only; defaults to this directory)
 .PHONY: run
 run:
-	$(CARGO) run --release -- \
-		--repo-path $(shell pwd) \
-		--email "user@example.com" \
-		--name "User Name" \
-		--begin "2023-01-01 00:00:00" \
-		--end "2023-01-07 23:59:59"
+	$(CARGO) run --release -- --show-history --repo-path "$(REPO_PATH)"
 
-# Run the project with custom settings (specify via environment variables)
+# Preview a full rewrite of REPO_PATH without changing anything
+# (set EMAIL, NAME, START, END)
 .PHONY: run-custom
 run-custom:
+	$(CARGO) run --release -- --simulate --show-diff \
+		--repo-path "$(REPO_PATH)" \
+		--email "$(EMAIL)" \
+		--name "$(NAME)" \
+		--begin "$(START)" \
+		--end "$(END)"
+
+# Really rewrite REPO_PATH (must be given explicitly; asks for confirmation)
+.PHONY: rewrite
+rewrite:
+	@test -n "$(filter command line,$(origin REPO_PATH))" || { echo "Set REPO_PATH=... explicitly to rewrite a repository"; exit 1; }
 	$(CARGO) run --release -- \
 		--repo-path "$(REPO_PATH)" \
 		--email "$(EMAIL)" \
@@ -47,37 +56,33 @@ test:
 fmt:
 	$(CARGO) fmt --all -- --check
 
-# Lint the code
+# Lint the code (same flags as CI)
 .PHONY: lint
 lint:
-	$(CARGO) clippy -- -D warnings
+	$(CARGO) clippy --all-targets --all-features -- -D warnings
 
 # Docker build
 .PHONY: docker-build
 docker-build:
 	$(DOCKER) build -t $(BIN):latest .
 
-# Docker run
+# Show the history of REPO_PATH from the Docker image (read-only)
 .PHONY: docker-run
 docker-run:
 	$(DOCKER) run --rm -it \
-		-v $(shell pwd):/workspace \
-		$(BIN):latest \
-		--repo-path "/workspace" \
-		--email "user@example.com" \
-		--name "User Name" \
-		--begin "2023-01-01 00:00:00" \
-		--end "2023-01-07 23:59:59"
+		--user "$$(id -u):$$(id -g)" -e HOME=/tmp \
+		-v "$(REPO_PATH)":/workspace \
+		$(BIN):latest --show-history
 
-# Install the binary to system path
+# Install the binary (override PREFIX/DESTDIR as needed, e.g. PREFIX=~/.local)
 .PHONY: install
 install: build
-	cp $(TARGET_DIR)/$(BIN) /usr/local/bin/
+	install -Dm755 $(TARGET_DIR)/$(BIN) "$(DESTDIR)$(PREFIX)/bin/$(BIN)"
 
 # Uninstall the binary
 .PHONY: uninstall
 uninstall:
-	rm -f /usr/local/bin/$(BIN)
+	rm -f "$(DESTDIR)$(PREFIX)/bin/$(BIN)"
 
 # Help
 .PHONY: help
@@ -85,14 +90,15 @@ help:
 	@echo "Git Editor Make Commands:"
 	@echo "  all             - Build the project (alias for build)"
 	@echo "  build           - Build the release binary"
-	@echo "  run             - Run with default settings"
-	@echo "  run-custom      - Run with custom settings (set REPO_PATH, EMAIL, NAME, START, END env vars)"
+	@echo "  run             - Show the history of REPO_PATH (read-only, default: current dir)"
+	@echo "  run-custom      - Preview a full rewrite (set REPO_PATH, EMAIL, NAME, START, END)"
+	@echo "  rewrite         - Rewrite REPO_PATH for real (REPO_PATH must be set explicitly)"
 	@echo "  clean           - Clean build artifacts"
 	@echo "  test            - Run tests"
 	@echo "  fmt             - Check code formatting"
-	@echo "  lint            - Run clippy linter"
+	@echo "  lint            - Run clippy with CI flags"
 	@echo "  docker-build    - Build Docker image"
-	@echo "  docker-run      - Run in Docker container"
-	@echo "  install         - Install binary to /usr/local/bin"
-	@echo "  uninstall       - Remove binary from /usr/local/bin"
+	@echo "  docker-run      - Show the history of REPO_PATH from the Docker image"
+	@echo "  install         - Install binary to \$$(DESTDIR)\$$(PREFIX)/bin (default /usr/local/bin)"
+	@echo "  uninstall       - Remove the installed binary"
 	@echo "  help            - Show this help message"

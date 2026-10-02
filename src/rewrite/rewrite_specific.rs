@@ -1,20 +1,23 @@
-use crate::utils::message_trailers::rewrite_author_trailers;
-use crate::utils::prompt::read_prompted_line;
+use crate::rewrite::engine::{self, CommitterMode, Edit, Plan};
+use crate::rewrite::report::print_outcome;
+use crate::utils::dates::{format_git_time, parse_git_time};
+use crate::utils::prompt::{cancelled, confirm};
+use crate::utils::prompt::{read_prompted_line, read_prompted_line_raw};
+use crate::utils::simulation::{report_simulation, simulation_from_plan};
 use crate::utils::types::Result;
 use crate::utils::types::{CommitInfo, EditOptions};
+use crate::utils::validator::{is_valid_email, validate_identity_part};
 use crate::{args::Args, utils::commit_history::get_commit_history};
-use chrono::NaiveDateTime;
 use colored::Colorize;
-use git2::{Repository, Signature, Sort, Time};
-use std::collections::HashMap;
+use git2::Repository;
 use std::io::{self, Write};
 
 pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
-    println!("\n{}", "Commit History:".bold().green());
-    println!("{}", "-".repeat(80).cyan());
+    crate::say!("\n{}", "Commit History:".bold().green());
+    crate::say!("{}", "-".repeat(80).cyan());
 
     for (i, commit) in commits.iter().enumerate() {
-        println!(
+        crate::say!(
             "{:3}. {} {} {} {}",
             i + 1,
             commit.short_hash.yellow().bold(),
@@ -23,7 +26,7 @@ pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
                 .format("%Y-%m-%d %H:%M:%S")
                 .to_string()
                 .blue(),
-            commit.author_name.magenta(),
+            crate::utils::sanitize::safe(&commit.author_name).magenta(),
             commit
                 .message
                 .lines()
@@ -33,8 +36,8 @@ pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
         );
     }
 
-    println!("{}", "-".repeat(80).cyan());
-    print!(
+    crate::say!("{}", "-".repeat(80).cyan());
+    crate::say_inline!(
         "\n{} {} ",
         "Select commit number to edit:".bold().green(),
         "(Esc to cancel)".bright_black()
@@ -53,17 +56,17 @@ pub fn select_commit(commits: &[CommitInfo]) -> Result<usize> {
 }
 
 pub fn show_commit_details(commit: &CommitInfo, repo: &Repository) -> Result<()> {
-    println!("\n{}", "Selected Commit Details:".bold().green());
-    println!("{}", "=".repeat(80).cyan());
+    crate::say!("\n{}", "Selected Commit Details:".bold().green());
+    crate::say!("{}", "=".repeat(80).cyan());
 
-    println!("{}: {}", "Hash".bold(), commit.oid.to_string().yellow());
-    println!("{}: {}", "Short Hash".bold(), commit.short_hash.yellow());
-    println!(
+    crate::say!("{}: {}", "Hash".bold(), commit.oid.to_string().yellow());
+    crate::say!("{}: {}", "Short Hash".bold(), commit.short_hash.yellow());
+    crate::say!(
         "{}: {}",
         "Author".bold(),
         format!("{} <{}>", commit.author_name, commit.author_email).magenta()
     );
-    println!(
+    crate::say!(
         "{}: {}",
         "Date".bold(),
         commit
@@ -72,156 +75,186 @@ pub fn show_commit_details(commit: &CommitInfo, repo: &Repository) -> Result<()>
             .to_string()
             .blue()
     );
-    println!(
+    crate::say!(
         "{}: {}",
         "Parent Count".bold(),
         commit.parent_count.to_string().white()
     );
 
-    println!("\n{}", "Message:".bold());
-    println!("{}", commit.message.white());
+    crate::say!("\n{}", "Message:".bold());
+    crate::say!("{}", commit.message.white());
 
     // Show parent commits
     if commit.parent_count > 0 {
         let git_commit = repo.find_commit(commit.oid)?;
-        println!("\n{}", "Parent Commits:".bold());
+        crate::say!("\n{}", "Parent Commits:".bold());
         for (i, parent_id) in git_commit.parent_ids().enumerate() {
             let parent = repo.find_commit(parent_id)?;
-            println!(
+            crate::say!(
                 "  {}: {} - {}",
                 i + 1,
                 parent_id.to_string()[..8].to_string().yellow(),
-                parent.summary().unwrap_or("(no message)").white()
+                parent
+                    .summary()
+                    .ok()
+                    .flatten()
+                    .unwrap_or("(no message)")
+                    .white()
             );
         }
     }
 
-    println!("{}", "=".repeat(80).cyan());
+    crate::say!("{}", "=".repeat(80).cyan());
     Ok(())
+}
+
+/// Parse a comma-separated menu selection; `5` means "all of the above".
+fn parse_edit_selection(input: &str) -> Result<Vec<usize>> {
+    let mut selected = Vec::new();
+    for token in input.split(',').map(str::trim).filter(|t| !t.is_empty()) {
+        match token.parse::<usize>() {
+            Ok(5) => selected.extend(1..=4),
+            Ok(n @ 1..=4) => selected.push(n),
+            _ => return Err(format!("Invalid option '{token}' (choose 1-5)").into()),
+        }
+    }
+    selected.sort_unstable();
+    selected.dedup();
+    if selected.is_empty() {
+        return Err("No option selected; nothing to edit".into());
+    }
+    Ok(selected)
+}
+
+fn prompt_line(label: &str) -> Result<String> {
+    crate::say_inline!("{} {} ", label.bold(), "(Esc to cancel)".bright_black());
+    io::stdout().flush()?;
+    read_prompted_line()
+}
+
+/// Read a multi-line message; a line containing only `.` ends it.
+fn prompt_message() -> Result<String> {
+    crate::say!(
+        "{} {} ",
+        "New commit message (finish with a line containing only '.'):".bold(),
+        "(Esc to cancel)".bright_black()
+    );
+    let mut lines = Vec::new();
+    loop {
+        let line = read_prompted_line_raw()?;
+        if line.trim() == "." {
+            break;
+        }
+        lines.push(line);
+    }
+    build_message(&lines)
+}
+
+/// Join entered lines into a message, dropping leading/trailing blank lines.
+fn build_message(lines: &[String]) -> Result<String> {
+    let start = lines.iter().position(|l| !l.trim().is_empty());
+    let end = lines.iter().rposition(|l| !l.trim().is_empty());
+    match (start, end) {
+        (Some(start), Some(end)) => Ok(lines[start..=end].join("\n") + "\n"),
+        _ => Err("Commit message cannot be empty".into()),
+    }
 }
 
 // Get user input for what to change
 pub fn get_edit_options() -> Result<EditOptions> {
-    println!("\n{}", "What would you like to edit?".bold().green());
-    println!("1. Author name");
-    println!("2. Author email");
-    println!("3. Commit timestamp");
-    println!("4. Commit message");
-    println!("5. All of the above");
+    crate::say!("\n{}", "What would you like to edit?".bold().green());
+    crate::say!("1. Author name");
+    crate::say!("2. Author email");
+    crate::say!("3. Commit timestamp");
+    crate::say!("4. Commit message");
+    crate::say!("5. All of the above");
 
-    print!(
-        "\n{} {} ",
-        "Select option(s) (comma-separated):".bold(),
-        "(Esc to cancel)".bright_black()
-    );
-    io::stdout().flush()?;
-
-    let input = read_prompted_line()?;
-
-    let selections: Vec<usize> = input
-        .split(',')
-        .filter_map(|s| s.trim().parse::<usize>().ok())
-        .collect();
-
+    let selections = parse_edit_selection(&prompt_line("Select option(s) (comma-separated):")?)?;
     let mut options = EditOptions::default();
 
-    for &selection in &selections {
+    for selection in selections {
         match selection {
             1 => {
-                print!(
-                    "{} {} ",
-                    "New author name:".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                options.author_name = Some(read_prompted_line()?);
+                let name = prompt_line("New author name:")?;
+                validate_identity_part(&name, "Author name")?;
+                options.author_name = Some(name);
             }
             2 => {
-                print!(
-                    "{} {} ",
-                    "New author email:".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                options.author_email = Some(read_prompted_line()?);
+                let email = prompt_line("New author email:")?;
+                if !is_valid_email(&email) {
+                    return Err(format!("Invalid email format: {email}").into());
+                }
+                options.author_email = Some(email);
             }
             3 => {
-                print!(
-                    "{} {} ",
-                    "New timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                let timestamp = read_prompted_line()?;
-                let dt = NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%d %H:%M:%S")
-                    .map_err(|_| "Invalid timestamp format")?;
-                options.timestamp = Some(dt);
+                let timestamp =
+                    prompt_line("New timestamp (YYYY-MM-DD HH:MM:SS [+HH:MM], default UTC):")?;
+                options.timestamp = Some(parse_git_time(&timestamp)?);
             }
-            4 => {
-                println!(
-                    "{} {} ",
-                    "New commit message (end with empty line):".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                let mut message = String::new();
-                loop {
-                    let line = read_prompted_line()?;
-                    if line.is_empty() {
-                        break;
-                    }
-                    message.push_str(&line);
-                    message.push('\n');
-                }
-                options.message = Some(message.trim().to_string());
-            }
-            5 => {
-                print!(
-                    "{} {} ",
-                    "New author name:".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                options.author_name = Some(read_prompted_line()?);
-
-                print!(
-                    "{} {} ",
-                    "New author email:".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                options.author_email = Some(read_prompted_line()?);
-
-                print!(
-                    "{} {} ",
-                    "New timestamp (YYYY-MM-DD HH:MM:SS):".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                io::stdout().flush()?;
-                let timestamp = read_prompted_line()?;
-                let dt = NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%d %H:%M:%S")
-                    .map_err(|_| "Invalid timestamp format")?;
-                options.timestamp = Some(dt);
-
-                println!(
-                    "{} {} ",
-                    "New commit message (end with empty line):".bold(),
-                    "(Esc to cancel)".bright_black()
-                );
-                let mut message = String::new();
-                loop {
-                    let line = read_prompted_line()?;
-                    if line.is_empty() {
-                        break;
-                    }
-                    message.push_str(&line);
-                    message.push('\n');
-                }
-                options.message = Some(message.trim().to_string());
-            }
-            _ => println!("Invalid option: {selection}"),
+            4 => options.message = Some(prompt_message()?),
+            _ => unreachable!("parse_edit_selection only returns 1-4"),
         }
     }
 
+    Ok(options)
+}
+
+/// Find a commit by unique hash prefix (4+ hex digits) or by 1-based list
+/// number (1 = newest, as shown by `-s`). A hash prefix wins when both match.
+fn resolve_commit<'a>(commits: &'a [CommitInfo], reference: &str) -> Result<&'a CommitInfo> {
+    let reference = reference.trim().to_ascii_lowercase();
+    if reference.len() >= 4 && reference.chars().all(|c| c.is_ascii_hexdigit()) {
+        let mut matches = commits
+            .iter()
+            .filter(|c| c.oid.to_string().starts_with(&reference));
+        match (matches.next(), matches.next()) {
+            (Some(commit), None) => return Ok(commit),
+            (Some(_), Some(_)) => {
+                return Err(format!("--commit '{reference}' matches several commits").into())
+            }
+            (None, _) => {}
+        }
+    }
+    match reference.parse::<usize>() {
+        Ok(number) if (1..=commits.len()).contains(&number) => Ok(&commits[number - 1]),
+        _ => Err(format!(
+            "--commit '{reference}' matches no commit hash and is not a number between 1 and {}",
+            commits.len()
+        )
+        .into()),
+    }
+}
+
+/// Edits requested with --name/--email/--set-date/--set-message.
+fn edit_options_from_args(args: &Args) -> Result<EditOptions> {
+    if let Some(name) = &args.name {
+        validate_identity_part(name, "Author name")?;
+    }
+    if let Some(email) = &args.email {
+        if !is_valid_email(email) {
+            return Err(format!("Invalid email format: {email}").into());
+        }
+    }
+    let options = EditOptions {
+        author_name: args.name.clone(),
+        author_email: args.email.clone(),
+        timestamp: args.set_date.as_deref().map(parse_git_time).transpose()?,
+        message: args.set_message.clone(),
+    };
+    if options.author_name.is_none()
+        && options.author_email.is_none()
+        && options.timestamp.is_none()
+        && options.message.is_none()
+    {
+        return Err("Nothing to change: pass --name, --email, --set-date and/or --set-message with --commit".into());
+    }
+    if options
+        .message
+        .as_deref()
+        .is_some_and(|m| m.trim().is_empty())
+    {
+        return Err("Commit message cannot be empty".into());
+    }
     Ok(options)
 }
 
@@ -229,71 +262,88 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     let commits = get_commit_history(args, false)?;
 
     if commits.is_empty() {
-        println!("{}", "No commits found!".red());
+        crate::say!("{}", "No commits found!".red());
         return Ok(());
     }
 
-    let selected_index = select_commit(&commits)?;
-    let selected_commit = &commits[selected_index];
-
     let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
-    show_commit_details(selected_commit, &repo)?;
+    // Fail early on a detached/unborn HEAD and remember the tip the edit is based on.
+    let head = engine::current_branch(&repo)?.head;
 
-    let edit_options = get_edit_options()?;
+    let (selected_commit, edit_options) = match &args.commit {
+        // Flag-driven (non-interactive) edit.
+        Some(reference) => (
+            resolve_commit(&commits, reference)?,
+            edit_options_from_args(args)?,
+        ),
+        None => {
+            let selected = &commits[select_commit(&commits)?];
+            show_commit_details(selected, &repo)?;
+            (selected, get_edit_options()?)
+        }
+    };
 
     // Confirm changes
-    println!("\n{}", "Planned changes:".bold().yellow());
+    crate::say!("\n{}", "Planned changes:".bold().yellow());
     if let Some(ref name) = edit_options.author_name {
-        println!(
+        crate::say!(
             "  Author name: {} -> {}",
-            selected_commit.author_name.red(),
+            crate::utils::sanitize::safe(&selected_commit.author_name).red(),
             name.green()
         );
     }
     if let Some(ref email) = edit_options.author_email {
-        println!(
+        crate::say!(
             "  Author email: {} -> {}",
-            selected_commit.author_email.red(),
+            crate::utils::sanitize::safe(&selected_commit.author_email).red(),
             email.green()
         );
     }
     if let Some(ref timestamp) = edit_options.timestamp {
-        println!(
+        crate::say!(
             "  Timestamp: {} -> {}",
             selected_commit
                 .timestamp
                 .format("%Y-%m-%d %H:%M:%S")
                 .to_string()
                 .red(),
-            timestamp.format("%Y-%m-%d %H:%M:%S").to_string().green()
+            format_git_time(*timestamp).green()
         );
     }
     if let Some(ref message) = edit_options.message {
-        println!(
+        crate::say!(
             "  Message: {} -> {}",
-            selected_commit.message.lines().next().unwrap_or("").red(),
-            message.lines().next().unwrap_or("").green()
+            crate::utils::sanitize::safe(selected_commit.message.lines().next().unwrap_or(""))
+                .red(),
+            crate::utils::sanitize::safe(message.lines().next().unwrap_or("")).green()
         );
     }
 
-    print!(
-        "\n{} {} ",
-        "Proceed with changes? (y/n):".bold(),
-        "(Esc to cancel)".bright_black()
-    );
-    io::stdout().flush()?;
-
-    let confirm = read_prompted_line()?;
-
-    if confirm.to_lowercase() != "y" {
-        println!("{}", "Operation cancelled.".yellow());
+    if args.simulate {
+        let plan = Plan {
+            edits: [(selected_commit.oid, edit_from_options(&edit_options))]
+                .into_iter()
+                .collect(),
+            committer: args.committer.into(),
+        };
+        let preview = simulation_from_plan(&commits, &plan, "Specific Commit Edit");
+        report_simulation(&preview, args.show_diff, true);
+        crate::say!("{}", "Simulation only: nothing was written.".cyan());
         return Ok(());
     }
 
-    // Apply changes
-    apply_commit_changes(&repo, selected_commit, &edit_options)?;
+    if !confirm(&format!("\n{}", "Proceed with changes?".bold()), args.yes)? {
+        return Err(cancelled());
+    }
 
-    println!("\n{}", "✓ Commit successfully edited!".green().bold());
+    // Apply changes
+    apply_commit_changes(
+        &repo,
+        selected_commit,
+        &edit_options,
+        head,
+        args.committer.into(),
+    )?;
 
     if args.show_history {
         get_commit_history(args, true)?;
@@ -302,117 +352,31 @@ pub fn rewrite_specific_commits(args: &Args) -> Result<()> {
     Ok(())
 }
 
-// Apply the changes to the selected commit
+fn edit_from_options(options: &EditOptions) -> Edit {
+    Edit {
+        name: options.author_name.clone(),
+        email: options.author_email.clone(),
+        time: options.timestamp,
+        message: options.message.clone(),
+    }
+}
+
+/// Rewrite only the selected commit (descendants are re-parented, ancestors reused).
 fn apply_commit_changes(
     repo: &Repository,
     target_commit: &CommitInfo,
     options: &EditOptions,
+    expected_head: git2::Oid,
+    committer: CommitterMode,
 ) -> Result<()> {
-    let head_ref = repo.head()?;
-    let branch_name = head_ref
-        .shorthand()
-        .ok_or("Detached HEAD or invalid branch")?;
-    let full_ref = format!("refs/heads/{branch_name}");
-
-    let mut revwalk = repo.revwalk()?;
-    revwalk.push_head()?;
-    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
-    let mut orig_oids: Vec<_> = revwalk.collect::<std::result::Result<Vec<_>, _>>()?;
-    orig_oids.reverse();
-
-    let mut new_map: HashMap<git2::Oid, git2::Oid> = HashMap::new();
-    let mut last_new_oid = None;
-
-    for &oid in orig_oids.iter() {
-        let orig = repo.find_commit(oid)?;
-        let tree = orig.tree()?;
-
-        let new_parents: Result<Vec<_>> = orig
-            .parent_ids()
-            .map(|pid| {
-                let new_pid = *new_map.get(&pid).unwrap_or(&pid);
-                repo.find_commit(new_pid).map_err(|e| e.into())
-            })
-            .collect();
-
-        let new_oid = if oid == target_commit.oid {
-            // This is the commit we want to edit
-            let author_name = options
-                .author_name
-                .as_ref()
-                .unwrap_or(&target_commit.author_name);
-            let author_email = options
-                .author_email
-                .as_ref()
-                .unwrap_or(&target_commit.author_email);
-            let timestamp = options.timestamp.unwrap_or(target_commit.timestamp);
-            let base_message = options
-                .message
-                .as_deref()
-                .unwrap_or_else(|| orig.message().unwrap_or_default());
-            let message = rewrite_author_trailers(
-                base_message,
-                &target_commit.author_name,
-                &target_commit.author_email,
-                author_name,
-                author_email,
-            );
-
-            let author_sig = Signature::new(
-                author_name,
-                author_email,
-                &Time::new(timestamp.and_utc().timestamp(), 0),
-            )?;
-
-            // Keep the original committer unless we're changing the timestamp
-            let committer_sig = if options.timestamp.is_some() {
-                author_sig.clone()
-            } else {
-                let committer = orig.committer();
-                Signature::new(
-                    committer.name().unwrap_or("Unknown"),
-                    committer.email().unwrap_or("unknown@email.com"),
-                    &committer.when(),
-                )?
-            };
-
-            repo.commit(
-                None,
-                &author_sig,
-                &committer_sig,
-                &message,
-                &tree,
-                &new_parents?.iter().collect::<Vec<_>>(),
-            )?
-        } else {
-            // Keep other commits as-is but update parent references
-            let author = orig.author();
-            let committer = orig.committer();
-
-            repo.commit(
-                None,
-                &author,
-                &committer,
-                orig.message().unwrap_or_default(),
-                &tree,
-                &new_parents?.iter().collect::<Vec<_>>(),
-            )?
-        };
-
-        new_map.insert(oid, new_oid);
-        last_new_oid = Some(new_oid);
-    }
-
-    if let Some(new_head) = last_new_oid {
-        repo.reference(&full_ref, new_head, true, "edited specific commit")?;
-        println!(
-            "{} '{}' -> {}",
-            "Updated branch".green(),
-            branch_name.cyan(),
-            new_head.to_string()[..8].to_string().cyan()
-        );
-    }
-
+    let plan = Plan {
+        edits: [(target_commit.oid, edit_from_options(options))]
+            .into_iter()
+            .collect(),
+        committer,
+    };
+    let outcome = engine::apply(repo, &plan, expected_head)?;
+    print_outcome(&outcome);
     Ok(())
 }
 
@@ -480,21 +444,7 @@ mod tests {
         // Get commit info
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let commits = get_commit_history(&args, false).unwrap();
@@ -506,149 +456,66 @@ mod tests {
     }
 
     #[test]
-    fn test_edit_options_default() {
-        let options = EditOptions::default();
-
-        assert_eq!(options.author_name, None);
-        assert_eq!(options.author_email, None);
-        assert_eq!(options.timestamp, None);
-        assert_eq!(options.message, None);
+    fn test_build_message_keeps_body_structure() {
+        let lines: Vec<String> = ["", "subject", "", "  indented body", ""]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(
+            build_message(&lines).unwrap(),
+            "subject\n\n  indented body\n"
+        );
+        assert!(build_message(&["  ".to_string()]).is_err());
     }
 
     #[test]
-    fn test_edit_options_with_values() {
-        let timestamp =
-            NaiveDateTime::parse_from_str("2023-01-01 12:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-
-        let options = EditOptions {
-            author_name: Some("New Author".to_string()),
-            author_email: Some("new@example.com".to_string()),
-            timestamp: Some(timestamp),
-            message: Some("New commit message".to_string()),
+    fn test_resolve_commit_by_number_and_prefix() {
+        let make = |hex: &str| CommitInfo {
+            oid: git2::Oid::from_str(hex).unwrap(),
+            ..Default::default()
         };
-
-        assert_eq!(options.author_name, Some("New Author".to_string()));
-        assert_eq!(options.author_email, Some("new@example.com".to_string()));
-        assert_eq!(options.timestamp, Some(timestamp));
-        assert_eq!(options.message, Some("New commit message".to_string()));
+        let commits = vec![
+            make("abcdef0000000000000000000000000000000000"),
+            make("abcd120000000000000000000000000000000000"),
+            make("1234560000000000000000000000000000000000"),
+        ];
+        assert_eq!(resolve_commit(&commits, "1").unwrap().oid, commits[0].oid);
+        assert_eq!(resolve_commit(&commits, "3").unwrap().oid, commits[2].oid);
+        assert_eq!(
+            resolve_commit(&commits, "1234").unwrap().oid,
+            commits[2].oid
+        );
+        assert_eq!(
+            resolve_commit(&commits, "ABCDEF").unwrap().oid,
+            commits[0].oid
+        );
+        assert!(resolve_commit(&commits, "abcd").is_err()); // ambiguous
+        assert!(resolve_commit(&commits, "4").is_err());
+        assert!(resolve_commit(&commits, "ffff").is_err());
     }
 
     #[test]
-    fn test_commit_selection_validation() {
-        // Test the selection validation logic that's used in select_commit
-        let commits = [CommitInfo {
-            oid: git2::Oid::from_str("1234567890abcdef1234567890abcdef12345678").unwrap(),
-            short_hash: "12345678".to_string(),
-            timestamp: NaiveDateTime::parse_from_str("2023-01-01 12:00:00", "%Y-%m-%d %H:%M:%S")
-                .unwrap(),
-            author_name: "Test User".to_string(),
-            author_email: "test@example.com".to_string(),
-            message: "Test commit".to_string(),
-            parent_count: 0,
-        }];
-
-        // Test valid selection range
-        let selection = 1;
-        assert!(selection >= 1 && selection <= commits.len());
-
-        // Test invalid selections
-        let invalid_selection1 = 0;
-        assert!(invalid_selection1 < 1 || invalid_selection1 > commits.len());
-
-        let invalid_selection2 = commits.len() + 1;
-        assert!(invalid_selection2 < 1 || invalid_selection2 > commits.len());
-    }
-
-    #[test]
-    fn test_rewrite_specific_commits_with_empty_commits() {
-        let (_temp_dir, repo_path) = create_test_repo_with_commits();
+    fn test_edit_options_from_args_requires_a_change() {
         let args = Args {
-            repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
             pick_specific_commits: true,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            commit: Some("1".into()),
+            ..Default::default()
         };
-
-        // Test that the function handles the case where get_commit_history returns commits
-        let commits = get_commit_history(&args, false).unwrap();
-        assert!(!commits.is_empty());
-        assert_eq!(commits.len(), 3);
+        assert!(edit_options_from_args(&args).is_err());
+        let args = Args {
+            email: Some("not-an-email".into()),
+            ..args
+        };
+        assert!(edit_options_from_args(&args).is_err());
     }
 
     #[test]
-    fn test_apply_commit_changes_logic() {
-        let (_temp_dir, repo_path) = create_test_repo_with_commits();
-        let _repo = Repository::open(&repo_path).unwrap();
-
-        // Get commit info
-        let args = Args {
-            repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
-        };
-
-        let commits = get_commit_history(&args, false).unwrap();
-        let target_commit = &commits[0];
-
-        // Test EditOptions with different values
-        let options = EditOptions {
-            author_name: Some("New Author".to_string()),
-            author_email: Some("new@example.com".to_string()),
-            timestamp: Some(
-                NaiveDateTime::parse_from_str("2023-01-01 12:00:00", "%Y-%m-%d %H:%M:%S").unwrap(),
-            ),
-            message: Some("New commit message".to_string()),
-        };
-
-        // Test that the options are properly set
-        assert_eq!(options.author_name.as_ref().unwrap(), "New Author");
-        assert_eq!(options.author_email.as_ref().unwrap(), "new@example.com");
-        assert!(options.timestamp.is_some());
-        assert_eq!(options.message.as_ref().unwrap(), "New commit message");
-
-        // Test fallback to original values
-        let partial_options = EditOptions {
-            author_name: None,
-            author_email: None,
-            timestamp: None,
-            message: None,
-        };
-
-        let author_name = partial_options
-            .author_name
-            .as_ref()
-            .unwrap_or(&target_commit.author_name);
-        let author_email = partial_options
-            .author_email
-            .as_ref()
-            .unwrap_or(&target_commit.author_email);
-
-        assert_eq!(author_name, &target_commit.author_name);
-        assert_eq!(author_email, &target_commit.author_email);
+    fn test_parse_edit_selection() {
+        assert_eq!(parse_edit_selection("1").unwrap(), vec![1]);
+        assert_eq!(parse_edit_selection(" 3, 1 ,3").unwrap(), vec![1, 3]);
+        assert_eq!(parse_edit_selection("5").unwrap(), vec![1, 2, 3, 4]);
+        assert!(parse_edit_selection("9").is_err());
+        assert!(parse_edit_selection("1,x").is_err());
+        assert!(parse_edit_selection("").is_err());
     }
 }

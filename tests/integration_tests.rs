@@ -63,21 +63,8 @@ fn test_show_history_mode_integration() {
 
     let args = Args {
         repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
         show_history: true,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test validation passes for show_history mode
@@ -104,21 +91,8 @@ fn test_pick_specific_commits_mode_integration() {
 
     let args = Args {
         repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
-        show_history: false,
         pick_specific_commits: true,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test validation passes for pick_specific_commits mode
@@ -146,23 +120,13 @@ fn test_pick_specific_commits_mode_integration() {
 fn test_full_rewrite_mode_integration() {
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
         start: Some("2025-01-01 00:00:00".to_string()),
         end: Some("2025-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test validation passes for full rewrite mode
@@ -170,7 +134,7 @@ fn test_full_rewrite_mode_integration() {
     assert!(validation_result.is_ok());
 
     // Test that timestamp generation works
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(timestamp_result.is_ok());
 
     let timestamps = timestamp_result.unwrap();
@@ -195,57 +159,14 @@ fn test_full_rewrite_mode_integration() {
 
 #[test]
 #[serial]
-fn test_mode_flag_precedence() {
-    let (_temp_dir, repo_path) = create_test_repo_with_commits();
-
-    // Test that when both show_history and pick_specific_commits are true,
-    // validation still passes (both modes are valid)
-    let args = Args {
-        repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
-        show_history: true,
-        pick_specific_commits: true,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
-    };
-
-    let validation_result = validate_inputs(&args);
-    assert!(validation_result.is_ok());
-}
-
-#[test]
-#[serial]
 fn test_invalid_repo_path_all_modes() {
     let invalid_repo_path = "/nonexistent/path".to_string();
 
     // Test show_history mode with invalid repo
     let args_show = Args {
         repo_path: Some(invalid_repo_path.clone()),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
         show_history: true,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -254,47 +175,24 @@ fn test_invalid_repo_path_all_modes() {
     // Test pick_specific_commits mode with invalid repo
     let args_pick = Args {
         repo_path: Some(invalid_repo_path.clone()),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
-        show_history: false,
         pick_specific_commits: true,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let history_result = get_commit_history(&args_pick, false);
     assert!(history_result.is_err());
 
     // Test full rewrite mode with invalid repo
-    let mut args_full = Args {
+    let args_full = Args {
         repo_path: Some(invalid_repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
         start: Some("2023-01-01 00:00:00".to_string()),
         end: Some("2023-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
-    let timestamp_result = generate_timestamps(&mut args_full);
+    let timestamp_result = generate_timestamps(&args_full);
     assert!(timestamp_result.is_err());
 }
 
@@ -310,25 +208,15 @@ fn test_full_rewrite_mode_insufficient_date_range() {
         name: Some("Test User".to_string()),
         start: Some("2023-01-01 00:00:00".to_string()),
         end: Some("2023-01-01 01:00:00".to_string()), // Only 1 hour for 3 commits
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let validation_result = validate_inputs(&args);
     assert!(validation_result.is_ok());
 
     // The error message should mention --skip-range-check
-    let mut args_mut = args;
-    let timestamp_result = generate_timestamps(&mut args_mut);
+    let args_mut = args;
+    let timestamp_result = generate_timestamps(&args_mut);
     assert!(timestamp_result.is_err());
     let err_msg = timestamp_result.unwrap_err().to_string();
     assert!(
@@ -342,26 +230,17 @@ fn test_full_rewrite_mode_insufficient_date_range() {
 fn test_skip_range_check_succeeds_with_small_range() {
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
         start: Some("2023-01-01 00:00:00".to_string()),
         end: Some("2023-01-01 01:00:00".to_string()), // Only 1 hour for 3 commits
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
         skip_range_check: true,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(
         timestamp_result.is_ok(),
         "Should succeed with --skip-range-check: {:?}",
@@ -393,26 +272,17 @@ fn test_skip_range_check_with_5min_minimum_gap() {
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
     // 2 hours for 3 commits - enough room for 5-min gaps with random distribution
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
         start: Some("2023-01-01 00:00:00".to_string()),
         end: Some("2023-01-01 02:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
         skip_range_check: true,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(timestamp_result.is_ok());
 
     let timestamps = timestamp_result.unwrap();
@@ -436,26 +306,16 @@ fn test_skip_range_check_with_5min_minimum_gap() {
 fn test_full_rewrite_mode_invalid_date_format() {
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
         start: Some("invalid-date".to_string()),
         end: Some("2023-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(timestamp_result.is_err());
 }
 
@@ -467,21 +327,8 @@ fn test_workflow_show_history_then_pick_commits() {
     // First, show history
     let args_show = Args {
         repo_path: Some(repo_path.clone()),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
         show_history: true,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let history_result = get_commit_history(&args_show, false);
@@ -492,21 +339,8 @@ fn test_workflow_show_history_then_pick_commits() {
     // Then, switch to pick specific commits mode
     let args_pick = Args {
         repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
-        show_history: false,
         pick_specific_commits: true,
-        range: false,
-        simulate: false,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     let validation_result = validate_inputs(&args_pick);
@@ -523,23 +357,14 @@ fn test_workflow_show_history_then_pick_commits() {
 fn test_simulation_mode_complete_args() {
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: Some("test@example.com".to_string()),
         name: Some("Test User".to_string()),
         start: Some("2025-01-01 00:00:00".to_string()),
         end: Some("2025-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test validation passes for simulation mode with complete args
@@ -547,12 +372,8 @@ fn test_simulation_mode_complete_args() {
     assert!(validation_result.is_ok());
 
     // Test that timestamp generation works in simulation
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(timestamp_result.is_ok());
-
-    // Test that simulation args validation passes
-    let simulation_validation = args.validate_simulation_args();
-    assert!(simulation_validation.is_ok());
 }
 
 #[test]
@@ -563,30 +384,13 @@ fn test_simulation_mode_incomplete_args() {
     // Test simulation with missing required arguments - this is the scenario that caused the panic
     let mut args = Args {
         repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Basic validation should pass for simulation mode
     let validation_result = validate_inputs(&args);
     assert!(validation_result.is_ok());
-
-    // Simulation args validation should pass
-    let simulation_validation = args.validate_simulation_args();
-    assert!(simulation_validation.is_ok());
 
     // ensure_all_args_present should pass for simulation mode even with incomplete args
     let ensure_result = args.ensure_all_args_present();
@@ -604,57 +408,41 @@ fn test_simulation_mode_with_show_diff() {
         name: Some("Test User".to_string()),
         start: Some("2025-01-01 00:00:00".to_string()),
         end: Some("2025-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
         show_diff: true,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test that simulation with show_diff passes validation
     let validation_result = validate_inputs(&args);
     assert!(validation_result.is_ok());
-
-    let simulation_validation = args.validate_simulation_args();
-    assert!(simulation_validation.is_ok());
 }
 
 #[test]
-#[serial]
-fn test_show_diff_without_simulate_fails() {
-    let (_temp_dir, repo_path) = create_test_repo_with_commits();
-
-    let args = Args {
-        repo_path: Some(repo_path),
-        email: Some("test@example.com".to_string()),
-        name: Some("Test User".to_string()),
-        start: Some("2025-01-01 00:00:00".to_string()),
-        end: Some("2025-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
-        simulate: false,
-        show_diff: true,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
-    };
-
-    // Test that show_diff without simulate fails validation
-    let simulation_validation = args.validate_simulation_args();
-    assert!(simulation_validation.is_err());
-
-    let error_msg = simulation_validation.unwrap_err().to_string();
-    assert!(error_msg.contains("--show-diff requires --simulate"));
+fn test_conflicting_modes_are_rejected_by_the_parser() {
+    use clap::Parser;
+    for argv in [
+        vec!["git-editor", "-s", "-x"],
+        vec!["git-editor", "-p", "-x"],
+        vec!["git-editor", "--docs", "-s"],
+        vec!["git-editor", "--simulate", "-s"],
+        vec!["git-editor", "--message"],
+        vec!["git-editor", "--select", "1-2"],
+        vec!["git-editor", "--commit", "1"],
+    ] {
+        assert!(
+            Args::try_parse_from(&argv).is_err(),
+            "{argv:?} should be rejected"
+        );
+    }
+    for argv in [
+        vec!["git-editor", "-x", "--message"],
+        vec!["git-editor", "--simulate", "-x"],
+        vec!["git-editor", "--show-diff", "-x", "--select", "1"],
+        vec!["git-editor", "-p", "--commit", "1", "--set-message", "m"],
+    ] {
+        assert!(Args::try_parse_from(&argv).is_ok(), "{argv:?} should parse");
+    }
 }
 
 #[test]
@@ -666,28 +454,14 @@ fn test_cli_execution_simulate_incomplete_args_no_panic() {
     // by testing the main run() function directly with incomplete simulation args
     let mut args = Args {
         repo_path: Some(repo_path),
-        email: None,
-        name: None,
-        start: None,
-        end: None,
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Mock the Args::parse() result by testing the execution flow manually
     // This tests the exact path that was causing the panic: simulate mode with missing args
 
     // First ensure basic validation passes
-    assert!(args.validate_simulation_args().is_ok());
     assert!(validate_inputs(&args).is_ok());
 
     // Now test the critical path: ensure_all_args_present should pass for simulation mode
@@ -714,26 +488,16 @@ fn test_cli_execution_simulate_complete_args_success() {
         name: Some("Test User".to_string()),
         start: Some("2025-01-01 00:00:00".to_string()),
         end: Some("2025-01-10 00:00:00".to_string()),
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // Test full execution path
     assert!(args.ensure_all_args_present().is_ok());
-    assert!(args.validate_simulation_args().is_ok());
     assert!(validate_inputs(&args).is_ok());
 
     // Test timestamp generation works
-    let timestamp_result = generate_timestamps(&mut args);
+    let timestamp_result = generate_timestamps(&args);
     assert!(timestamp_result.is_ok());
 }
 
@@ -744,23 +508,14 @@ fn test_simulation_execution_function_missing_args() {
     // that was causing the original panic
     let (_temp_dir, repo_path) = create_test_repo_with_commits();
 
-    let mut args = Args {
+    let args = Args {
         repo_path: Some(repo_path),
         email: None, // Missing - should trigger graceful handling
         name: None,  // Missing - should trigger graceful handling
         start: None, // Missing - should trigger graceful handling
         end: None,   // Missing - should trigger graceful handling
-        show_history: false,
-        pick_specific_commits: false,
-        range: false,
         simulate: true,
-        show_diff: false,
-        edit_message: false,
-        edit_author: false,
-        edit_time: false,
-        skip_range_check: false,
-        docs: false,
-        _temp_dir: None,
+        ..Default::default()
     };
 
     // The issue was that the old code called generate_timestamps without checking
@@ -777,7 +532,7 @@ fn test_simulation_execution_function_missing_args() {
     // If all required args are missing, it should handle gracefully
     if args.email.is_some() && args.name.is_some() && args.start.is_some() && args.end.is_some() {
         // Only generate timestamps if we have all required args
-        let timestamp_result = generate_timestamps(&mut args);
+        let timestamp_result = generate_timestamps(&args);
         assert!(timestamp_result.is_ok());
     } else {
         // With missing args, we should not attempt to generate timestamps
@@ -909,37 +664,15 @@ fn test_docs_flag_in_help() {
 
 #[test]
 #[serial]
-fn test_docs_mode_precedence_over_other_modes() {
-    // Test that when docs is specified with other modes, docs takes precedence
+fn test_docs_mode_conflicts_with_other_modes() {
+    // Combining --docs with another mode is a usage error (exit code 2), not silently resolved.
     let output = std::process::Command::new("cargo")
-        .args([
-            "run",
-            "--",
-            "--docs",
-            "--show-history", // These other modes should be ignored
-            "--simulate",
-            "--pick-specific-commits",
-        ])
-        .env("DISPLAY", ":0")
+        .args(["run", "--", "--docs", "--show-history"])
         .env("GIT_EDITOR_NO_BROWSER", "1") // Disable browser opening during tests
         .output()
         .expect("Failed to execute command");
 
-    assert!(output.status.success());
-
-    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(output.status.code(), Some(2));
     let stderr = String::from_utf8(output.stderr).unwrap();
-
-    // Should execute docs mode, not other modes
-    assert!(
-        stdout.contains("📚 Opening Git Editor Documentation")
-            || stderr.contains("📚 Opening Git Editor Documentation"),
-        "Expected docs message. Stdout: {stdout}, Stderr: {stderr}"
-    );
-
-    // Should not contain messages from other modes
-    assert!(
-        !stdout.contains("Showing commit history") && !stderr.contains("Showing commit history"),
-        "Should not show history mode message. Stdout: {stdout}, Stderr: {stderr}"
-    );
+    assert!(stderr.contains("cannot be used with"), "stderr: {stderr}");
 }

@@ -2,30 +2,55 @@ use crate::utils::types::Result;
 use colored::*;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 
-/// Sent from prompt helpers when the user presses Esc; main exits 0 without red Error.
+/// Error message used for a user cancellation (Esc, Ctrl+C, declining a confirmation).
 pub const CANCELLED: &str = "CANCELLED";
+
+/// Exit status for a cancelled operation (same convention as SIGINT).
+pub const EXIT_CANCELLED: i32 = 130;
 
 pub fn is_cancelled(err: &dyn std::error::Error) -> bool {
     err.to_string() == CANCELLED
 }
 
-/// Process exit code for a top-level error (0 = Esc cancel, 1 = failure).
+/// Process exit code for a top-level error (130 = cancelled, 1 = failure).
 pub fn exit_code_for_error(err: &dyn std::error::Error) -> i32 {
     if is_cancelled(err) {
-        0
+        EXIT_CANCELLED
     } else {
         1
     }
 }
 
+/// Report a cancellation and return the error that makes the process exit 130.
+pub fn cancelled() -> Box<dyn std::error::Error> {
+    cancelled_msg();
+    CANCELLED.into()
+}
+
 fn print_esc_hint() {
-    print!(" {}", "(Esc to cancel)".bright_black());
+    crate::say_inline!(" {}", "(Esc to cancel)".bright_black());
 }
 
 /// Read one line with live echo. Esc (or Ctrl+C) returns `Ok(None)`.
+///
+/// When stdin is not a terminal (pipes, CI, agents) a plain line is read
+/// instead; end of input is an error rather than a hang.
 pub fn read_line_allow_esc() -> Result<Option<String>> {
+    if !io::stdin().is_terminal() {
+        let mut line = String::new();
+        if io::stdin().read_line(&mut line)? == 0 {
+            crate::say!();
+            return Err(
+                "No input available (stdin is not a terminal and is closed); pass the values as flags and --yes to confirm"
+                    .into(),
+            );
+        }
+        crate::say!("{}", line.trim_end());
+        return Ok(Some(line.trim_end_matches(['\r', '\n']).to_string()));
+    }
+
     enable_raw_mode().map_err(|e| format!("Failed to enable raw mode: {e}"))?;
 
     let result = (|| -> Result<Option<String>> {
@@ -41,29 +66,29 @@ pub fn read_line_allow_esc() -> Result<Option<String>> {
 
             match key.code {
                 KeyCode::Esc => {
-                    print!("\r\n");
+                    crate::say_inline!("\r\n");
                     let _ = io::stdout().flush();
                     return Ok(None);
                 }
                 KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    print!("\r\n");
+                    crate::say_inline!("\r\n");
                     let _ = io::stdout().flush();
                     return Ok(None);
                 }
                 KeyCode::Enter => {
-                    print!("\r\n");
+                    crate::say_inline!("\r\n");
                     let _ = io::stdout().flush();
                     return Ok(Some(buffer));
                 }
                 KeyCode::Backspace => {
                     if buffer.pop().is_some() {
-                        print!("\x08 \x08");
+                        crate::say_inline!("\x08 \x08");
                         let _ = io::stdout().flush();
                     }
                 }
                 KeyCode::Char(c) => {
                     buffer.push(c);
-                    print!("{c}");
+                    crate::say_inline!("{c}");
                     let _ = io::stdout().flush();
                 }
                 _ => {}
@@ -76,13 +101,13 @@ pub fn read_line_allow_esc() -> Result<Option<String>> {
 }
 
 fn cancelled_msg() {
-    println!("{}", "Operation cancelled.".yellow());
+    crate::say!("{}", "Operation cancelled.".yellow());
 }
 
 pub fn prompt_for_input(prompt: &str) -> Result<String> {
-    print!("{prompt}");
+    crate::say_inline!("{prompt}");
     print_esc_hint();
-    print!(": ");
+    crate::say_inline!(": ");
     io::stdout()
         .flush()
         .map_err(|e| format!("Failed to flush stdout: {e}"))?;
@@ -107,13 +132,13 @@ pub fn prompt_for_missing_arg(arg_name: &str) -> Result<String> {
 
 /// Prompts with a suggested default (dimmed). Enter keeps default; Esc cancels.
 pub fn prompt_with_default(prompt: &str, default_value: &str) -> Result<String> {
-    print!(
+    crate::say_inline!(
         "{}: {} ",
         prompt.yellow().bold(),
         format!("({default_value})").bright_black()
     );
     print_esc_hint();
-    print!(" ");
+    crate::say_inline!(" ");
     io::stdout()
         .flush()
         .map_err(|e| format!("Failed to flush stdout: {e}"))?;
@@ -127,6 +152,32 @@ pub fn prompt_with_default(prompt: &str, default_value: &str) -> Result<String> 
                 Ok(input.to_string())
             }
         }
+        None => {
+            cancelled_msg();
+            Err(CANCELLED.into())
+        }
+    }
+}
+
+/// Ask a yes/no question; `y`/`yes` (any case) confirms. With `assume_yes`
+/// the question is answered automatically (for `--yes`).
+pub fn confirm(question: &str, assume_yes: bool) -> Result<bool> {
+    if assume_yes {
+        crate::say!("{question} {}", "yes (--yes)".green());
+        return Ok(true);
+    }
+    let answer = prompt_for_input(&format!("{question} (yes/no)"))?;
+    Ok(is_yes(&answer))
+}
+
+fn is_yes(answer: &str) -> bool {
+    matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes")
+}
+
+/// Like [`read_prompted_line`] but keeps leading/trailing whitespace.
+pub fn read_prompted_line_raw() -> Result<String> {
+    match read_line_allow_esc()? {
+        Some(input) => Ok(input),
         None => {
             cancelled_msg();
             Err(CANCELLED.into())
@@ -150,17 +201,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_prompt_for_missing_arg_formats_correctly() {
-        let arg_name = "test_arg";
-        assert_eq!(arg_name, "test_arg");
+    fn test_is_yes_accepts_y_and_yes_only() {
+        for yes in ["y", "Y", "yes", "YES", " yes "] {
+            assert!(is_yes(yes), "{yes}");
+        }
+        for no in ["", "n", "no", "yep", "yess"] {
+            assert!(!is_yes(no), "{no}");
+        }
     }
 
     #[test]
-    fn test_prompt_functions_exist() {
-        let _prompt_fn: fn(&str) -> Result<String> = prompt_for_input;
-        let _prompt_missing_fn: fn(&str) -> Result<String> = prompt_for_missing_arg;
-        let _prompt_with_default_fn: fn(&str, &str) -> Result<String> = prompt_with_default;
-        let _read_fn: fn() -> Result<String> = read_prompted_line;
+    fn test_confirm_with_assume_yes_does_not_prompt() {
+        assert!(confirm("Proceed?", true).unwrap());
     }
 
     #[test]
@@ -174,7 +226,7 @@ mod tests {
     #[test]
     fn test_exit_code_for_cancelled_vs_error() {
         let cancelled: Box<dyn std::error::Error> = CANCELLED.into();
-        assert_eq!(exit_code_for_error(cancelled.as_ref()), 0);
+        assert_eq!(exit_code_for_error(cancelled.as_ref()), 130);
 
         let failed: Box<dyn std::error::Error> = "Invalid number".into();
         assert_eq!(exit_code_for_error(failed.as_ref()), 1);
@@ -185,6 +237,6 @@ mod tests {
         // main.rs and prompt helpers must agree on this sentinel
         assert_eq!(CANCELLED, "CANCELLED");
         let err: Box<dyn std::error::Error> = CANCELLED.into();
-        assert_eq!(exit_code_for_error(err.as_ref()), 0);
+        assert_eq!(exit_code_for_error(err.as_ref()), 130);
     }
 }

@@ -1,92 +1,81 @@
-name: Rust CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: '**' 
+    branches: [main, master]
   pull_request:
-    branches: '**' 
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    name: Lint, Format & Test
+  lint:
+    name: Format & Clippy
     runs-on: ubuntu-latest
-
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-
-      - name: 🦀 Set up Rust
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: stable
-          override: true
           components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets --all-features --locked -- -D warnings
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-  
-      - name: 📦 Install dependencies
-        run: cargo fetch
-
-      - name: 🔍 Type check
-        run: cargo check --all --all-targets
-
-      - name: 🧹 Run formatter (cargo fmt)
-        run: cargo fmt --all --check
-
-      - name: 🔎 Run Clippy (Linter)
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: 🧪 Run unit tests
-        run: cargo test --lib --verbose
-
-      - name: 🔧 Run integration tests
-        run: cargo test --test integration_tests --verbose
-
-      - name: 🚀 Run all tests
-        run: cargo test --verbose
-
-  cross-build:
-    name: Cross Compile Binaries
-    needs: check
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
+  test:
+    name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
-
-      - name: 🦀 Set up Rust
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: stable
-          override: true
-          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Install OpenSSL headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+      - run: cargo test --locked
 
-      - name: Install cross (only for Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: cargo install cross --locked
-
-      - name: Build (Native)
-        run: cargo build --release
-
-      - name: Save artifact
-        uses: actions/upload-artifact@v4
+  msrv:
+    name: MSRV (1.87)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          name: binary-${{ matrix.os }}
-          path: |
-            target/release/git-editor
-            target/release/git-editor.exe
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: "1.87"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+      - run: cargo check --locked --all-targets
+
+  deny:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          command: check

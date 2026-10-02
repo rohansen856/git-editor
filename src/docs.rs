@@ -2,41 +2,60 @@ use crate::utils::types::Result;
 use colored::*;
 use std::fs;
 
-pub fn execute_docs_operation() -> Result<()> {
-    println!("{}", "📚 Opening Git Editor Documentation...".cyan().bold());
+/// Write the HTML docs to `out` (or a fresh, uniquely named temp file) and open it.
+pub fn execute_docs_operation(out: Option<&str>) -> Result<()> {
+    crate::say!("{}", "📚 Opening Git Editor Documentation...".cyan().bold());
 
     let docs_html = generate_comprehensive_docs()?;
 
-    // Create a temporary HTML file
-    let temp_dir = std::env::temp_dir();
-    let docs_file = temp_dir.join("git-editor-docs.html");
+    let docs_file = match out {
+        Some(path) => {
+            fs::write(path, docs_html)?;
+            std::path::PathBuf::from(path)
+        }
+        None => {
+            // Unique name, created exclusively: no clobbering through a planted symlink.
+            let mut file = tempfile::Builder::new()
+                .prefix("git-editor-docs-")
+                .suffix(".html")
+                .tempfile()?;
+            std::io::Write::write_all(&mut file, docs_html.as_bytes())?;
+            file.keep().map_err(|e| e.error)?.1
+        }
+    };
 
-    fs::write(&docs_file, docs_html)?;
+    if crate::output::json_mode() {
+        crate::output::emit(&serde_json::json!({
+            "ok": true,
+            "command": "docs",
+            "path": docs_file.display().to_string(),
+        }));
+    }
 
     // Open the file in the default browser
     match open_in_browser(&docs_file) {
         Ok(_) => {
-            println!(
+            crate::say!(
                 "{}",
                 "✅ Documentation opened in your default browser!"
                     .green()
                     .bold()
             );
-            println!(
+            crate::say!(
                 "{}",
                 format!("📍 File location: {}", docs_file.display()).dimmed()
             );
         }
         Err(_) => {
-            println!(
+            crate::say!(
                 "{}",
                 "⚠️  Could not open browser automatically.".yellow().bold()
             );
-            println!(
+            crate::say!(
                 "{}",
                 format!("📁 Documentation saved at: {}", docs_file.display()).cyan()
             );
-            println!(
+            crate::say!(
                 "{}",
                 "💡 You can manually open this file in your browser.".dimmed()
             );

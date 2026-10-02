@@ -3,8 +3,28 @@ use crate::{args::Args, utils::types::CommitInfo};
 use colored::Colorize;
 use git2::{Repository, Sort};
 
+fn naive_utc(seconds: i64) -> chrono::NaiveDateTime {
+    chrono::DateTime::from_timestamp(seconds, 0)
+        .unwrap_or_default()
+        .naive_utc()
+}
+
 pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
     let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
+
+    // An unborn branch (fresh `git init`) simply has no history.
+    match repo.head() {
+        Ok(_) => {}
+        Err(e)
+            if matches!(
+                e.code(),
+                git2::ErrorCode::UnbornBranch | git2::ErrorCode::NotFound
+            ) =>
+        {
+            return Ok(Vec::new())
+        }
+        Err(e) => return Err(e.into()),
+    }
 
     let mut revwalk = repo.revwalk()?;
     revwalk.push_head()?;
@@ -17,23 +37,24 @@ pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
     for oid_result in revwalk {
         let oid = oid_result?;
         let commit = repo.find_commit(oid)?;
-        let timestamp = commit.time();
-        let datetime = chrono::DateTime::from_timestamp(timestamp.seconds(), 0)
-            .unwrap_or_default()
-            .naive_utc();
-
-        let commit_info = CommitInfo {
-            oid,
-            short_hash: oid.to_string()[..8].to_string(),
-            timestamp: datetime,
-            author_name: commit.author().name().unwrap_or("Unknown").to_string(),
-            author_email: commit
-                .author()
-                .email()
-                .unwrap_or("unknown@email.com")
-                .to_string(),
-            message: commit.message().unwrap_or("(no message)").to_string(),
-            parent_count: commit.parent_count(),
+        let commit_info = {
+            let author = commit.author();
+            let committer = commit.committer();
+            CommitInfo {
+                oid,
+                short_hash: oid.to_string()[..8].to_string(),
+                timestamp: naive_utc(author.when().seconds()),
+                author_offset_min: author.when().offset_minutes(),
+                author_name: String::from_utf8_lossy(author.name_bytes()).into_owned(),
+                author_email: String::from_utf8_lossy(author.email_bytes()).into_owned(),
+                committer_name: String::from_utf8_lossy(committer.name_bytes()).into_owned(),
+                committer_email: String::from_utf8_lossy(committer.email_bytes()).into_owned(),
+                committer_timestamp: naive_utc(committer.when().seconds()),
+                committer_offset_min: committer.when().offset_minutes(),
+                message: String::from_utf8_lossy(commit.message_bytes()).into_owned(),
+                message_is_utf8: commit.message().is_ok(),
+                parent_count: commit.parent_count(),
+            }
         };
 
         if print {
@@ -59,31 +80,31 @@ pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
                 commit_infos.iter().map(|c| c.author_name.clone()).collect();
 
             // Print summary
-            println!("\n{}", "Updated Commit History Summary:".bold().green());
-            println!("{}", "-".repeat(60).cyan());
-            println!(
+            crate::say!("\n{}", "Commit History Summary:".bold().green());
+            crate::say!("{}", "-".repeat(60).cyan());
+            crate::say!(
                 "{}: {}",
                 "Total Commits".bold(),
                 total_commits.to_string().yellow()
             );
-            println!(
+            crate::say!(
                 "{}: {} days",
                 "Date Span".bold(),
                 date_span.to_string().yellow()
             );
-            println!(
+            crate::say!(
                 "{}: {} to {}",
                 "Date Range".bold(),
                 earliest_date.format("%Y-%m-%d %H:%M:%S").to_string().blue(),
                 latest_date.format("%Y-%m-%d %H:%M:%S").to_string().blue()
             );
-            println!(
+            crate::say!(
                 "{}: {}",
                 "Unique Authors".bold(),
                 unique_authors.len().to_string().yellow()
             );
             if unique_authors.len() <= 5 {
-                println!(
+                crate::say!(
                     "{}: {}",
                     "Authors".bold(),
                     unique_authors
@@ -94,14 +115,14 @@ pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
                         .magenta()
                 );
             }
-            println!("{}", "=".repeat(60).cyan());
+            crate::say!("{}", "=".repeat(60).cyan());
 
             // Print detailed commit history
-            println!("\n{}", "Detailed Commit History:".bold().green());
-            println!("{}", "-".repeat(60).cyan());
+            crate::say!("\n{}", "Detailed Commit History:".bold().green());
+            crate::say!("{}", "-".repeat(60).cyan());
 
             for commit_info in &commit_infos {
-                println!(
+                crate::say!(
                     "{} {} {} {}",
                     commit_info.short_hash.yellow().bold(),
                     commit_info
@@ -109,12 +130,13 @@ pub fn get_commit_history(args: &Args, print: bool) -> Result<Vec<CommitInfo>> {
                         .format("%Y-%m-%d %H:%M:%S")
                         .to_string()
                         .blue(),
-                    commit_info.author_name.magenta(),
-                    commit_info.message.lines().next().unwrap_or("").white()
+                    crate::utils::sanitize::safe(&commit_info.author_name).magenta(),
+                    crate::utils::sanitize::safe(commit_info.message.lines().next().unwrap_or(""))
+                        .white()
                 );
             }
 
-            println!("{}", "=".repeat(60).cyan());
+            crate::say!("{}", "=".repeat(60).cyan());
         }
     }
 
@@ -182,21 +204,7 @@ mod tests {
         let (_temp_dir, repo_path) = create_test_repo_with_commits();
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = get_commit_history(&args, false);
@@ -216,21 +224,8 @@ mod tests {
         let (_temp_dir, repo_path) = create_test_repo_with_commits();
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
             show_history: true,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = get_commit_history(&args, true);
@@ -245,21 +240,7 @@ mod tests {
         let (_temp_dir, repo_path) = create_test_repo_with_commits();
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = get_commit_history(&args, false);
@@ -287,47 +268,19 @@ mod tests {
 
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
-        let result = get_commit_history(&args, false);
-        // Empty repo should return error because there's no HEAD
-        assert!(result.is_err());
+        // An unborn branch has no history; callers report "No commits found".
+        let commits = get_commit_history(&args, false).unwrap();
+        assert!(commits.is_empty());
     }
 
     #[test]
     fn test_get_commit_history_invalid_repo() {
         let args = Args {
             repo_path: Some("/nonexistent/path".to_string()),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = get_commit_history(&args, false);
@@ -339,21 +292,7 @@ mod tests {
         let (_temp_dir, repo_path) = create_test_repo_with_commits();
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = get_commit_history(&args, false);

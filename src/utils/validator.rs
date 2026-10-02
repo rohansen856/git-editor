@@ -1,7 +1,8 @@
 use crate::args::Args;
+pub use crate::rewrite::engine::validate_identity_part;
+use crate::utils::dates::parse_git_time;
 use crate::utils::types::Result;
 use regex::Regex;
-use url::Url;
 
 /// Same email rules used by CLI validation and the range TUI.
 pub fn is_valid_email(email: &str) -> bool {
@@ -22,31 +23,41 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     if repo_path.is_empty() {
         return Err("Repository path cannot be empty".into());
     }
-    if Url::parse(repo_path).is_err() && !std::path::Path::new(repo_path).exists() {
-        return Err(format!("Invalid repository path or URL: {repo_path}").into());
+    // URLs were already cloned by `Args::ensure_all_args_present`, so anything
+    // left here must be a local repository.
+    let path = std::path::Path::new(repo_path);
+    if !path.exists() {
+        return Err(format!("Repository path does not exist: {repo_path}").into());
     }
-    if std::path::Path::new(repo_path).exists() {
-        if !std::path::Path::new(repo_path).is_dir() {
-            return Err(format!("Repository path is not a directory: {repo_path}").into());
+    if let Err(e) = git2::Repository::open(path) {
+        return Err(format!("Not a Git repository: {repo_path} ({})", e.message()).into());
+    }
+
+    // A dry run still rejects values that a real run would reject.
+    if args.simulate {
+        if let Some(email) = &args.email {
+            if !is_valid_email(email) {
+                return Err(format!("Invalid email format: {email}").into());
+            }
         }
-        if !std::path::Path::new(repo_path).join(".git").exists() {
-            return Err(format!(
-                "Repository path does not contain a valid Git repository: {repo_path}"
-            )
-            .into());
+        if let Some(name) = &args.name {
+            validate_identity_part(name, "Name")?;
+        }
+        for (flag, value) in [("start", &args.start), ("end", &args.end)] {
+            if let Some(value) = value {
+                parse_git_time(value).map_err(|e| format!("Invalid {flag} date: {e}"))?;
+            }
         }
     }
 
-    // Skip validation for email, name, start, end if using show_history, pick_specific_commits, range, simulate, or docs
+    // Other modes validate their own inputs (or are read-only).
     if args.show_history || args.pick_specific_commits || args.range || args.simulate || args.docs {
         return Ok(());
     }
 
     // Validate email, name, start, end only for full rewrite operations
-    let email = args.email.as_ref().unwrap();
-    let name = args.name.as_ref().unwrap();
-    let start = args.start.as_ref().unwrap();
-    let end = args.end.as_ref().unwrap();
+    let email = args.email.as_ref().ok_or("Missing --email")?;
+    let name = args.name.as_ref().ok_or("Missing --name")?;
 
     if !is_valid_email(email) {
         return Err(format!("Invalid email format: {email}").into());
@@ -55,29 +66,30 @@ pub fn validate_inputs(args: &Args) -> Result<()> {
     if name.trim().is_empty() {
         return Err("Name cannot be empty".into());
     }
+    validate_identity_part(name, "Name")?;
 
-    // Allow special "KEEP_ORIGINAL" value to skip timestamp validation
-    if start != "KEEP_ORIGINAL" {
-        let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
-        if !start_re.is_match(start) {
+    if args.keep_dates {
+        if args.start.is_some() || args.end.is_some() {
+            return Err("--keep-dates cannot be combined with --begin/--end".into());
+        }
+        return Ok(());
+    }
+
+    let start = args.start.as_ref().ok_or("Missing --begin")?;
+    let end = args.end.as_ref().ok_or("Missing --end")?;
+    for (flag, value) in [("--begin", start), ("--end", end)] {
+        if value == "KEEP_ORIGINAL" {
             return Err(format!(
-                "Invalid start date format (expected YYYY-MM-DD HH:MM:SS): {start}"
+                "{flag} KEEP_ORIGINAL is no longer supported; use --keep-dates instead"
             )
             .into());
         }
     }
 
-    if end != "KEEP_ORIGINAL" {
-        let end_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")?;
-        if !end_re.is_match(end) {
-            return Err(
-                format!("Invalid end date format (expected YYYY-MM-DD HH:MM:SS): {end}").into(),
-            );
-        }
-    }
+    let start_time = parse_git_time(start).map_err(|e| format!("Invalid start date: {e}"))?;
+    let end_time = parse_git_time(end).map_err(|e| format!("Invalid end date: {e}"))?;
 
-    // Skip date comparison if using KEEP_ORIGINAL
-    if start != "KEEP_ORIGINAL" && end != "KEEP_ORIGINAL" && start >= end {
+    if start_time.seconds >= end_time.seconds {
         return Err("Start date must be before end date".into());
     }
 
@@ -126,21 +138,8 @@ mod tests {
         let (_temp_dir, repo_path) = create_test_repo();
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
             show_history: true,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = validate_inputs(&args);
@@ -152,21 +151,8 @@ mod tests {
         let (_temp_dir, repo_path) = create_test_repo();
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
             pick_specific_commits: true,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = validate_inputs(&args);
@@ -182,17 +168,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = validate_inputs(&args);
@@ -208,17 +184,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         // This test would normally call process::exit, so we can't test it directly
@@ -237,17 +203,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("invalid-date".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let start_re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$").unwrap();
@@ -263,17 +219,7 @@ mod tests {
             name: Some("Test User".to_string()),
             start: Some("2023-01-01 00:00:00".to_string()),
             end: Some("2023-01-02 00:00:00".to_string()),
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         // This would normally call process::exit, so we test the path validation logic
@@ -370,21 +316,8 @@ mod tests {
         let (_temp_dir, repo_path) = create_test_repo_with_commits();
         let args = Args {
             repo_path: Some(repo_path),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
             range: true,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = validate_inputs(&args);
@@ -396,21 +329,8 @@ mod tests {
         // Test that docs mode skips all validation, even with invalid/missing data
         let args = Args {
             repo_path: None, // Missing repo path would normally fail
-            email: None,
-            name: None,
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
             docs: true,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = validate_inputs(&args);
@@ -423,20 +343,9 @@ mod tests {
         let args = Args {
             repo_path: Some("/completely/invalid/path/that/does/not/exist".to_string()),
             email: Some("invalid-email".to_string()), // Invalid email format
-            name: None,
-            start: Some("invalid-date".to_string()), // Invalid date format
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
+            start: Some("invalid-date".to_string()),  // Invalid date format
             docs: true,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = validate_inputs(&args);
@@ -448,24 +357,84 @@ mod tests {
         // Test that docs mode takes precedence over other modes
         let args = Args {
             repo_path: Some("/invalid/path".to_string()),
-            email: None,
-            name: None,
-            start: None,
-            end: None,
             show_history: true, // Other modes are set but docs should take precedence
             pick_specific_commits: true,
             range: true,
             simulate: true,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
             docs: true, // Docs mode should skip all validation
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let result = validate_inputs(&args);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_keep_dates_needs_no_begin_end() {
+        let (_temp_dir, repo_path) = create_test_repo();
+        let args = Args {
+            repo_path: Some(repo_path),
+            email: Some("new@example.com".to_string()),
+            name: Some("New".to_string()),
+            keep_dates: true,
+            ..Default::default()
+        };
+        assert!(validate_inputs(&args).is_ok());
+    }
+
+    #[test]
+    fn test_keep_dates_conflicts_with_begin_end() {
+        let (_temp_dir, repo_path) = create_test_repo();
+        let args = Args {
+            repo_path: Some(repo_path),
+            email: Some("new@example.com".to_string()),
+            name: Some("New".to_string()),
+            start: Some("2023-01-01 00:00:00".to_string()),
+            keep_dates: true,
+            ..Default::default()
+        };
+        assert!(validate_inputs(&args).is_err());
+    }
+
+    #[test]
+    fn test_keep_original_sentinel_is_rejected() {
+        let (_temp_dir, repo_path) = create_test_repo();
+        let args = Args {
+            repo_path: Some(repo_path),
+            email: Some("new@example.com".to_string()),
+            name: Some("New".to_string()),
+            start: Some("KEEP_ORIGINAL".to_string()),
+            end: Some("KEEP_ORIGINAL".to_string()),
+            ..Default::default()
+        };
+        let err = validate_inputs(&args).unwrap_err().to_string();
+        assert!(err.contains("--keep-dates"), "{err}");
+    }
+
+    #[test]
+    fn test_name_with_newline_is_rejected() {
+        let (_temp_dir, repo_path) = create_test_repo();
+        let args = Args {
+            repo_path: Some(repo_path),
+            email: Some("new@example.com".to_string()),
+            name: Some("New\nInjected: header".to_string()),
+            keep_dates: true,
+            ..Default::default()
+        };
+        let err = validate_inputs(&args).unwrap_err().to_string();
+        assert!(err.contains("invalid character"), "{err}");
+    }
+
+    #[test]
+    fn test_simulation_rejects_invalid_email() {
+        let (_temp_dir, repo_path) = create_test_repo();
+        let args = Args {
+            repo_path: Some(repo_path),
+            email: Some("bogus".to_string()),
+            name: Some("N".to_string()),
+            simulate: true,
+            ..Default::default()
+        };
+        assert!(validate_inputs(&args).is_err());
     }
 }

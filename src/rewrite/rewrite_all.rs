@@ -1,88 +1,92 @@
-use crate::utils::message_trailers::rewrite_author_trailers;
+use crate::args::Args;
+use crate::rewrite::engine::{self, CommitterMode, Edit, GitTime, Outcome, Plan};
+use crate::rewrite::report::print_outcome;
+use crate::utils::dates::parse_git_time;
 use crate::utils::types::Result;
-use crate::{args::Args, utils::commit_history::get_commit_history};
 use chrono::NaiveDateTime;
-use colored::Colorize;
-use git2::{Repository, Signature, Sort, Time};
-use std::collections::HashMap;
+use git2::{Oid, Repository};
 
-pub fn rewrite_all_commits(args: &Args, timestamps: Vec<NaiveDateTime>) -> Result<()> {
-    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
-    let head_ref = repo.head()?;
-    let branch_name = head_ref
-        .shorthand()
-        .ok_or("Detached HEAD or invalid branch")?;
-    let full_ref = format!("refs/heads/{branch_name}");
-
-    let new_name = args.name.as_ref().unwrap();
-    let new_email = args.email.as_ref().unwrap();
-
-    let mut revwalk = repo.revwalk()?;
-    revwalk.push_head()?;
-    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
-    let mut orig_oids: Vec<_> = revwalk.collect::<std::result::Result<Vec<_>, _>>()?;
-    orig_oids.reverse();
-
-    let mut new_map: HashMap<git2::Oid, git2::Oid> = HashMap::new();
-    let mut last_new_oid = None;
-
-    for (i, &oid) in orig_oids.iter().enumerate() {
-        let orig = repo.find_commit(oid)?;
-        let tree = orig.tree()?;
-
-        let new_parents: Result<Vec<_>> = orig
-            .parent_ids()
-            .map(|pid| {
-                let new_pid = *new_map.get(&pid).unwrap_or(&pid);
-                repo.find_commit(new_pid).map_err(|e| e.into())
-            })
-            .collect();
-
-        let timestamp: i64 = timestamps[i].and_utc().timestamp();
-        let sig = Signature::new(new_name, new_email, &Time::new(timestamp, 0))?;
-
-        let old_author = orig.author();
-        let message = rewrite_author_trailers(
-            orig.message().unwrap_or_default(),
-            old_author.name().unwrap_or(""),
-            old_author.email().unwrap_or(""),
-            new_name,
-            new_email,
-        );
-
-        let new_oid = repo.commit(
-            None,
-            &sig,
-            &sig,
-            &message,
-            &tree,
-            &new_parents?.iter().collect::<Vec<_>>(),
-        )?;
-
-        new_map.insert(oid, new_oid);
-        last_new_oid = Some(new_oid);
-    }
-
-    if let Some(new_head) = last_new_oid {
-        repo.reference(&full_ref, new_head, true, "history rewritten")?;
-        println!(
-            "{} '{}' -> {}",
-            "Rewritten branch".green(),
-            branch_name.cyan(),
-            new_head.to_string().cyan()
-        );
-        if args.show_history {
-            get_commit_history(args, true)?;
+/// Plan that gives every commit reachable from `tip` the new identity.
+///
+/// `timestamps` (UTC instants, oldest commit first) replaces each author date
+/// and is written with `offset_minutes`; `None` keeps every commit's own date
+/// and time-zone offset.
+pub fn full_rewrite_plan(
+    repo: &Repository,
+    tip: Oid,
+    name: &str,
+    email: &str,
+    timestamps: Option<&[NaiveDateTime]>,
+    offset_minutes: i32,
+    committer: CommitterMode,
+) -> Result<Plan> {
+    let history = engine::history(repo, tip)?;
+    if let Some(ts) = timestamps {
+        if ts.len() != history.len() {
+            return Err(format!(
+                "Planned {} timestamps for {} commits; the history changed, re-run the command",
+                ts.len(),
+                history.len()
+            )
+            .into());
         }
     }
+    let edits = history
+        .iter()
+        .enumerate()
+        .map(|(i, oid)| {
+            let edit = Edit {
+                name: Some(name.to_string()),
+                email: Some(email.to_string()),
+                time: timestamps
+                    .map(|ts| GitTime::new(ts[i].and_utc().timestamp(), offset_minutes)),
+                message: None,
+            };
+            (*oid, edit)
+        })
+        .collect();
+    Ok(Plan { edits, committer })
+}
 
-    Ok(())
+/// Offset (minutes) given with `--begin`, used for generated timestamps; `0` = UTC.
+pub fn begin_offset(args: &Args) -> i32 {
+    args.start
+        .as_deref()
+        .and_then(|s| parse_git_time(s).ok())
+        .map_or(0, |t| t.offset_minutes)
+}
+
+/// Rewrite every commit on the current branch, which must still be at `expected_head`.
+pub fn rewrite_all_commits(
+    args: &Args,
+    timestamps: Option<&[NaiveDateTime]>,
+    expected_head: Oid,
+) -> Result<Outcome> {
+    let repo = Repository::open(args.repo_path.as_ref().unwrap())?;
+    let plan = full_rewrite_plan(
+        &repo,
+        expected_head,
+        args.name.as_ref().unwrap(),
+        args.email.as_ref().unwrap(),
+        timestamps,
+        begin_offset(args),
+        args.committer.into(),
+    )?;
+    apply_plan(&repo, &plan, expected_head)
+}
+
+/// Apply a previously previewed plan and report the result.
+pub fn apply_plan(repo: &Repository, plan: &Plan, expected_head: Oid) -> Result<Outcome> {
+    let outcome = engine::apply(repo, plan, expected_head)?;
+    print_outcome(&outcome);
+    Ok(outcome)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::NaiveDate;
+    use git2::{Signature, Time};
     use std::fs;
     use tempfile::TempDir;
 
@@ -119,26 +123,15 @@ mod tests {
             repo_path: Some(repo_path.clone()),
             email: Some("new@example.com".to_string()),
             name: Some("New Author".to_string()),
-            start: None,
-            end: None,
-            show_history: false,
-            pick_specific_commits: false,
-            range: false,
-            simulate: false,
-            show_diff: false,
-            edit_message: false,
-            edit_author: false,
-            edit_time: false,
-            skip_range_check: false,
-            docs: false,
-            _temp_dir: None,
+            ..Default::default()
         };
 
         let ts = NaiveDate::from_ymd_opt(2024, 1, 1)
             .unwrap()
             .and_hms_opt(12, 0, 0)
             .unwrap();
-        rewrite_all_commits(&args, vec![ts]).unwrap();
+        let head = repo.head().unwrap().target().unwrap();
+        rewrite_all_commits(&args, Some(&[ts]), head).unwrap();
 
         let repo = Repository::open(&repo_path).unwrap();
         let tip = repo.head().unwrap().peel_to_commit().unwrap();
@@ -148,6 +141,6 @@ mod tests {
             "expected rewritten Signed-off-by, got: {msg}"
         );
         assert!(!msg.contains("old@example.com"));
-        assert_eq!(tip.author().email(), Some("new@example.com"));
+        assert_eq!(tip.author().email().ok(), Some("new@example.com"));
     }
 }
